@@ -1,0 +1,10 @@
+name = "owl-lean"
+version = "0.1.0"
+defaultTargets = ["owl-lean"]
+
+[[lean_lib]]
+name = "OwlLean"
+
+[[lean_exe]]
+name = "owl-lean"
+root = "Main"
