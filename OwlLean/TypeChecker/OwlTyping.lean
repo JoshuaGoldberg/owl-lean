@@ -19,4 +19,16 @@ def empty_phi : (phi_context l) := []
 
 def lift_delta (Delta : Fin (d + 1) -> ty l d)
   : delta_context l (d + 1)
-  := fun i => ren_ty id shift (Delta i).
+  := fun i => ren_ty id shift (Delta i)
+
+def lift_delta_l (Delta : delta_context l d)
+  : delta_context (l + 1) d
+  := fun i => ren_ty shift id (Delta i)
+
+def lift_gamma (Gamma : gamma_context l d m)
+  : gamma_context l (d + 1) m
+  := fun i => ren_ty id shift (Gamma i)
+
+def lift_gamma_l (Gamma : gamma_context l d m)
+  : gamma_context (l + 1) d m
+  := fun i => ren_ty shift id (Gamma i)

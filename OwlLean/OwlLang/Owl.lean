@@ -27,7 +27,7 @@ inductive cond_sym : Type
 | nlt : cond_sym
 
 inductive label : Nat -> Type where
-| varLabel : Fin n -> label n
+| var_label : Fin n -> label n
 | latl : Lcarrier -> label n
 | ljoin : label n -> label n -> label n
 | lmeet : label n -> label n -> label n
@@ -92,5 +92,82 @@ inductive tm : Nat -> Nat -> Type where
 -- sanity checks
 #check (tm.error : tm 0 0)
 #check (ty.Any : ty 0 0)
+
+def ren (m n : Nat) : Type := Fin m → Fin n
+
+def shift : ren n (n + 1) :=
+  fun x => Fin.succ x
+
+def var_zero : Fin (n + 1) :=
+  0
+
+def funcomp (f : ren n k) (g : ren m n) : ren m k :=
+  fun x => f (g x)
+
+def cons (x : X) (f : Fin n -> X) (m : Fin (n + 1)) : X :=
+  match m with
+  | ⟨0,_⟩ => x
+  | ⟨k+1, hk⟩ =>
+      have hk' : k < n := Nat.lt_of_succ_lt_succ hk
+      let i : Fin n := ⟨k, hk'⟩
+      (f i)
+
+def up_ren (xi : ren m n) : ren (m + 1) (n + 1) :=
+  cons var_zero (funcomp shift xi)
+
+def upRen_ty_label (xi : Fin m → Fin n) : Fin m → Fin n :=
+  xi
+
+def upRen_ty_ty (xi : Fin m → Fin n) : Fin (m + 1) → Fin (n + 1) :=
+  up_ren xi
+
+def upRen_label_label (xi : Fin m -> Fin n) : Fin (m + 1) -> Fin (n + 1) :=
+  up_ren xi
+
+def upRen_label_ty (xi : Fin m -> Fin n) : Fin m -> Fin n :=
+  xi
+
+def ren_label
+  (xi_label : Fin m_label → Fin n_label)
+  (s : label m_label) : label n_label :=
+  match s with
+  | .var_label s0 => label.var_label (xi_label s0)
+  | .latl s0 => label.latl s0
+  | .ljoin s0 s1 => label.ljoin (ren_label xi_label s0) (ren_label xi_label s1)
+  | .lmeet s0 s1 => label.lmeet (ren_label xi_label s0) (ren_label xi_label s1)
+
+def ren_constr
+  (xi_label : Fin m_label -> Fin n_label) (s : constr m_label) :
+  constr n_label :=
+  match s with
+  | .condition s0 s1 s2 => .condition s0 (ren_label xi_label s1) (ren_label xi_label s2)
+
+def ren_ty
+(xi_label : Fin m_label -> Fin n_label) (xi_ty : Fin m_ty -> Fin n_ty)
+(s : ty m_label m_ty) : ty n_label n_ty :=
+  match s with
+  | .var_ty s0 => .var_ty (xi_ty s0)
+  | .Any => .Any
+  | .Unit => .Unit
+  | .Data s0 => .Data (ren_label xi_label s0)
+  | .Ref s0 => .Ref (ren_ty xi_label xi_ty s0)
+  | .arr s0 s1 =>
+      .arr (ren_ty xi_label xi_ty s0) (ren_ty xi_label xi_ty s1)
+  | .prod s0 s1 =>
+      .prod (ren_ty xi_label xi_ty s0) (ren_ty xi_label xi_ty s1)
+  | .sum s0 s1 =>
+      .sum (ren_ty xi_label xi_ty s0) (ren_ty xi_label xi_ty s1)
+  | .all s0 s1 =>
+      .all (ren_ty xi_label xi_ty s0)
+        (ren_ty (upRen_ty_label xi_label) (upRen_ty_ty xi_ty) s1)
+  | .ex s0 s1 =>
+      .ex (ren_ty xi_label xi_ty s0)
+        (ren_ty (upRen_ty_label xi_label) (upRen_ty_ty xi_ty) s1)
+  | .all_l s0 s1 s2 =>
+      .all_l s0 (ren_label xi_label s1)
+        (ren_ty (upRen_label_label xi_label) (upRen_label_ty xi_ty) s2)
+  | .t_if s0 s1 s2 =>
+      .t_if (ren_constr xi_label s0) (ren_ty xi_label xi_ty s1)
+        (ren_ty xi_label xi_ty s2)
 
 end Owl
