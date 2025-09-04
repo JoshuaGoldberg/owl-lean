@@ -289,9 +289,11 @@ inductive has_type : (Phi : phi_context l) -> (Delta : delta_context l d) -> (Ga
   has_type Phi Delta Gamma e t ->
   has_type Phi Delta Gamma e t'
 
-theorem simple_var_typing
-       (x : Fin m) : has_type Phi Delta Gamma (.var_tm x) (Gamma x) :=
-  has_type.T_Var x
+theorem simple_var_typing :
+  forall x Phi Delta (Gamma : gamma_context l d m),
+     has_type Phi Delta Gamma (.var_tm x) (Gamma x) := by
+  intro x Phi Delta Gamma
+  exact has_type.T_Var x
 
 theorem concrete_typing : @has_type 0 0 0 empty_phi empty_delta empty_gamma .skip .Unit :=
   has_type.T_IUnit
