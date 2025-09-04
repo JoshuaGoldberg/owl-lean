@@ -170,4 +170,15 @@ def ren_ty
       .t_if (ren_constr xi_label s0) (ren_ty xi_label xi_ty s1)
         (ren_ty xi_label xi_ty s2)
 
+def subst_label
+(sigma_label : Fin m_label -> label n_label) (s : label m_label) :
+label n_label :=
+  match s with
+  | .var_label s0 => sigma_label s0
+  | .latl s0 => .latl s0
+  | .ljoin s0 s1 =>
+      .ljoin (subst_label sigma_label s0) (subst_label sigma_label s1)
+  | .lmeet s0 s1 =>
+      .lmeet (subst_label sigma_label s0) (subst_label sigma_label s1)
+
 end Owl
