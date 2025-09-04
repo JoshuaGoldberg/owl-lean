@@ -101,8 +101,8 @@ def shift : ren n (n + 1) :=
 def var_zero : Fin (n + 1) :=
   0
 
-def funcomp (f : ren n k) (g : ren m n) : ren m k :=
-  fun x => f (g x)
+def funcomp (g : Y -> Z) (f : X -> Y) :=
+  fun x => g (f x)
 
 def cons (x : X) (f : Fin n -> X) (m : Fin (n + 1)) : X :=
   match m with
@@ -180,5 +180,63 @@ label n_label :=
       .ljoin (subst_label sigma_label s0) (subst_label sigma_label s1)
   | .lmeet s0 s1 =>
       .lmeet (subst_label sigma_label s0) (subst_label sigma_label s1)
+
+def subst_constr
+  (sigma_label : Fin m_label -> label n_label) (s : constr m_label) :
+  constr n_label :=
+  match s with
+  | .condition s0 s1 s2 =>
+      .condition s0 (subst_label sigma_label s1)
+        (subst_label sigma_label s2)
+
+def up_ty_label (sigma : Fin m -> label n_label)
+  : Fin m -> label n_label :=
+    (funcomp (ren_label id) sigma)
+
+def up_ty_ty
+  (sigma : Fin m -> ty n_label n_ty) : Fin (m + 1) -> ty n_label (n_ty + 1) :=
+    (cons (.var_ty var_zero)
+         (funcomp (ren_ty id shift) sigma))
+
+def up_label_label
+  (sigma : Fin m -> label n_label) : Fin (m + 1) -> label (n_label + 1) :=
+    (cons (.var_label var_zero)
+         (funcomp (ren_label shift) sigma))
+
+def up_label_ty
+  (sigma : Fin m -> ty n_label n_ty) : Fin m -> ty (n_label + 1) n_ty :=
+    (funcomp (ren_ty shift id) sigma)
+
+def subst_ty
+(sigma_label : Fin m_label -> label n_label)
+(sigma_ty : Fin m_ty -> ty n_label n_ty) (s : ty m_label m_ty) :
+ty n_label n_ty :=
+  match s with
+  | .var_ty s0 => sigma_ty s0
+  | .Any => .Any
+  | .Unit => .Unit
+  | .Data s0 => .Data (subst_label sigma_label s0)
+  | .Ref s0 => .Ref (subst_ty sigma_label sigma_ty s0)
+  | .arr s0 s1 =>
+      .arr (subst_ty sigma_label sigma_ty s0)
+        (subst_ty sigma_label sigma_ty s1)
+  | .prod s0 s1 =>
+      .prod (subst_ty sigma_label sigma_ty s0)
+        (subst_ty sigma_label sigma_ty s1)
+  | .sum s0 s1 =>
+      .sum (subst_ty sigma_label sigma_ty s0)
+        (subst_ty sigma_label sigma_ty s1)
+  | .all s0 s1 =>
+      .all (subst_ty sigma_label sigma_ty s0)
+        (subst_ty (up_ty_label sigma_label) (up_ty_ty sigma_ty) s1)
+  | .ex s0 s1 =>
+      .ex (subst_ty sigma_label sigma_ty s0)
+        (subst_ty (up_ty_label sigma_label) (up_ty_ty sigma_ty) s1)
+  | .all_l s0 s1 s2 =>
+      .all_l s0 (subst_label sigma_label s1)
+        (subst_ty (up_label_label sigma_label) (up_label_ty sigma_ty) s2)
+  | .t_if s0 s1 s2 =>
+      .t_if (subst_constr sigma_label s0)
+        (subst_ty sigma_label sigma_ty s1) (subst_ty sigma_label sigma_ty s2)
 
 end Owl

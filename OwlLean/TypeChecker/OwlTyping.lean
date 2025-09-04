@@ -181,3 +181,110 @@ inductive subtype : (phi_context l) -> (delta_context l d) ->
   subtype (co :: Phi) Delta t t' ->
   subtype ((negate_cond co) :: Phi) Delta t t' ->
   subtype Phi Delta t t'
+
+def last_var l : Fin (l + 1) :=
+  match l with
+  | 0   => 0
+  | n + 1 => (last_var n).succ
+
+def adv (pf : l > 0) : label l :=
+  match l with
+  | 0 => by contradiction
+  | n + 1 => .var_label (last_var n)
+
+theorem three_proof :
+  3 > 0 := by
+    simp
+
+-- Typing rules for Owl
+inductive has_type : (Phi : phi_context l) -> (Delta : delta_context l d) -> (Gamma : gamma_context l d m) ->
+  tm l m -> ty l d -> Prop where
+| T_Var : forall x,
+  has_type Phi Delta Gamma (.var_tm x) (Gamma x)
+| T_IUnit : has_type Phi Delta Gamma .skip .Unit
+| T_Const : forall b,
+  has_type Phi Delta Gamma (.bitstring b) (.Data (.latl L.bot))
+| T_Zero : forall e l,
+  has_type Phi Delta Gamma e (.Data l) ->
+  has_type Phi Delta Gamma (.zero e) (.Data (.latl (L.bot)))
+| T_If : forall e e1 e2 t,
+  has_type Phi Delta Gamma e (.Data (.latl L.bot)) ->
+  has_type Phi Delta Gamma e1 t ->
+  has_type Phi Delta Gamma e2 t ->
+  has_type Phi Delta Gamma (.if_tm e e1 e2) t
+| T_IRef : forall e t,
+  has_type Phi Delta Gamma e t ->
+  has_type Phi Delta Gamma (.alloc e) (.Ref t)
+| T_ERef : forall e t,
+  has_type Phi Delta Gamma e (.Ref t) ->
+  has_type Phi Delta Gamma (! e) t
+| T_Assign : forall e1 e2 t,
+  has_type Phi Delta Gamma e1 (.Ref t) ->
+  has_type Phi Delta Gamma e2 t ->
+  has_type Phi Delta Gamma (.assign e1 e2) .Unit
+| T_IFun : forall e t t',
+  has_type Phi Delta (cons t (cons (.arr t t') Gamma)) e t ->
+  has_type Phi Delta Gamma (.fixlam e) (.arr t t')
+| T_EFun : forall e1 e2 t t',
+  has_type Phi Delta Gamma e1 (.arr t t') ->
+  has_type Phi Delta Gamma e2 t ->
+  has_type Phi Delta Gamma (.app e1 e2) t
+| T_IProd : forall e1 e2 t1 t2,
+  has_type Phi Delta Gamma e1 t1 ->
+  has_type Phi Delta Gamma e2 t2 ->
+  has_type Phi Delta Gamma (.tm_pair e1 e2) (.prod t1 t2)
+| T_EProdL : forall e t1 t2,
+  has_type Phi Delta Gamma e (.prod t1 t2) ->
+  has_type Phi Delta Gamma (.left_tm e) t1
+| T_EProdR : forall e t1 t2,
+  has_type Phi Delta Gamma e (.prod t1 t2) ->
+  has_type Phi Delta Gamma (.right_tm e) t2
+| T_ISumL : forall e t1 t2,
+  has_type Phi Delta Gamma e t1 ->
+  has_type Phi Delta Gamma (.inl e) (.sum t1 t2)
+| T_ISumR : forall e t1 t2,
+  has_type Phi Delta Gamma e t2 ->
+  has_type Phi Delta Gamma (.inr e) (.sum t1 t2)
+| T_ESum : forall e t1 t2 t e1 e2,
+  has_type Phi Delta Gamma e (.sum t1 t2) ->
+  has_type Phi Delta (cons t1 Gamma) e1 t ->
+  has_type Phi Delta (cons t2 Gamma) e2 t ->
+  has_type Phi Delta Gamma (.case e e1 e2) t
+| T_IUniv : forall t0 t e,
+  has_type Phi (lift_delta (cons t0 Delta)) (lift_gamma Gamma) e t ->
+  has_type Phi Delta Gamma (.tlam e) (.all t0 t)
+| T_EUniv : forall t t' t0 e,
+  subtype Phi Delta t' t0 ->
+  has_type Phi Delta Gamma e (.all t0 t) ->
+  has_type Phi Delta Gamma (.tapp e) (subst_ty .var_label (cons t' var_ty) t)
+| T_IExist : forall e t t' t0,
+  has_type Phi Delta Gamma e (subst_ty .var_label (cons t' .var_ty) t) ->
+  subtype Phi Delta t' t0 ->
+  has_type Phi Delta Gamma (.pack e) (.ex t0 t)
+| T_EExist : forall e e' t0 t t',
+  has_type Phi Delta Gamma e (.all t0 t) ->
+  has_type Phi (lift_delta (cons t0 Delta)) (cons t (lift_gamma Gamma)) e' (ren_ty id shift t') ->
+  has_type Phi Delta Gamma (.unpack e e') t'
+| T_ILUniv : forall cs lab e t,
+  has_type ((.condition cs (.var_label var_zero) (ren_label shift lab)) :: (lift_phi Phi))
+                                        (lift_delta_l Delta) (lift_gamma_l Gamma) e t ->
+  has_type Phi Delta Gamma (.l_lam e) (.all_l cs lab t)
+| T_ELUniv : forall cs lab lab' e t,
+  (Phi |= (.condition cs lab lab')) ->
+  has_type Phi Delta Gamma e (.all_l cs lab t) ->
+  has_type Phi Delta Gamma (.lapp e lab') (subst_ty (cons lab' .var_label) .var_ty t)
+| T_Lem : forall co e t,
+  has_type (co :: Phi) Delta Gamma e t ->
+  has_type ((negate_cond co) :: Phi) Delta Gamma e t ->
+  has_type Phi Delta Gamma e t
+| T_LIf : forall co e1 e2 t,
+  has_type (co :: Phi) Delta Gamma e1 t ->
+  has_type (co :: Phi) Delta Gamma e2 t ->
+  has_type Phi Delta Gamma (.if_c co e1 e2) t
+| T_Sync : forall e (pf : l > 0),
+  has_type Phi Delta Gamma e (.Data (adv pf)) ->
+  has_type Phi Delta Gamma (.sync e) (.Data (adv pf))
+| T_Sub : forall e t t',
+  subtype Phi Delta t t' ->
+  has_type Phi Delta Gamma e t ->
+  has_type Phi Delta Gamma e t'
