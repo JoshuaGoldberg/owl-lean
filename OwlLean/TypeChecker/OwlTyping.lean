@@ -281,10 +281,17 @@ inductive has_type : (Phi : phi_context l) -> (Delta : delta_context l d) -> (Ga
   has_type (co :: Phi) Delta Gamma e1 t ->
   has_type (co :: Phi) Delta Gamma e2 t ->
   has_type Phi Delta Gamma (.if_c co e1 e2) t
-| T_Sync : forall e (pf : l > 0),
+| T_Sync : forall e pf,
   has_type Phi Delta Gamma e (.Data (adv pf)) ->
   has_type Phi Delta Gamma (.sync e) (.Data (adv pf))
 | T_Sub : forall e t t',
   subtype Phi Delta t t' ->
   has_type Phi Delta Gamma e t ->
   has_type Phi Delta Gamma e t'
+
+theorem simple_var_typing
+       (x : Fin m) : has_type Phi Delta Gamma (.var_tm x) (Gamma x) :=
+  has_type.T_Var x
+
+theorem concrete_typing : @has_type 0 0 0 empty_phi empty_delta empty_gamma .skip .Unit :=
+  has_type.T_IUnit
