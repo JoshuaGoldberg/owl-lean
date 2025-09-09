@@ -129,3 +129,10 @@ elab "tinylang" "{" p:tiny_lang "}" : term => do
   y ← false;
   if y then x else (2 + y)
 }
+
+#eval tinylang {
+  x ← 1;
+  y ← true;
+  z ← 2;
+  if y then (y + z) else (x + y)
+}

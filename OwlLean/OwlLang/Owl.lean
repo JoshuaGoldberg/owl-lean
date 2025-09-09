@@ -35,12 +35,6 @@ inductive label : Nat -> Type where
 inductive constr (n_label : Nat) : Type where
 | condition : cond_sym -> label n_label -> label n_label -> constr n_label
 
-inductive Sty : Type where
-| var_ty : String -> Sty
-| Any : Sty
-| all : String -> Sty -> Sty -> Sty
-
-
 inductive ty : Nat -> Nat-> Type where
 | var_ty : Fin n_ty -> ty n_label n_ty
 | Any : ty n_label n_ty
@@ -96,7 +90,7 @@ inductive tm : Nat -> Nat -> Type where
 | sync : tm n_label n_tm -> tm n_label n_tm
 
 -- sanity checks
-#check (tm.error : tm 34 23)
+#check (tm.error : tm 0 0)
 #check (ty.Any : ty 0 0)
 
 def ren (m n : Nat) : Type := Fin m → Fin n
@@ -111,7 +105,12 @@ def funcomp (g : Y -> Z) (f : X -> Y) :=
   fun x => g (f x)
 
 def cons (x : X) (f : Fin n -> X) (m : Fin (n + 1)) : X :=
-  Fin.cases x f m
+  match m with
+  | ⟨0,_⟩ => x
+  | ⟨k+1, hk⟩ =>
+      have hk' : k < n := Nat.lt_of_succ_lt_succ hk
+      let i : Fin n := ⟨k, hk'⟩
+      (f i)
 
 def up_ren (xi : ren m n) : ren (m + 1) (n + 1) :=
   cons var_zero (funcomp shift xi)
