@@ -55,42 +55,42 @@ inductive Dist (a : Type) : Type where
 
 abbrev op := binary -> binary -> Dist binary
 
-inductive tm : Nat -> Nat -> Type where
-| var_tm : Fin n_tm -> tm n_label n_tm
-| error : tm n_label n_tm
-| skip : tm n_label n_tm
-| bitstring : binary -> tm n_label n_tm
-| loc : nat -> tm n_label n_tm
-| fixlam : tm n_label ((n_tm + 1) + 1) -> tm n_label n_tm
-| tlam : tm n_label n_tm -> tm n_label n_tm
-| l_lam : tm (n_label + 1) n_tm -> tm n_label n_tm
-| Op : op -> tm n_label n_tm -> tm n_label n_tm -> tm n_label n_tm
-| zero : tm n_label n_tm -> tm n_label n_tm
-| app : tm n_label n_tm -> tm n_label n_tm -> tm n_label n_tm
-| alloc : tm n_label n_tm -> tm n_label n_tm
-| dealloc : tm n_label n_tm -> tm n_label n_tm
-| assign : tm n_label n_tm -> tm n_label n_tm -> tm n_label n_tm
-| tm_pair : tm n_label n_tm -> tm n_label n_tm -> tm n_label n_tm
-| left_tm : tm n_label n_tm -> tm n_label n_tm
-| right_tm : tm n_label n_tm -> tm n_label n_tm
-| inl : tm n_label n_tm -> tm n_label n_tm
-| inr : tm n_label n_tm -> tm n_label n_tm
+inductive tm : Nat -> Nat -> Nat -> Type where
+| var_tm : Fin n_tm -> tm n_label n_ty n_tm
+| error : tm n_label n_ty n_tm
+| skip : tm n_label n_ty n_tm
+| bitstring : binary -> tm n_label n_ty n_tm
+| loc : nat -> tm n_label n_ty n_tm
+| fixlam : tm n_label n_ty ((n_tm + 1) + 1) -> tm n_label n_ty n_tm
+| tlam : tm n_label (n_ty + 1) n_tm -> tm n_label n_ty n_tm
+| l_lam : tm (n_label + 1) n_ty n_tm -> tm n_label n_ty n_tm
+| Op : op -> tm n_label n_ty n_tm -> tm n_label n_ty n_tm -> tm n_label n_ty n_tm
+| zero : tm n_label n_ty n_tm -> tm n_label n_ty n_tm
+| app : tm n_label n_ty n_tm -> tm n_label n_ty n_tm -> tm n_label n_ty n_tm
+| alloc : tm n_label n_ty n_tm -> tm n_label n_ty n_tm
+| dealloc : tm n_label n_ty n_tm -> tm n_label n_ty n_tm
+| assign : tm n_label n_ty n_tm -> tm n_label n_ty n_tm -> tm n_label n_ty n_tm
+| tm_pair : tm n_label n_ty n_tm -> tm n_label n_ty n_tm -> tm n_label n_ty n_tm
+| left_tm : tm n_label n_ty n_tm -> tm n_label n_ty n_tm
+| right_tm : tm n_label n_ty n_tm -> tm n_label n_ty n_tm
+| inl : tm n_label n_ty n_tm -> tm n_label n_ty n_tm
+| inr : tm n_label n_ty n_tm -> tm n_label n_ty n_tm
 | case :
-    tm n_label n_tm ->
-    tm n_label (n_tm + 1) -> tm n_label (n_tm + 1) -> tm n_label n_tm
-| tapp : tm n_label n_tm -> tm n_label n_tm
-| lapp : tm n_label n_tm -> label n_label -> tm n_label n_tm
-| pack : tm n_label n_tm -> tm n_label n_tm
-| unpack : tm n_label n_tm -> tm n_label (n_tm + 1) -> tm n_label n_tm
+    tm n_label n_ty n_tm ->
+    tm n_label n_ty (n_tm + 1) -> tm n_label n_ty (n_tm + 1) -> tm n_label n_ty n_tm
+| tapp : tm n_label n_ty n_tm -> ty n_label n_ty -> tm n_label n_ty n_tm
+| lapp : tm n_label n_ty n_tm -> label n_label -> tm n_label n_ty n_tm
+| pack : tm n_label n_ty n_tm -> tm n_label n_ty n_tm
+| unpack : tm n_label n_ty n_tm -> tm n_label (n_ty + 1) (n_tm + 1) -> tm n_label n_ty n_tm
 | if_tm :
-    tm n_label n_tm ->
-    tm n_label n_tm -> tm n_label n_tm -> tm n_label n_tm
+    tm n_label n_ty n_tm ->
+    tm n_label n_ty n_tm -> tm n_label n_ty n_tm -> tm n_label n_ty n_tm
 | if_c :
-    constr n_label -> tm n_label n_tm -> tm n_label n_tm -> tm n_label n_tm
-| sync : tm n_label n_tm -> tm n_label n_tm
+    constr n_label -> tm n_label n_ty n_tm -> tm n_label n_ty n_tm -> tm n_label n_ty n_tm
+| sync : tm n_label n_ty n_tm -> tm n_label n_ty n_tm
 
 -- sanity checks
-#check (tm.error : tm 0 0)
+#check (tm.error : tm 0 0 0)
 #check (ty.Any : ty 0 0)
 
 def ren (m n : Nat) : Type := Fin m → Fin n

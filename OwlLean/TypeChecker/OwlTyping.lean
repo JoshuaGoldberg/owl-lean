@@ -2,7 +2,7 @@ import OwlLean.OwlLang.Owl
 open Owl
 
 -- sanity checks
-#check (tm.error : tm 0 0)
+#check (tm.error : tm 0 0 0)
 #check (ty.Any : ty 0 0)
 
 def gamma_context (l : Nat) (d : Nat) (m : Nat) := Fin m -> ty l d
@@ -25,7 +25,7 @@ def lift_delta_l (Delta : delta_context l d)
   : delta_context (l + 1) d
   := fun i => ren_ty shift id (Delta i)
 
-def lift_gamma (Gamma : gamma_context l d m)
+def lift_gamma_d (Gamma : gamma_context l d m)
   : gamma_context l (d + 1) m
   := fun i => ren_ty id shift (Gamma i)
 
@@ -95,7 +95,7 @@ notation:100 pctx " |= " co => phi_entails_c pctx co
 notation:100 "! " e => tm.dealloc e
 
 -- Checks for proper values within terms
-inductive is_value : tm l m -> Prop where
+inductive is_value : tm l d m -> Prop where
 | error_value : is_value .error
 | skip_value : is_value .skip
 | loc_value : forall n,
@@ -198,7 +198,7 @@ theorem three_proof :
 
 -- Typing rules for Owl
 inductive has_type : (Phi : phi_context l) -> (Delta : delta_context l d) -> (Gamma : gamma_context l d m) ->
-  tm l m -> ty l d -> Prop where
+  tm l d m -> ty l d -> Prop where
 | T_Var : forall x,
   has_type Phi Delta Gamma (.var_tm x) (Gamma x)
 | T_IUnit : has_type Phi Delta Gamma .skip .Unit
@@ -251,19 +251,19 @@ inductive has_type : (Phi : phi_context l) -> (Delta : delta_context l d) -> (Ga
   has_type Phi Delta (cons t2 Gamma) e2 t ->
   has_type Phi Delta Gamma (.case e e1 e2) t
 | T_IUniv : forall t0 t e,
-  has_type Phi (lift_delta (cons t0 Delta)) (lift_gamma Gamma) e t ->
+  has_type Phi (lift_delta (cons t0 Delta)) (lift_gamma_d Gamma) e t ->
   has_type Phi Delta Gamma (.tlam e) (.all t0 t)
 | T_EUniv : forall t t' t0 e,
   subtype Phi Delta t' t0 ->
   has_type Phi Delta Gamma e (.all t0 t) ->
-  has_type Phi Delta Gamma (.tapp e) (subst_ty .var_label (cons t' var_ty) t)
+  has_type Phi Delta Gamma (.tapp e t') (subst_ty .var_label (cons t' var_ty) t)
 | T_IExist : forall e t t' t0,
   has_type Phi Delta Gamma e (subst_ty .var_label (cons t' .var_ty) t) ->
   subtype Phi Delta t' t0 ->
   has_type Phi Delta Gamma (.pack e) (.ex t0 t)
 | T_EExist : forall e e' t0 t t',
   has_type Phi Delta Gamma e (.all t0 t) ->
-  has_type Phi (lift_delta (cons t0 Delta)) (cons t (lift_gamma Gamma)) e' (ren_ty id shift t') ->
+  has_type Phi (lift_delta (cons t0 Delta)) (cons t (lift_gamma_d Gamma)) e' (ren_ty id shift t') ->
   has_type Phi Delta Gamma (.unpack e e') t'
 | T_ILUniv : forall cs lab e t,
   has_type ((.condition cs (.var_label var_zero) (ren_label shift lab)) :: (lift_phi Phi))
