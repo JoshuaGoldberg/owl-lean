@@ -12,12 +12,14 @@ inductive SBinary : Type
 | bzero : SBinary -> SBinary
 | bone : SBinary -> SBinary
 | bend : SBinary
+deriving Repr
 
 inductive SLabel : Type
 | var_label : String -> SLabel
 | latl : String -> SLabel
 | ljoin : SLabel -> SLabel -> SLabel
 | lmeet : SLabel -> SLabel -> SLabel
+deriving Repr
 
 inductive SCondSym : Type
 | leq : SCondSym
@@ -28,9 +30,11 @@ inductive SCondSym : Type
 | ngeq : SCondSym
 | ngt : SCondSym
 | nlt : SCondSym
+deriving Repr
 
 inductive SConstr : Type where
 | condition : SCondSym -> SLabel -> SLabel -> SConstr
+deriving Repr
 
 inductive STy : Type where
 | var_ty :String -> STy
@@ -45,6 +49,10 @@ inductive STy : Type where
 | ex : String -> STy -> STy -> STy
 | all_l : String -> SCondSym -> SLabel -> STy -> STy
 | t_if : SConstr -> STy -> STy -> STy
+deriving Repr
+
+instance : Repr Owl.op where
+  reprPrec _ _ := "<operation>"
 
 inductive SExpr : Type where
 | var_tm : String -> SExpr
@@ -55,7 +63,7 @@ inductive SExpr : Type where
 | fixlam : String -> String -> SExpr -> SExpr
 | tlam : String -> SExpr -> SExpr
 | l_lam : String -> SExpr -> SExpr
-| Op : op -> SExpr -> SExpr -> SExpr
+| Op : Owl.op -> SExpr -> SExpr -> SExpr
 | zero : SExpr -> SExpr
 | app : SExpr -> SExpr -> SExpr
 | alloc : SExpr -> SExpr
@@ -76,9 +84,9 @@ inductive SExpr : Type where
 | if_c :
     SConstr -> SExpr -> SExpr -> SExpr
 | sync : SExpr -> SExpr
+deriving Repr
 
 open Lean Elab Meta
-
 
 declare_syntax_cat owl_tm
 declare_syntax_cat owl_label
@@ -95,19 +103,79 @@ syntax owl_label "⊔" owl_label : owl_label
 syntax owl_label "⊓" owl_label : owl_label
 syntax "(" owl_label ")" : owl_label
 
--- syntax for contraints
-syntax "(" owl_constr ")" : owl_constr
-syntax owl_label owl_cond_sym owl_label : owl_constr
+partial def elabLabel : Syntax → MetaM Expr
+  | `(owl_label| ( $e:owl_label)) => elabLabel e
+  | `(owl_label| ⟨ $t:term ⟩ ) => do
+      let t' ← Term.TermElabM.run' do
+        Term.elabTerm t (mkConst ``Owl.Lcarrier)
+      mkAppM ``SLabel.latl #[t']
+  | `(owl_label| $e1:owl_label ⊔ $e2:owl_label) => do
+      let elab_e1 <- elabLabel e1
+      let elab_e2 <- elabLabel e2
+      mkAppM ``SLabel.ljoin #[elab_e1, elab_e2]
+  | `(owl_label| $e1:owl_label ⊓ $e2:owl_label) => do
+      let elab_e1 <- elabLabel e1
+      let elab_e2 <- elabLabel e2
+      mkAppM ``SLabel.lmeet #[elab_e1, elab_e2]
+  | `(owl_label| $id:ident) =>
+    mkAppM ``SLabel.var_label #[mkStrLit id.getId.toString]
+  | _ => throwUnsupportedSyntax
+
+-- test parser for labels
+elab "label_parse" "(" p:owl_label ")" : term =>
+    elabLabel p
+
+-- check that labels works
+#eval label_parse(x ⊓ y)
 
 -- syntax for cond symbols
 syntax "⊑" : owl_cond_sym
 syntax "⊒" : owl_cond_sym
 syntax "⊏" : owl_cond_sym
 syntax "⊐" : owl_cond_sym
-syntax "̸⊑" : owl_cond_sym
-syntax "̸⊒" : owl_cond_sym
-syntax "̸⊏" : owl_cond_sym
-syntax "̸⊐" : owl_cond_sym
+syntax "!⊑" : owl_cond_sym
+syntax "!⊒" : owl_cond_sym
+syntax "!⊏" : owl_cond_sym
+syntax "!⊐" : owl_cond_sym
+
+partial def elabCondSym : Syntax → MetaM Expr
+  | `(owl_cond_sym| ⊑) => mkAppM ``SCondSym.leq #[]
+  | `(owl_cond_sym| ⊒) => mkAppM ``SCondSym.geq #[]
+  | `(owl_cond_sym| ⊏) => mkAppM ``SCondSym.lt #[]
+  | `(owl_cond_sym| ⊐) => mkAppM ``SCondSym.gt #[]
+  | `(owl_cond_sym| !⊑) => mkAppM ``SCondSym.nleq #[]
+  | `(owl_cond_sym| !⊒) => mkAppM ``SCondSym.ngeq #[]
+  | `(owl_cond_sym| !⊏) => mkAppM ``SCondSym.nlt #[]
+  | `(owl_cond_sym| !⊐) => mkAppM ``SCondSym.ngt #[]
+  | _ => throwUnsupportedSyntax
+
+-- test parser for cond_sym
+elab "cond_sym_parse" "(" p:owl_cond_sym ")" : term =>
+    elabCondSym p
+
+-- check that cond_sym works
+#eval cond_sym_parse(⊑)
+#eval cond_sym_parse(!⊑)
+
+-- syntax for contraints
+syntax "(" owl_constr ")" : owl_constr
+syntax owl_label owl_cond_sym owl_label : owl_constr
+
+partial def elabConstr : Syntax → MetaM Expr
+  | `(owl_constr| ( $e:owl_constr)) => elabConstr e
+  | `(owl_constr| $l1:owl_label $c:owl_cond_sym $l2:owl_label) => do
+      let elab_l1 <- elabLabel l1
+      let elab_l2 <- elabLabel l2
+      let elab_c <- elabCondSym c
+      mkAppM ``SConstr.condition #[elab_c, elab_l1, elab_l2]
+  | _ => throwUnsupportedSyntax
+
+-- test parser for constraints
+elab "constraint_parse" "(" p:owl_constr ")" : term =>
+    elabConstr p
+
+-- check that constraints works
+#eval constraint_parse(y ⊑ x)
 
 -- syntax for binary
 syntax str : owl_binary
@@ -135,6 +203,19 @@ elab "binary_parse" "(" p:owl_binary ")" : term =>
 #eval binary_parse("1101")
 
 -- syntax for types
+syntax "(" owl_type ")" : owl_type
+syntax ident : owl_type
+syntax "Any" : owl_type
+syntax "Unit" : owl_type
+syntax "Data" owl_label : owl_type
+syntax "Ref" owl_type : owl_type
+syntax owl_type "->" owl_type : owl_type
+syntax owl_type "x" owl_type : owl_type
+syntax owl_type "+" owl_type : owl_type
+syntax "∀" owl_type "<:" owl_type "." owl_type : owl_type
+syntax "∃" owl_type "<:" owl_type "." owl_type : owl_type
+syntax "∀" owl_label owl_cond_sym owl_label "." owl_type : owl_type
+syntax "if" owl_constr "then" owl_type "else" owl_type : owl_type
 
 -- syntax for terms
 syntax "(" owl_tm ")" : owl_tm
