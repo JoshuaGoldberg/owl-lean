@@ -217,6 +217,58 @@ syntax "∃" owl_type "<:" owl_type "." owl_type : owl_type
 syntax "∀" owl_label owl_cond_sym owl_label "." owl_type : owl_type
 syntax "if" owl_constr "then" owl_type "else" owl_type : owl_type
 
+partial def elabType : Syntax → MetaM Expr
+  | `(owl_type| ( $e:owl_type)) => elabType e
+  | `(owl_type| $id:ident) =>
+        mkAppM ``STy.var_ty #[mkStrLit id.getId.toString]
+  | `(owl_type| Any) => mkAppM ``STy.Any #[]
+  | `(owl_type| Unit) => mkAppM ``STy.Unit #[]
+  | `(owl_type| Data $l:owl_label) => do
+    let elab_l <- elabLabel l
+    mkAppM ``STy.Data #[elab_l]
+  | `(owl_type| Ref $t:owl_type) => do
+    let elab_t <- elabType t
+    mkAppM ``STy.Ref #[elab_t]
+  | `(owl_type| $t1:owl_type -> $t2:owl_type) => do
+    let elab_t1 <- elabType t1
+    let elab_t2 <- elabType t2
+    mkAppM ``STy.arr #[elab_t1, elab_t2]
+  | `(owl_type| $t1:owl_type x $t2:owl_type) => do
+    let elab_t1 <- elabType t1
+    let elab_t2 <- elabType t2
+    mkAppM ``STy.prod #[elab_t1, elab_t2]
+  | `(owl_type| $t1:owl_type + $t2:owl_type) => do
+    let elab_t1 <- elabType t1
+    let elab_t2 <- elabType t2
+    mkAppM ``STy.sum #[elab_t1, elab_t2]
+  | `(owl_type| ∀ $id:ident <: $t1:owl_type . $t2:owl_type) => do
+    let elab_t1 <- elabType t1
+    let elab_t2 <- elabType t2
+    mkAppM ``STy.all #[mkStrLit id.getId.toString, elab_t1, elab_t2]
+  | `(owl_type| ∃ $id:ident <: $t1:owl_type . $t2:owl_type) => do
+    let elab_t1 <- elabType t1
+    let elab_t2 <- elabType t2
+    mkAppM ``STy.ex #[mkStrLit id.getId.toString, elab_t1, elab_t2]
+  | `(owl_type| ∀ $id:ident $c:owl_cond_sym $l:owl_label . $t:owl_type) => do
+    let elab_t <- elabType t
+    let elab_l <- elabLabel l
+    let elab_c <- elabCondSym c
+    mkAppM ``STy.all_l #[mkStrLit id.getId.toString, elab_c, elab_l, elab_t]
+  | `(owl_type| if $c:owl_constr then $t1:owl_type else $t2:owl_type) => do
+    let elab_t1 <- elabType t1
+    let elab_t2 <- elabType t2
+    let elab_c <- elabConstr c
+    mkAppM ``STy.t_if #[elab_c, elab_t1, elab_t2]
+  | _ => throwUnsupportedSyntax
+
+-- test parser for types
+elab "type_parse" "(" p:owl_type ")" : term =>
+    elabType p
+
+-- check that types works
+#eval type_parse(Unit -> Unit)
+#eval type_parse(∀ t <: Any . (t -> t))
+
 -- syntax for terms
 syntax "(" owl_tm ")" : owl_tm
 syntax ident : owl_tm
