@@ -41,7 +41,7 @@ inductive STy : Type where
 | arr : STy -> STy -> STy
 | prod : STy -> STy -> STy
 | sum : STy -> STy -> STy
-| all : STy -> STy -> STy
+| all : String -> STy -> STy -> STy
 | ex : String -> STy -> STy -> STy
 | all_l : String -> SCondSym -> SLabel -> STy -> STy
 | t_if : SConstr -> STy -> STy -> STy
@@ -53,7 +53,7 @@ inductive SExpr : Type where
 | bitstring : SBinary -> SExpr
 | loc : Nat -> SExpr
 | fixlam : String -> String -> SExpr -> SExpr
-| tlam : SExpr -> SExpr
+| tlam : String -> SExpr -> SExpr
 | l_lam : String -> SExpr -> SExpr
 | Op : op -> SExpr -> SExpr -> SExpr
 | zero : SExpr -> SExpr
@@ -67,7 +67,7 @@ inductive SExpr : Type where
 | inl : SExpr -> SExpr
 | inr : SExpr -> SExpr
 | case : SExpr -> String -> SExpr -> String -> SExpr -> SExpr
-| tapp : SExpr -> SExpr
+| tapp : SExpr -> STy -> SExpr
 | lapp : SExpr -> SLabel -> SExpr
 | pack : SExpr -> SExpr
 | unpack : SExpr -> String -> SExpr -> SExpr
