@@ -298,3 +298,9 @@ syntax "unpack" owl_tm "as" owl_tm "in" owl_tm : owl_tm
 syntax "if" owl_tm "then" owl_tm "else" owl_tm : owl_tm
 syntax "if" owl_cond_sym "then" owl_tm "else" owl_tm : owl_tm
 syntax "sync" owl_tm : owl_tm
+
+partial def elabTm : Syntax → MetaM Expr
+  | `(owl_tm| ( $e:owl_tm)) => elabTm e
+  | `(owl_tm| $id:ident) =>
+        mkAppM ``SExpr.var_tm #[mkStrLit id.getId.toString]
+  | _ => throwUnsupportedSyntax
