@@ -1,4 +1,7 @@
 import OwlLean.OwlLang.Owl
+import Lean
+import Std.Data.HashMap
+
 open Owl
 
 -- sanity checks
@@ -76,6 +79,7 @@ inductive SExpr : Type where
 
 open Lean Elab Meta
 
+
 declare_syntax_cat owl_tm
 declare_syntax_cat owl_label
 declare_syntax_cat owl_type
@@ -83,6 +87,7 @@ declare_syntax_cat owl_binary
 declare_syntax_cat owl_constr
 declare_syntax_cat owl_cond_sym
 
+-- syntax for labels
 syntax ident : owl_label
 syntax term : owl_label
 syntax "⟨" owl_label "⟩"  : owl_label
@@ -90,9 +95,11 @@ syntax owl_label "⊔" owl_label : owl_label
 syntax owl_label "⊓" owl_label : owl_label
 syntax "(" owl_label ")" : owl_label
 
+-- syntax for contraints
 syntax "(" owl_constr ")" : owl_constr
 syntax owl_label owl_cond_sym owl_label : owl_constr
 
+-- syntax for cond symbols
 syntax "⊑" : owl_cond_sym
 syntax "⊒" : owl_cond_sym
 syntax "⊏" : owl_cond_sym
@@ -102,8 +109,34 @@ syntax "̸⊒" : owl_cond_sym
 syntax "̸⊏" : owl_cond_sym
 syntax "̸⊐" : owl_cond_sym
 
-syntax num : owl_binary
+-- syntax for binary
+syntax str : owl_binary
 
+partial def buildSBinaryExpr (chars : List Char) : MetaM Expr :=
+  match chars with
+  | [] => return mkConst ``SBinary.bend
+  | '0' :: rest => do
+    let restExpr <- buildSBinaryExpr rest
+    mkAppM ``SBinary.bzero #[restExpr]
+  | '1' :: rest => do
+    let restExpr <- buildSBinaryExpr rest
+    mkAppM ``SBinary.bone #[restExpr]
+  | _ :: _ => throwError "Invalid binary character"
+
+partial def elabBinary : Syntax → MetaM Expr
+  | `(owl_binary| $val:str) => buildSBinaryExpr val.getString.data
+  | _ => throwUnsupportedSyntax
+
+-- test parser for binary
+elab "binary_parse" "(" p:owl_binary ")" : term =>
+    elabBinary p
+
+-- check that binary works
+#eval binary_parse("1101")
+
+-- syntax for types
+
+-- syntax for terms
 syntax "(" owl_tm ")" : owl_tm
 syntax ident : owl_tm
 syntax term : owl_tm
