@@ -14,9 +14,12 @@ inductive SBinary : Type
 | bend : SBinary
 deriving Repr
 
+instance : Repr Owl.Lcarrier where
+  reprPrec _ _ := "<Lattice Label>"
+
 inductive SLabel : Type
 | var_label : String -> SLabel
-| latl : String -> SLabel
+| latl : Owl.Lcarrier -> SLabel
 | ljoin : SLabel -> SLabel -> SLabel
 | lmeet : SLabel -> SLabel -> SLabel
 deriving Repr
@@ -52,7 +55,7 @@ inductive STy : Type where
 deriving Repr
 
 instance : Repr Owl.op where
-  reprPrec _ _ := "<operation>"
+  reprPrec _ _ := "<Operation>"
 
 inductive SExpr : Type where
 | var_tm : String -> SExpr
@@ -97,8 +100,7 @@ declare_syntax_cat owl_cond_sym
 
 -- syntax for labels
 syntax ident : owl_label
-syntax term : owl_label
-syntax "⟨" owl_label "⟩"  : owl_label
+syntax "⟨" term "⟩"  : owl_label
 syntax owl_label "⊔" owl_label : owl_label
 syntax owl_label "⊓" owl_label : owl_label
 syntax "(" owl_label ")" : owl_label
@@ -127,6 +129,17 @@ elab "label_parse" "(" p:owl_label ")" : term =>
 
 -- check that labels works
 #eval label_parse(x ⊓ y)
+
+-- Just define some concrete elements:
+axiom bot : Lcarrier
+axiom top : Lcarrier
+axiom low : Lcarrier
+axiom high : Lcarrier
+
+-- Then test:
+#check label_parse(⟨ bot ⟩)
+#check label_parse(⟨ low ⟩)
+
 
 -- syntax for cond symbols
 syntax "⊑" : owl_cond_sym
@@ -210,7 +223,7 @@ syntax "Unit" : owl_type
 syntax "Data" owl_label : owl_type
 syntax "Ref" owl_type : owl_type
 syntax owl_type "->" owl_type : owl_type
-syntax owl_type "x" owl_type : owl_type
+syntax owl_type "*" owl_type : owl_type
 syntax owl_type "+" owl_type : owl_type
 syntax "∀" owl_type "<:" owl_type "." owl_type : owl_type
 syntax "∃" owl_type "<:" owl_type "." owl_type : owl_type
@@ -233,7 +246,7 @@ partial def elabType : Syntax → MetaM Expr
     let elab_t1 <- elabType t1
     let elab_t2 <- elabType t2
     mkAppM ``STy.arr #[elab_t1, elab_t2]
-  | `(owl_type| $t1:owl_type x $t2:owl_type) => do
+  | `(owl_type| $t1:owl_type * $t2:owl_type) => do
     let elab_t1 <- elabType t1
     let elab_t2 <- elabType t2
     mkAppM ``STy.prod #[elab_t1, elab_t2]
@@ -282,7 +295,7 @@ syntax "Λβ" ident "." owl_tm : owl_tm
 syntax "⟨" owl_tm "," owl_tm "⟩" : owl_tm
 syntax "⟨" term "⟩" "(" owl_tm "," owl_tm ")" : owl_tm -- Op case
 syntax "zero" owl_tm : owl_tm
-syntax owl_tm "(" owl_tm ")" : owl_tm
+syntax owl_tm "[" owl_tm "]" : owl_tm
 syntax "alloc" owl_tm : owl_tm
 syntax "!" owl_tm : owl_tm
 syntax owl_tm ":=" owl_tm : owl_tm
@@ -291,12 +304,12 @@ syntax "π2" owl_tm : owl_tm
 syntax "ı1" owl_tm : owl_tm
 syntax "ı2" owl_tm : owl_tm
 syntax "case" owl_tm "in" owl_tm "=>" owl_tm "|" owl_tm "=>" owl_tm : owl_tm
-syntax owl_tm "[" owl_type "]" : owl_tm
-syntax owl_tm "[" owl_label "]" : owl_tm
+syntax owl_tm "[[" owl_type "]]" : owl_tm
+syntax owl_tm "[[[" owl_label "]]]" : owl_tm
 syntax "pack" owl_tm : owl_tm
 syntax "unpack" owl_tm "as" owl_tm "in" owl_tm : owl_tm
 syntax "if" owl_tm "then" owl_tm "else" owl_tm : owl_tm
-syntax "if" owl_cond_sym "then" owl_tm "else" owl_tm : owl_tm
+syntax "if" owl_constr "then" owl_tm "else" owl_tm : owl_tm
 syntax "sync" owl_tm : owl_tm
 
 partial def elabTm : Syntax → MetaM Expr
@@ -332,20 +345,114 @@ partial def elabTm : Syntax → MetaM Expr
   | `(owl_tm| zero $e:owl_tm) => do
     let elab_e <- elabTm e
     mkAppM ``SExpr.zero #[elab_e]
-  | `(owl_tm| $e1:owl_tm ( $e2:owl_tm )) => do
+  | `(owl_tm| $e1:owl_tm [ $e2:owl_tm ]) => do
     let elab_e1 <- elabTm e1
     let elab_e2 <- elabTm e2
     mkAppM ``SExpr.app #[elab_e1, elab_e2]
+  | `(owl_tm| alloc $e:owl_tm) => do
+    let elab_e <- elabTm e
+    mkAppM ``SExpr.alloc #[elab_e]
+  | `(owl_tm| ! $e:owl_tm) => do
+    let elab_e <- elabTm e
+    mkAppM ``SExpr.dealloc #[elab_e]
+  | `(owl_tm| $e1:owl_tm := $e2:owl_tm) => do
+    let elab_e1 <- elabTm e1
+    let elab_e2 <- elabTm e2
+    mkAppM ``SExpr.assign #[elab_e1, elab_e2]
+  | `(owl_tm| π1 $e:owl_tm) => do
+    let elab_e <- elabTm e
+    mkAppM ``SExpr.left_tm #[elab_e]
+  | `(owl_tm| π2 $e:owl_tm) => do
+    let elab_e <- elabTm e
+    mkAppM ``SExpr.right_tm #[elab_e]
+  | `(owl_tm| ı1 $e:owl_tm) => do
+    let elab_e <- elabTm e
+    mkAppM ``SExpr.inl #[elab_e]
+  | `(owl_tm| ı2 $e:owl_tm) => do
+    let elab_e <- elabTm e
+    mkAppM ``SExpr.inr #[elab_e]
+  | `(owl_tm| case $e1:owl_tm in $id1:ident => $e2:owl_tm | $id2:ident => $e3:owl_tm) => do
+    let elab_e1 <- elabTm e1
+    let elab_e2 <- elabTm e2
+    let elab_e3 <- elabTm e3
+    mkAppM ``SExpr.case #[elab_e1, mkStrLit id1.getId.toString, elab_e2, mkStrLit id2.getId.toString, elab_e3]
+  | `(owl_tm| $e:owl_tm [[ $t:owl_type ]]) => do
+    let elab_e <- elabTm e
+    let elab_t <- elabType t
+    mkAppM ``SExpr.tapp #[elab_e, elab_t]
+  | `(owl_tm| $e:owl_tm [[[ $l:owl_label ]]]) => do
+    let elab_e <- elabTm e
+    let elab_l <- elabLabel l
+    mkAppM ``SExpr.lapp #[elab_e, elab_l]
+  | `(owl_tm| unpack $e1:owl_tm as $id:ident in $e2:owl_tm) => do
+    let elab_e1 <- elabTm e1
+    let elab_e2 <- elabTm e2
+    mkAppM ``SExpr.unpack #[elab_e1, mkStrLit id.getId.toString, elab_e2]
+  | `(owl_tm| pack $e:owl_tm) => do
+    let elab_e <- elabTm e
+    mkAppM ``SExpr.pack #[elab_e]
+  | `(owl_tm| if $e1:owl_tm then $e2:owl_tm else $e3:owl_tm) => do
+    let elab_e1 <- elabTm e1
+    let elab_e2 <- elabTm e2
+    let elab_e3 <- elabTm e3
+    mkAppM ``SExpr.if_tm #[elab_e1, elab_e2, elab_e3]
+  | `(owl_tm| if $c:owl_constr then $e1:owl_tm else $e2:owl_tm) => do
+    let elab_c <- elabConstr c
+    let elab_e1 <- elabTm e1
+    let elab_e2 <- elabTm e2
+    mkAppM ``SExpr.if_c #[elab_c, elab_e1, elab_e2]
+  | `(owl_tm| sync $e:owl_tm) => do
+    let elab_e <- elabTm e
+    mkAppM ``SExpr.sync #[elab_e]
   | _ => throwUnsupportedSyntax
 
 -- test parser for terms
 elab "term_parse" "(" p:owl_tm ")" : term =>
     elabTm p
 
+-- test operator
 def coin_flip : op :=
   fun (x1 x2 : binary) =>
     Dist.ret (binary.bend)
 
 -- check that terms works
-#eval term_parse(*)
-#eval term_parse(⟨coin_flip⟩ ( ⌜ "110" ⌝ , ⌜ "110" ⌝))
+#eval term_parse(case 5 in x1 => pack x1 | x2 => (Λ t . * [[ t ]]))
+#eval term_parse(* [[[ z ⊔ y ]]])
+#eval term_parse(⟨ coin_flip ⟩ ( ⌜ "110" ⌝ , ⌜ "110" ⌝))
+
+-- check that terms works
+elab "Owl_Parse" "{" p:owl_tm "}" : term => do
+    elabTm p
+
+#eval Owl_Parse {
+  unpack p as α in
+    case π1 p in
+      x => ⟨ ı1 x , π2 p ⟩
+    | y => ⟨ ı2 y , π2 p ⟩
+}
+
+#eval Owl_Parse {
+  ( fix loop ( state )
+    case (! state) in
+      cont => loop [ alloc cont ]
+    | done => *
+  ) [ alloc ⟨ ı1 * , * ⟩ ]
+}
+
+-- non functional
+def sub_op : op :=
+  fun (x1 x2 : binary) =>
+    Dist.ret (binary.bend)
+
+-- non functional
+def mul_op : op :=
+  fun (x1 x2 : binary) =>
+    Dist.ret (binary.bend)
+
+#eval Owl_Parse {
+  fix factorial ( n )
+    if n then
+      ⟨ mul_op ⟩ ( n , factorial [ ⟨ sub_op ⟩ ( n , 1 ) ] )
+    else
+      1
+}
