@@ -272,17 +272,17 @@ elab "type_parse" "(" p:owl_type ")" : term =>
 -- syntax for terms
 syntax "(" owl_tm ")" : owl_tm
 syntax ident : owl_tm
-syntax term : owl_tm
+syntax num : owl_tm
 syntax "error" : owl_tm
 syntax "*" : owl_tm
 syntax "⌜" owl_binary "⌝" : owl_tm
-syntax "fix" owl_tm "(" owl_tm ")" owl_tm : owl_tm
-syntax "Λ." owl_tm : owl_tm
+syntax "fix" ident "(" ident ")" owl_tm : owl_tm
 syntax "Λ" owl_tm "." owl_tm : owl_tm
+syntax "Λβ" ident "." owl_tm : owl_tm
 syntax "⟨" owl_tm "," owl_tm "⟩" : owl_tm
-syntax owl_tm "(" owl_tm owl_tm ")" : owl_tm
+syntax "⟨" term "⟩" "(" owl_tm "," owl_tm ")" : owl_tm -- Op case
 syntax "zero" owl_tm : owl_tm
-syntax owl_tm owl_tm : owl_tm
+syntax owl_tm "(" owl_tm ")" : owl_tm
 syntax "alloc" owl_tm : owl_tm
 syntax "!" owl_tm : owl_tm
 syntax owl_tm ":=" owl_tm : owl_tm
@@ -291,7 +291,7 @@ syntax "π2" owl_tm : owl_tm
 syntax "ı1" owl_tm : owl_tm
 syntax "ı2" owl_tm : owl_tm
 syntax "case" owl_tm "in" owl_tm "=>" owl_tm "|" owl_tm "=>" owl_tm : owl_tm
-syntax owl_tm "[]" : owl_tm
+syntax owl_tm "[" owl_type "]" : owl_tm
 syntax owl_tm "[" owl_label "]" : owl_tm
 syntax "pack" owl_tm : owl_tm
 syntax "unpack" owl_tm "as" owl_tm "in" owl_tm : owl_tm
@@ -303,4 +303,49 @@ partial def elabTm : Syntax → MetaM Expr
   | `(owl_tm| ( $e:owl_tm)) => elabTm e
   | `(owl_tm| $id:ident) =>
         mkAppM ``SExpr.var_tm #[mkStrLit id.getId.toString]
+  | `(owl_tm| $n:num) =>
+    mkAppM ``SExpr.loc #[mkNatLit n.getNat]
+  | `(owl_tm| error) => mkAppM ``SExpr.error #[]
+  | `(owl_tm| *) => mkAppM ``SExpr.skip #[]
+  | `(owl_tm| ⌜ $b:owl_binary ⌝ ) => do
+    let elab_b <- elabBinary b
+    mkAppM ``SExpr.bitstring #[elab_b]
+  | `(owl_tm| fix $f:ident ( $id:ident ) $e:owl_tm) => do
+    let elab_e <- elabTm e
+    mkAppM ``SExpr.fixlam #[mkStrLit f.getId.toString, mkStrLit id.getId.toString, elab_e]
+  | `(owl_tm| Λ $id:ident . $e:owl_tm) => do
+    let elab_e <- elabTm e
+    mkAppM ``SExpr.tlam #[mkStrLit id.getId.toString, elab_e]
+  | `(owl_tm| Λβ $id:ident . $e:owl_tm) => do
+    let elab_e <- elabTm e
+    mkAppM ``SExpr.l_lam #[mkStrLit id.getId.toString, elab_e]
+  | `(owl_tm|⟨ $e1:owl_tm , $e2:owl_tm ⟩) => do
+    let elab_e1 <- elabTm e1
+    let elab_e2 <- elabTm e2
+    mkAppM ``SExpr.tm_pair #[elab_e1, elab_e2]
+  | `(owl_tm| ⟨ $t:term ⟩ ( $e1:owl_tm , $e2:owl_tm )) => do
+    let t' ← Term.TermElabM.run' do
+        Term.elabTerm t (mkConst ``Owl.op)
+    let elab_e1 <- elabTm e1
+    let elab_e2 <- elabTm e2
+    mkAppM ``SExpr.Op #[t', elab_e1, elab_e2]
+  | `(owl_tm| zero $e:owl_tm) => do
+    let elab_e <- elabTm e
+    mkAppM ``SExpr.zero #[elab_e]
+  | `(owl_tm| $e1:owl_tm ( $e2:owl_tm )) => do
+    let elab_e1 <- elabTm e1
+    let elab_e2 <- elabTm e2
+    mkAppM ``SExpr.app #[elab_e1, elab_e2]
   | _ => throwUnsupportedSyntax
+
+-- test parser for terms
+elab "term_parse" "(" p:owl_tm ")" : term =>
+    elabTm p
+
+def coin_flip : op :=
+  fun (x1 x2 : binary) =>
+    Dist.ret (binary.bend)
+
+-- check that terms works
+#eval term_parse(*)
+#eval term_parse(⟨coin_flip⟩ ( ⌜ "110" ⌝ , ⌜ "110" ⌝))
