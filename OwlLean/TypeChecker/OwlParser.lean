@@ -89,6 +89,19 @@ inductive SExpr : Type where
 | sync : SExpr -> SExpr
 deriving Repr
 
+def TCtx := List String
+
+def TCtx.lookup (t : TCtx) (s : String) : Option (Fin t.length) :=
+  match t with
+  | [] => .none
+  | x::xs =>
+    if x == s then .some ⟨0, by simp [List.length]⟩ else
+      match TCtx.lookup xs s with
+      | .none => .none
+      | .some i => .some ⟨1 + i, by
+        simp [List.length]
+        omega⟩
+
 open Lean Elab Meta
 
 declare_syntax_cat owl_tm
@@ -127,6 +140,29 @@ partial def elabLabel : Syntax → MetaM Expr
 elab "label_parse" "(" p:owl_label ")" : term =>
     elabLabel p
 
+def SLabel.elab (s : SLabel) (P : TCtx) : Option (Owl.label P.length) :=
+  match s with
+  | .var_label i =>
+    match TCtx.lookup P i with
+    | .none => .none
+    | .some j => .some (label.var_label j)
+  | .latl l => .some (label.latl l)
+  | .lmeet l1 l2 =>
+    match (SLabel.elab l1 P) with
+    | .none => .none
+    | .some l1' =>
+      match (SLabel.elab l2 P) with
+      | .none => .none
+      | .some l2' => .some (label.lmeet l1' l2')
+  | .ljoin l1 l2 =>
+    match (SLabel.elab l1 P) with
+    | .none => .none
+    | .some l1' =>
+      match (SLabel.elab l2 P) with
+      | .none => .none
+      | .some l2' => .some (label.ljoin l1' l2')
+
+
 -- check that labels works
 #eval label_parse(x ⊓ y)
 
@@ -162,6 +198,17 @@ partial def elabCondSym : Syntax → MetaM Expr
   | `(owl_cond_sym| !⊐) => mkAppM ``SCondSym.ngt #[]
   | _ => throwUnsupportedSyntax
 
+def SCondSym.elab (s : SCondSym) : Option Owl.cond_sym :=
+  match s with
+  | .leq => .some .leq
+  | .geq => .some .geq
+  | .lt => .some .lt
+  | .gt => .some .gt
+  | .nleq => .some .nleq
+  | .ngeq => .some .ngeq
+  | .nlt => .some .nlt
+  | .ngt => .some .ngt
+
 -- test parser for cond_sym
 elab "cond_sym_parse" "(" p:owl_cond_sym ")" : term =>
     elabCondSym p
@@ -182,6 +229,19 @@ partial def elabConstr : Syntax → MetaM Expr
       let elab_c <- elabCondSym c
       mkAppM ``SConstr.condition #[elab_c, elab_l1, elab_l2]
   | _ => throwUnsupportedSyntax
+
+def SConstr.elab (s : SConstr) (P : TCtx) : Option (Owl.constr P.length) :=
+  match s with
+  | .condition cs l1 l2 =>
+    match (SCondSym.elab cs) with
+    | .none => .none
+    | .some cs' =>
+      match (SLabel.elab l1 P) with
+      | .none => .none
+      | .some l1' =>
+        match (SLabel.elab l2 P) with
+        | .none => .none
+        | .some l2' => .some (.condition cs' l1' l2')
 
 -- test parser for constraints
 elab "constraint_parse" "(" p:owl_constr ")" : term =>
@@ -207,6 +267,18 @@ partial def buildSBinaryExpr (chars : List Char) : MetaM Expr :=
 partial def elabBinary : Syntax → MetaM Expr
   | `(owl_binary| $val:str) => buildSBinaryExpr val.getString.data
   | _ => throwUnsupportedSyntax
+
+def SBinary.elab (s : SBinary) : Option Owl.binary :=
+  match s with
+  | .bend => .some .bend
+  | .bzero b =>
+      match (SBinary.elab b) with
+      | .none => .none
+      | .some b' => .some (.bzero b')
+  | .bone b =>
+      match (SBinary.elab b) with
+      | .none => .none
+      | .some b' => .some (.bone b')
 
 -- test parser for binary
 elab "binary_parse" "(" p:owl_binary ")" : term =>
@@ -273,6 +345,80 @@ partial def elabType : Syntax → MetaM Expr
     let elab_c <- elabConstr c
     mkAppM ``STy.t_if #[elab_c, elab_t1, elab_t2]
   | _ => throwUnsupportedSyntax
+
+def STy.elab (s : STy) (P : TCtx) (D : TCtx): Option (Owl.ty P.length D.length) :=
+  match s with
+  | .var_ty i =>
+    match TCtx.lookup D i with
+    | .none => .none
+    | .some j => .some (ty.var_ty j)
+  | .Any => .some ty.Any
+  | .Unit => .some ty.Unit
+  | .Data l =>
+      match (SLabel.elab l P) with
+      | .none => .none
+      | .some l' => .some (ty.Data l')
+  | .Ref t =>
+      match (STy.elab t P D) with
+      | .none => .none
+      | .some t' => .some (ty.Ref t')
+  | .arr t1 t2 =>
+      match (STy.elab t1 P D) with
+      | .none => .none
+      | .some t1' =>
+          match (STy.elab t2 P D) with
+          | .none => .none
+          | .some t2' => .some (ty.arr t1' t2')
+  | .prod t1 t2 =>
+      match (STy.elab t1 P D) with
+      | .none => .none
+      | .some t1' =>
+          match (STy.elab t2 P D) with
+          | .none => .none
+          | .some t2' => .some (ty.prod t1' t2')
+  | .sum t1 t2 =>
+      match (STy.elab t1 P D) with
+      | .none => .none
+      | .some t1' =>
+          match (STy.elab t2 P D) with
+          | .none => .none
+          | .some t2' => .some (ty.sum t1' t2')
+  | .all a t1 t2 =>
+      match (STy.elab t1 P D) with
+      | .none => .none
+      | .some t1' =>
+          match (STy.elab t2 P (a::D)) with
+          | .none => .none
+          | .some t2' => .some (ty.all t1' t2')
+  | .ex a t1 t2 =>
+      match (STy.elab t1 P D) with
+      | .none => .none
+      | .some t1' =>
+          match (STy.elab t2 P (a::D)) with
+          | .none => .none
+          | .some t2' => .some (ty.ex t1' t2')
+  | .all_l s c l t =>
+      match (SCondSym.elab c) with
+      | .none => .none
+      | .some c' =>
+          match (SLabel.elab l P) with
+          | .none => .none
+          | .some l'=>
+              match (STy.elab t (s::P) D) with
+              | .none => .none
+              | .some t' => .some (ty.all_l c' l' t')
+  | .t_if c t1 t2 =>
+      match (SConstr.elab c P) with
+      | .none => .none
+      | .some c' =>
+        match (STy.elab t1 P D) with
+        | .none => .none
+        | .some t1' =>
+            match (STy.elab t2 P D) with
+            | .none => .none
+            | .some t2' => .some (ty.t_if c' t1' t2')
+
+
 
 -- test parser for types
 elab "type_parse" "(" p:owl_type ")" : term =>

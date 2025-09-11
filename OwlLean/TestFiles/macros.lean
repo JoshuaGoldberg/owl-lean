@@ -80,7 +80,7 @@ def SExpr.elab (s : SExpr) (c : TCtx) : Option (Expr c.length) :=
   | .Ident i =>
     match TCtx.lookup c i with
     | .none => .none
-    | .some j => Expr.Ident j
+    | .some j => .some (Expr.Ident j)
   | .Bind s e1 e2 =>
       match (SExpr.elab e1 c) with
       | .none => .none
