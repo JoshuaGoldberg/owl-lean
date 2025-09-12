@@ -449,6 +449,7 @@ syntax "unpack" owl_tm "as" "(" ident "," ident ")" "in" owl_tm : owl_tm
 syntax "if" owl_tm "then" owl_tm "else" owl_tm : owl_tm
 syntax "if" owl_constr "then" owl_tm "else" owl_tm : owl_tm
 syntax "sync" owl_tm : owl_tm
+syntax "let" ident "=" owl_tm "in" owl_tm : owl_tm
 
 partial def elabTm : Syntax → MetaM Expr
   | `(owl_tm| ( $e:owl_tm)) => elabTm e
@@ -542,6 +543,12 @@ partial def elabTm : Syntax → MetaM Expr
   | `(owl_tm| sync $e:owl_tm) => do
     let elab_e <- elabTm e
     mkAppM ``SExpr.sync #[elab_e]
+  | `(owl_tm| let $id1:ident = $e:owl_tm  in $b:owl_tm) => do
+    let elab_e <- elabTm e
+    let elab_b <- elabTm b
+    let unused := "unused variable"
+    let lambda <- mkAppM ``SExpr.fixlam #[mkStrLit unused, mkStrLit id1.getId.toString, elab_b]
+    mkAppM ``SExpr.app #[lambda, elab_e]
   | _ => throwUnsupportedSyntax
 
 def SExpr.elab (s : SExpr) (P : TCtx) (D : TCtx) (G : TCtx): Option (Owl.tm P.length D.length G.length) :=
@@ -778,4 +785,9 @@ def mul_op : op :=
     case π1 x in
       x => ⟨ ı1 x , π2 x ⟩
     | y => ⟨ ı2 y , π2 x ⟩
+}
+
+#eval Owl {
+  let x = 5 in
+    x [x]
 }
