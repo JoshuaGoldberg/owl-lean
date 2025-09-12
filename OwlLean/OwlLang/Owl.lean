@@ -182,6 +182,95 @@ def ren_ty
       .t_if (ren_constr xi_label s0) (ren_ty xi_label xi_ty s1)
         (ren_ty xi_label xi_ty s2)
 
+def upRen_tm_label (xi : Fin m -> Fin n) :
+  Fin m -> Fin n :=
+    xi
+
+def upRen_tm_ty (xi : Fin m -> Fin n) : Fin m -> Fin n :=
+    xi
+
+def upRen_tm_tm (xi : Fin m -> Fin n) :
+  Fin (m + 1) -> Fin (n + 1) :=
+    (up_ren xi)
+
+def upRen_ty_tm (xi : Fin m -> Fin n) : Fin m -> Fin n :=
+    xi
+
+def upRen_label_tm (xi : Fin m -> Fin n) :
+  Fin m -> Fin n :=
+    xi
+
+def ren_tm
+(xi_label : Fin m_label -> Fin n_label) (xi_ty : Fin m_ty -> Fin n_ty)
+(xi_tm : Fin m_tm -> Fin n_tm) (s : tm m_label m_ty m_tm) :
+tm n_label n_ty n_tm :=
+  match s with
+  | .var_tm s0 => .var_tm (xi_tm s0)
+  | .error => .error
+  | .skip => .skip
+  | .bitstring s0 => .bitstring s0
+  | .loc s0 => .loc s0
+  | .fixlam s0 =>
+      .fixlam
+        (ren_tm (upRen_tm_label (upRen_tm_label xi_label))
+           (upRen_tm_ty (upRen_tm_ty xi_ty))
+           (upRen_tm_tm (upRen_tm_tm xi_tm)) s0)
+  | .tlam s0 =>
+      .tlam
+        (ren_tm (upRen_ty_label xi_label) (upRen_ty_ty xi_ty)
+           (upRen_ty_tm xi_tm) s0)
+  | .l_lam s0 =>
+      .l_lam
+        (ren_tm (upRen_label_label xi_label) (upRen_label_ty xi_ty)
+           (upRen_label_tm xi_tm) s0)
+  | .Op s0 s1 s2 =>
+      .Op s0 (ren_tm xi_label xi_ty xi_tm s1)
+        (ren_tm xi_label xi_ty xi_tm s2)
+  | .zero s0 => .zero (ren_tm xi_label xi_ty xi_tm s0)
+  | .app s0 s1 =>
+     .app (ren_tm xi_label xi_ty xi_tm s0)
+        (ren_tm xi_label xi_ty xi_tm s1)
+  | .alloc s0 =>
+      .alloc (ren_tm xi_label xi_ty xi_tm s0)
+  | .dealloc s0 =>
+      .dealloc (ren_tm xi_label xi_ty xi_tm s0)
+  | .assign s0 s1 =>
+      .assign (ren_tm xi_label xi_ty xi_tm s0)
+        (ren_tm xi_label xi_ty xi_tm s1)
+  | .tm_pair s0 s1 =>
+      .tm_pair (ren_tm xi_label xi_ty xi_tm s0)
+        (ren_tm xi_label xi_ty xi_tm s1)
+  | .left_tm s0 =>
+      .left_tm (ren_tm xi_label xi_ty xi_tm s0)
+  | .right_tm s0 =>
+      .right_tm (ren_tm xi_label xi_ty xi_tm s0)
+  | .inl s0 => .inl (ren_tm xi_label xi_ty xi_tm s0)
+  | .inr s0 => .inr (ren_tm xi_label xi_ty xi_tm s0)
+  | .case s0 s1 s2 =>
+      .case (ren_tm xi_label xi_ty xi_tm s0)
+        (ren_tm (upRen_tm_label xi_label) (upRen_tm_ty xi_ty)
+           (upRen_tm_tm xi_tm) s1)
+        (ren_tm (upRen_tm_label xi_label) (upRen_tm_ty xi_ty)
+           (upRen_tm_tm xi_tm) s2)
+  | .tapp s0 s1 =>
+      .tapp (ren_tm xi_label xi_ty xi_tm s0)
+        (ren_ty xi_label xi_ty s1)
+  | .lapp s0 s1 =>
+      .lapp (ren_tm xi_label xi_ty xi_tm s0)
+        (ren_label xi_label s1)
+  | .pack s0 => .pack (ren_tm xi_label xi_ty xi_tm s0)
+  | .unpack s0 s1 =>
+      .unpack (ren_tm xi_label xi_ty xi_tm s0)
+        (ren_tm (upRen_tm_label xi_label) (upRen_tm_ty (upRen_ty_ty xi_ty))
+           (upRen_tm_tm xi_tm) s1)
+  | .if_tm s0 s1 s2 =>
+      .if_tm (ren_tm xi_label xi_ty xi_tm s0)
+        (ren_tm xi_label xi_ty xi_tm s1) (ren_tm xi_label xi_ty xi_tm s2)
+  | .if_c s0 s1 s2 =>
+      .if_c (ren_constr xi_label s0)
+        (ren_tm xi_label xi_ty xi_tm s1) (ren_tm xi_label xi_ty xi_tm s2)
+  | .sync s0 => .sync (ren_tm xi_label xi_ty xi_tm s0)
+
 def subst_label
 (sigma_label : Fin m_label -> label n_label) (s : label m_label) :
 label n_label :=

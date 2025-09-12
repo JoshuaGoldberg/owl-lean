@@ -81,6 +81,7 @@ inductive SExpr : Type where
 | if_c :
     SConstr -> SExpr -> SExpr -> SExpr
 | sync : SExpr -> SExpr
+| embedtm : Owl.tm 0 0 0-> SExpr
 deriving Repr
 
 def TCtx := List String
@@ -450,6 +451,7 @@ syntax "if" owl_tm "then" owl_tm "else" owl_tm : owl_tm
 syntax "if" owl_constr "then" owl_tm "else" owl_tm : owl_tm
 syntax "sync" owl_tm : owl_tm
 syntax "let" ident "=" owl_tm "in" owl_tm : owl_tm
+syntax "$tm" term : owl_tm
 
 partial def elabTm : Syntax → MetaM Expr
   | `(owl_tm| ( $e:owl_tm)) => elabTm e
@@ -481,6 +483,10 @@ partial def elabTm : Syntax → MetaM Expr
     let elab_e1 <- elabTm e1
     let elab_e2 <- elabTm e2
     mkAppM ``SExpr.Op #[t', elab_e1, elab_e2]
+  | `(owl_tm| $tm $t:term) => do
+    let t' ← Term.TermElabM.run' do
+        Term.elabTerm t (mkConst ``Owl.tm)
+    mkAppM ``SExpr.embedtm #[t']
   | `(owl_tm| zero $e:owl_tm) => do
     let elab_e <- elabTm e
     mkAppM ``SExpr.zero #[elab_e]
@@ -551,6 +557,9 @@ partial def elabTm : Syntax → MetaM Expr
     mkAppM ``SExpr.app #[lambda, elab_e]
   | _ => throwUnsupportedSyntax
 
+def shift_bound_by (shift_num : Nat) : Fin n -> Fin (n + shift_num) :=
+  fun x => (x.addNat shift_num)
+
 def SExpr.elab (s : SExpr) (P : TCtx) (D : TCtx) (G : TCtx): Option (Owl.tm P.length D.length G.length) :=
   match s with
   | .var_tm i =>
@@ -583,6 +592,11 @@ def SExpr.elab (s : SExpr) (P : TCtx) (D : TCtx) (G : TCtx): Option (Owl.tm P.le
       match (SExpr.elab e2 P D G) with
       | .none => .none
       | .some e2' => .some (tm.Op op e1' e2')
+  | .embedtm e => do
+    let e' := (ren_tm (shift_bound_by P.length) (shift_bound_by D.length) (shift_bound_by G.length) e)
+    .some (Eq.symm (Nat.zero_add G.length) ▸
+          Eq.symm (Nat.zero_add D.length) ▸
+          Eq.symm (Nat.zero_add P.length) ▸ e')
   | .zero e =>
     match (SExpr.elab e P D G) with
     | .none => .none
@@ -790,4 +804,10 @@ def mul_op : op :=
 #eval Owl {
   let x = 5 in
     x [x]
+}
+
+def test_embed : tm 0 0 0 := Owl.tm.skip
+
+#eval Owl {
+  ($tm test_embed) [*]
 }
