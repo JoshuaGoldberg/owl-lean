@@ -451,7 +451,7 @@ syntax "if" owl_tm "then" owl_tm "else" owl_tm : owl_tm
 syntax "if" owl_constr "then" owl_tm "else" owl_tm : owl_tm
 syntax "sync" owl_tm : owl_tm
 syntax "let" ident "=" owl_tm "in" owl_tm : owl_tm
-syntax "$tm" term : owl_tm
+syntax "$" term : owl_tm
 
 partial def elabTm : Syntax → MetaM Expr
   | `(owl_tm| ( $e:owl_tm)) => elabTm e
@@ -483,7 +483,7 @@ partial def elabTm : Syntax → MetaM Expr
     let elab_e1 <- elabTm e1
     let elab_e2 <- elabTm e2
     mkAppM ``SExpr.Op #[t', elab_e1, elab_e2]
-  | `(owl_tm| $tm $t:term) => do
+  | `(owl_tm| $ $t:term) => do
     let t' ← Term.TermElabM.run' do
         Term.elabTerm t (mkConst ``Owl.tm)
     mkAppM ``SExpr.embedtm #[t']
@@ -809,5 +809,5 @@ def mul_op : op :=
 def test_embed : tm 0 0 0 := Owl.tm.skip
 
 #eval Owl {
-  ($tm test_embed) [*]
+  ($ test_embed) [*]
 }
