@@ -14,9 +14,6 @@ inductive SBinary : Type
 | bend : SBinary
 deriving Repr
 
-instance : Repr Owl.Lcarrier where
-  reprPrec _ _ := "<Lattice Label>"
-
 inductive SLabel : Type
 | var_label : String -> SLabel
 | latl : Owl.Lcarrier -> SLabel
@@ -54,9 +51,6 @@ inductive STy : Type where
 | t_if : SConstr -> STy -> STy -> STy
 deriving Repr
 
-instance : Repr Owl.op where
-  reprPrec _ _ := "<Operation>"
-
 inductive SExpr : Type where
 | var_tm : String -> SExpr
 | error : SExpr
@@ -81,7 +75,7 @@ inductive SExpr : Type where
 | tapp : SExpr -> STy -> SExpr
 | lapp : SExpr -> SLabel -> SExpr
 | pack : SExpr -> SExpr
-| unpack : SExpr -> String -> SExpr -> SExpr
+| unpack : SExpr -> String -> String -> SExpr -> SExpr
 | if_tm :
     SExpr -> SExpr -> SExpr -> SExpr
 | if_c :
@@ -432,10 +426,10 @@ syntax ident : owl_tm
 syntax num : owl_tm
 syntax "error" : owl_tm
 syntax "*" : owl_tm
-syntax "⌜" owl_binary "⌝" : owl_tm
+syntax "[" owl_binary "]" : owl_tm
 syntax "fix" ident "(" ident ")" owl_tm : owl_tm
-syntax "Λ" owl_tm "." owl_tm : owl_tm
-syntax "Λβ" ident "." owl_tm : owl_tm
+syntax "Λ" owl_type "." owl_tm : owl_tm
+syntax "Λβ" owl_label "." owl_tm : owl_tm
 syntax "⟨" owl_tm "," owl_tm "⟩" : owl_tm
 syntax "⟨" term "⟩" "(" owl_tm "," owl_tm ")" : owl_tm -- Op case
 syntax "zero" owl_tm : owl_tm
@@ -451,7 +445,7 @@ syntax "case" owl_tm "in" owl_tm "=>" owl_tm "|" owl_tm "=>" owl_tm : owl_tm
 syntax owl_tm "[[" owl_type "]]" : owl_tm
 syntax owl_tm "[[[" owl_label "]]]" : owl_tm
 syntax "pack" owl_tm : owl_tm
-syntax "unpack" owl_tm "as" owl_tm "in" owl_tm : owl_tm
+syntax "unpack" owl_tm "as" "(" ident "," ident ")" "in" owl_tm : owl_tm
 syntax "if" owl_tm "then" owl_tm "else" owl_tm : owl_tm
 syntax "if" owl_constr "then" owl_tm "else" owl_tm : owl_tm
 syntax "sync" owl_tm : owl_tm
@@ -464,7 +458,7 @@ partial def elabTm : Syntax → MetaM Expr
     mkAppM ``SExpr.loc #[mkNatLit n.getNat]
   | `(owl_tm| error) => mkAppM ``SExpr.error #[]
   | `(owl_tm| *) => mkAppM ``SExpr.skip #[]
-  | `(owl_tm| ⌜ $b:owl_binary ⌝ ) => do
+  | `(owl_tm| [ $b:owl_binary ] ) => do
     let elab_b <- elabBinary b
     mkAppM ``SExpr.bitstring #[elab_b]
   | `(owl_tm| fix $f:ident ( $id:ident ) $e:owl_tm) => do
@@ -528,10 +522,10 @@ partial def elabTm : Syntax → MetaM Expr
     let elab_e <- elabTm e
     let elab_l <- elabLabel l
     mkAppM ``SExpr.lapp #[elab_e, elab_l]
-  | `(owl_tm| unpack $e1:owl_tm as $id:ident in $e2:owl_tm) => do
+  | `(owl_tm| unpack $e1:owl_tm as ($id1:ident, $id2:ident) in $e2:owl_tm) => do
     let elab_e1 <- elabTm e1
     let elab_e2 <- elabTm e2
-    mkAppM ``SExpr.unpack #[elab_e1, mkStrLit id.getId.toString, elab_e2]
+    mkAppM ``SExpr.unpack #[elab_e1, mkStrLit id1.getId.toString, mkStrLit id2.getId.toString, elab_e2]
   | `(owl_tm| pack $e:owl_tm) => do
     let elab_e <- elabTm e
     mkAppM ``SExpr.pack #[elab_e]
@@ -552,7 +546,144 @@ partial def elabTm : Syntax → MetaM Expr
 
 def SExpr.elab (s : SExpr) (P : TCtx) (D : TCtx) (G : TCtx): Option (Owl.tm P.length D.length G.length) :=
   match s with
-  | _ => .none
+  | .var_tm i =>
+    match TCtx.lookup G i with
+    | .none => .none
+    | .some j => .some (tm.var_tm j)
+  | .error => .some tm.error
+  | .skip => .some tm.skip
+  | .bitstring b =>
+    match (SBinary.elab b) with
+    | .none => .none
+    | .some b' => .some (tm.bitstring b')
+  | .loc n => .some (tm.loc n)
+  | .fixlam f x e =>
+    match (SExpr.elab e P D (f::x::G)) with
+    | .none => .none
+    | .some e' => .some (tm.fixlam e')
+  | .tlam t e =>
+    match (SExpr.elab e P (t::D) G) with
+    | .none => .none
+    | .some e' => .some (tm.tlam e')
+  | .l_lam l e =>
+    match (SExpr.elab e (l::P) D G) with
+    | .none => .none
+    | .some e' => .some (tm.l_lam e')
+  | .Op op e1 e2 =>
+    match (SExpr.elab e1 P D G) with
+    | .none => .none
+    | .some e1' =>
+      match (SExpr.elab e2 P D G) with
+      | .none => .none
+      | .some e2' => .some (tm.Op op e1' e2')
+  | .zero e =>
+    match (SExpr.elab e P D G) with
+    | .none => .none
+    | .some e' => .some (tm.zero e')
+  | .app e1 e2 =>
+    match (SExpr.elab e1 P D G) with
+    | .none => .none
+    | .some e1' =>
+      match (SExpr.elab e2 P D G) with
+      | .none => .none
+      | .some e2' => .some (tm.app e1' e2')
+  | .alloc e =>
+    match (SExpr.elab e P D G) with
+    | .none => .none
+    | .some e' => .some (tm.alloc e')
+  | .dealloc e =>
+    match (SExpr.elab e P D G) with
+    | .none => .none
+    | .some e' => .some (tm.dealloc e')
+  | .assign e1 e2 =>
+    match (SExpr.elab e1 P D G) with
+    | .none => .none
+    | .some e1' =>
+      match (SExpr.elab e2 P D G) with
+      | .none => .none
+      | .some e2' => .some (tm.assign e1' e2')
+  | .tm_pair e1 e2 =>
+    match (SExpr.elab e1 P D G) with
+    | .none => .none
+    | .some e1' =>
+      match (SExpr.elab e2 P D G) with
+      | .none => .none
+      | .some e2' => .some (tm.tm_pair e1' e2')
+  | .left_tm e =>
+    match (SExpr.elab e P D G) with
+    | .none => .none
+    | .some e' => .some (tm.left_tm e')
+  | .right_tm e =>
+    match (SExpr.elab e P D G) with
+    | .none => .none
+    | .some e' => .some (tm.right_tm e')
+  | .inl e =>
+    match (SExpr.elab e P D G) with
+    | .none => .none
+    | .some e' => .some (tm.inl e')
+  | .inr e =>
+    match (SExpr.elab e P D G) with
+    | .none => .none
+    | .some e' => .some (tm.inr e')
+  | .case e x1 e1 x2 e2 =>
+    match (SExpr.elab e P D G) with
+    | .none => .none
+    | .some e' =>
+      match (SExpr.elab e1 P D (x1::G)) with
+      | .none => .none
+      | .some e1' =>
+        match (SExpr.elab e2 P D (x2::G)) with
+        | .none => .none
+        | .some e2' => .some (tm.case e' e1' e2')
+  | .tapp e t =>
+    match (SExpr.elab e P D G) with
+    | .none => .none
+    | .some e' =>
+      match (STy.elab t P D) with
+      | .none => .none
+      | .some t' => .some (tm.tapp e' t')
+  | .lapp e l =>
+    match (SExpr.elab e P D G) with
+    | .none => .none
+    | .some e' =>
+      match (SLabel.elab l P) with
+      | .none => .none
+      | .some l' => .some (tm.lapp e' l')
+  | .pack e =>
+    match (SExpr.elab e P D G) with
+    | .none => .none
+    | .some e' => .some (tm.pack e')
+  | .unpack e a x e1 =>
+    match (SExpr.elab e P D G) with
+    | .none => .none
+    | .some e' =>
+      match (SExpr.elab e1 P (a::D) (x::G)) with
+      | .none => .none
+      | .some e1' => .some (tm.unpack e' e1')
+  | .if_tm e1 e2 e3 =>
+    match (SExpr.elab e1 P D G) with
+    | .none => .none
+    | .some e1' =>
+      match (SExpr.elab e2 P D G) with
+      | .none => .none
+      | .some e2' =>
+        match (SExpr.elab e3 P D G) with
+        | .none => .none
+        | .some e3' => .some (tm.if_tm e1' e2' e3')
+  | .if_c c e1 e2 =>
+    match (SExpr.elab e1 P D G) with
+    | .none => .none
+    | .some e1' =>
+      match (SExpr.elab e2 P D G) with
+      | .none => .none
+      | .some e2' =>
+        match (SConstr.elab c P) with
+        | .none => .none
+        | .some c' => .some (tm.if_c c' e1' e2')
+  | .sync e =>
+    match (SExpr.elab e P D G) with
+    | .none => .none
+    | .some e' => .some (tm.sync e')
 
 -- test parser for terms
 elab "term_parse" "(" p:owl_tm ")" : term =>
@@ -566,17 +697,33 @@ def coin_flip : op :=
 -- check that terms works
 #eval term_parse(case 5 in x1 => pack x1 | x2 => (Λ t . * [[ t ]]))
 #eval term_parse(* [[[ z ⊔ y ]]])
-#eval term_parse(⟨ coin_flip ⟩ ( ⌜ "110" ⌝ , ⌜ "110" ⌝))
+#eval term_parse(⟨ coin_flip ⟩ ( ["110"] , ["110"]))
 
 -- check that terms works
 elab "Owl_Parse" "{" p:owl_tm "}" : term => do
     elabTm p
 
+def elabHelper (s : SExpr) : tm 0 0 0 :=
+  match SExpr.elab s [] [] [] with
+  | .some e => e
+  | .none => tm.skip --dummy value
+
+elab "Owl" "{" p:owl_tm "}" : term => do
+  let sexprTerm : Expr <- elabTm p
+  let sVal : SExpr <-
+    (unsafe do
+      Meta.evalExpr SExpr (mkConst ``SExpr) sexprTerm)
+  match SExpr.elab sVal [] [] [] with
+  | .none =>
+      throwError "owl: ill-formed term"
+  | .some _ => mkAppM ``elabHelper #[sexprTerm]
+
+
 #eval Owl_Parse {
-  unpack p as α in
-    case π1 p in
-      x => ⟨ ı1 x , π2 p ⟩
-    | y => ⟨ ı2 y , π2 p ⟩
+  unpack p as (a, x) in
+    case π1 x in
+      x => ⟨ ı1 x , π2 x ⟩
+    | y => ⟨ ı2 y , π2 x ⟩
 }
 
 #eval Owl_Parse {
@@ -603,4 +750,32 @@ def mul_op : op :=
       ⟨ mul_op ⟩ ( n , factorial [ ⟨ sub_op ⟩ ( n , 1 ) ] )
     else
       1
+}
+
+-- real evaluations here
+#eval Owl {
+  *
+}
+
+#eval Owl {
+  fix factorial ( n )
+    if n then
+      ⟨ mul_op ⟩ ( n , factorial [ ⟨ sub_op ⟩ ( n , 1 ) ] )
+    else
+      1
+}
+
+#eval Owl {
+  ( fix loop ( state )
+    case (! state) in
+      cont => loop [ alloc cont ]
+    | done => *
+  ) [ alloc ⟨ ı1 * , * ⟩ ]
+}
+
+#eval Owl {
+  unpack (pack 5) as (a, x) in
+    case π1 x in
+      x => ⟨ ı1 x , π2 x ⟩
+    | y => ⟨ ı2 y , π2 x ⟩
 }

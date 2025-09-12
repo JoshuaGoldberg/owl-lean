@@ -15,6 +15,7 @@ inductive binary : Type
 | bzero : binary -> binary
 | bone : binary -> binary
 | bend : binary
+deriving Repr
 
 inductive cond_sym : Type
 | leq : cond_sym
@@ -25,15 +26,21 @@ inductive cond_sym : Type
 | ngeq : cond_sym
 | ngt : cond_sym
 | nlt : cond_sym
+deriving Repr
+
+instance : Repr Owl.Lcarrier where
+  reprPrec _ _ := "<Lattice Label>"
 
 inductive label : Nat -> Type where
 | var_label : Fin n -> label n
 | latl : Lcarrier -> label n
 | ljoin : label n -> label n -> label n
 | lmeet : label n -> label n -> label n
+deriving Repr
 
 inductive constr (n_label : Nat) : Type where
 | condition : cond_sym -> label n_label -> label n_label -> constr n_label
+deriving Repr
 
 inductive ty : Nat -> Nat-> Type where
 | var_ty : Fin n_ty -> ty n_label n_ty
@@ -48,6 +55,7 @@ inductive ty : Nat -> Nat-> Type where
 | ex : ty n_label n_ty -> ty n_label (n_ty + 1) -> ty n_label n_ty
 | all_l : cond_sym -> label n_label -> ty (n_label + 1) n_ty -> ty n_label n_ty
 | t_if : constr n_label -> ty n_label n_ty -> ty n_label n_ty -> ty n_label n_ty
+deriving Repr
 
 inductive Dist (a : Type) : Type where
 | ret  : a -> Dist a
@@ -55,12 +63,15 @@ inductive Dist (a : Type) : Type where
 
 abbrev op := binary -> binary -> Dist binary
 
+instance : Repr Owl.op where
+  reprPrec _ _ := "<Operation>"
+
 inductive tm : Nat -> Nat -> Nat -> Type where
 | var_tm : Fin n_tm -> tm n_label n_ty n_tm
 | error : tm n_label n_ty n_tm
 | skip : tm n_label n_ty n_tm
 | bitstring : binary -> tm n_label n_ty n_tm
-| loc : nat -> tm n_label n_ty n_tm
+| loc : Nat -> tm n_label n_ty n_tm
 | fixlam : tm n_label n_ty ((n_tm + 1) + 1) -> tm n_label n_ty n_tm
 | tlam : tm n_label (n_ty + 1) n_tm -> tm n_label n_ty n_tm
 | l_lam : tm (n_label + 1) n_ty n_tm -> tm n_label n_ty n_tm
@@ -88,6 +99,7 @@ inductive tm : Nat -> Nat -> Nat -> Type where
 | if_c :
     constr n_label -> tm n_label n_ty n_tm -> tm n_label n_ty n_tm -> tm n_label n_ty n_tm
 | sync : tm n_label n_ty n_tm -> tm n_label n_ty n_tm
+deriving Repr
 
 -- sanity checks
 #check (tm.error : tm 0 0 0)
