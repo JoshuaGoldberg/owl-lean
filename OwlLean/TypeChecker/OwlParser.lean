@@ -806,8 +806,13 @@ def mul_op : op :=
     x [x]
 }
 
-def test_embed : tm 0 0 0 := Owl.tm.skip
+def test_embed (e : tm 0 0 0) : tm 0 0 0 := e
+
+def test_lam : tm 0 0 0 :=
+  Owl {
+    Λ x . * [[x]]
+  }
 
 #eval Owl {
-  ($ test_embed) [*]
+  ($ (test_embed test_lam)) [*]
 }
