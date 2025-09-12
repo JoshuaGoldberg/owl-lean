@@ -418,8 +418,6 @@ def STy.elab (s : STy) (P : TCtx) (D : TCtx): Option (Owl.ty P.length D.length) 
             | .none => .none
             | .some t2' => .some (ty.t_if c' t1' t2')
 
-
-
 -- test parser for types
 elab "type_parse" "(" p:owl_type ")" : term =>
     elabType p
@@ -551,6 +549,10 @@ partial def elabTm : Syntax → MetaM Expr
     let elab_e <- elabTm e
     mkAppM ``SExpr.sync #[elab_e]
   | _ => throwUnsupportedSyntax
+
+def SExpr.elab (s : SExpr) (P : TCtx) (D : TCtx) (G : TCtx): Option (Owl.tm P.length D.length G.length) :=
+  match s with
+  | _ => .none
 
 -- test parser for terms
 elab "term_parse" "(" p:owl_tm ")" : term =>
