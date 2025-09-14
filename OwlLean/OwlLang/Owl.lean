@@ -36,6 +36,7 @@ inductive label : Nat -> Type where
 | latl : Lcarrier -> label n
 | ljoin : label n -> label n -> label n
 | lmeet : label n -> label n -> label n
+| default : label n
 deriving Repr
 
 inductive constr (n_label : Nat) : Type where
@@ -55,6 +56,7 @@ inductive ty : Nat -> Nat-> Type where
 | ex : ty n_label n_ty -> ty n_label (n_ty + 1) -> ty n_label n_ty
 | all_l : cond_sym -> label n_label -> ty (n_label + 1) n_ty -> ty n_label n_ty
 | t_if : constr n_label -> ty n_label n_ty -> ty n_label n_ty -> ty n_label n_ty
+| default : ty n_label n_ty
 deriving Repr
 
 inductive Dist (a : Type) : Type where
@@ -99,6 +101,7 @@ inductive tm : Nat -> Nat -> Nat -> Type where
 | if_c :
     constr n_label -> tm n_label n_ty n_tm -> tm n_label n_ty n_tm -> tm n_label n_ty n_tm
 | sync : tm n_label n_ty n_tm -> tm n_label n_ty n_tm
+| default : tm n_label n_ty n_tm
 deriving Repr
 
 -- sanity checks
@@ -147,6 +150,7 @@ def ren_label
   | .latl s0 => label.latl s0
   | .ljoin s0 s1 => label.ljoin (ren_label xi_label s0) (ren_label xi_label s1)
   | .lmeet s0 s1 => label.lmeet (ren_label xi_label s0) (ren_label xi_label s1)
+  | .default => .default
 
 def ren_constr
   (xi_label : Fin m_label -> Fin n_label) (s : constr m_label) :
@@ -181,6 +185,7 @@ def ren_ty
   | .t_if s0 s1 s2 =>
       .t_if (ren_constr xi_label s0) (ren_ty xi_label xi_ty s1)
         (ren_ty xi_label xi_ty s2)
+  | .default => .default
 
 def upRen_tm_label (xi : Fin m -> Fin n) :
   Fin m -> Fin n :=
@@ -270,6 +275,7 @@ tm n_label n_ty n_tm :=
       .if_c (ren_constr xi_label s0)
         (ren_tm xi_label xi_ty xi_tm s1) (ren_tm xi_label xi_ty xi_tm s2)
   | .sync s0 => .sync (ren_tm xi_label xi_ty xi_tm s0)
+  | .default => .default
 
 def subst_label
 (sigma_label : Fin m_label -> label n_label) (s : label m_label) :
@@ -281,6 +287,7 @@ label n_label :=
       .ljoin (subst_label sigma_label s0) (subst_label sigma_label s1)
   | .lmeet s0 s1 =>
       .lmeet (subst_label sigma_label s0) (subst_label sigma_label s1)
+  | .default => .default
 
 def subst_constr
   (sigma_label : Fin m_label -> label n_label) (s : constr m_label) :
@@ -339,5 +346,6 @@ ty n_label n_ty :=
   | .t_if s0 s1 s2 =>
       .t_if (subst_constr sigma_label s0)
         (subst_ty sigma_label sigma_ty s1) (subst_ty sigma_label sigma_ty s2)
+  | .default => .default
 
 end Owl
