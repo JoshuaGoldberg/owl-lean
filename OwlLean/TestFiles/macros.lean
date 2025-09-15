@@ -196,11 +196,21 @@ elab "tinylang" "{" p:tiny_lang "}" : term => do
   if y then (y + z) else (x + y)
 }
 
-def foo := tinylang {
+def foo1 := tinylang {
   x ← 1;
   z ← 2;
   (if true then x else z)
 }
 
-theorem foo_ok : has_type empty_gamma foo .int := by
+theorem foo1_ok : has_type empty_gamma foo1 .int := by
+  tc
+
+def foo2 := tinylang {
+  x ← 1;
+  z ← 2;
+  y ← true;
+  (if y then 99 else z + x)
+}
+
+theorem foo2_ok : has_type empty_gamma foo2 .int := by
   tc
