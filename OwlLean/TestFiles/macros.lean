@@ -44,18 +44,18 @@ inductive has_type : TyEnv Γ -> Expr Γ -> Ty -> Prop where
           has_type Γ e2 .int ->
           has_type Γ (.Add e1 e2) .int
 
-syntax "typecheck" : tactic
+syntax "tc" : tactic
 
 macro_rules
-  | `(tactic| typecheck) => `(tactic|
+  | `(tactic| tc) => `(tactic|
     first
     | apply has_type.T_True
     | apply has_type.T_False
     | apply has_type.T_NatLit
     | apply has_type.T_Ident
-    | (apply has_type.T_Ite; typecheck; typecheck; typecheck)
-    | (apply has_type.T_Bind; typecheck; typecheck)
-    | (apply has_type.T_Add; typecheck; typecheck)
+    | (apply has_type.T_Ite; tc; tc; tc)
+    | (apply has_type.T_Bind; tc; tc)
+    | (apply has_type.T_Add; tc; tc)
   )
 
 -- Empty environment
@@ -63,17 +63,15 @@ def empty_env : TyEnv 0 := fun i => nomatch i
 
 -- Example 1: True has type bool
 example : has_type empty_env Expr.True Ty.bool := by
-  typecheck
+  tc
 
 example : has_type empty_env (Expr.Add (Expr.NatLit 1) (Expr.NatLit 2)) Ty.int := by
-  typecheck
+  tc
 
 -- Example 4: let x = 5 in x + 3
-example : has_type empty_env
+theorem test_tc : has_type empty_env
   (Expr.Bind (Expr.NatLit 5) (Expr.Add (Expr.Ident 0) (Expr.NatLit 3))) Ty.int := by
-    typecheck
-
-
+    tc
 
 -- a TinyPPL parser and elaborator
 open Lean Elab Meta
@@ -196,3 +194,12 @@ elab "tinylang" "{" p:tiny_lang "}" : term => do
   z ← 2;
   if y then (y + z) else (x + y)
 }
+
+def foo := tinylang {
+  x ← 1;
+  z ← 2;
+  (if true then x else z)
+}
+
+theorem foo_ok : has_type empty_gamma foo .int := by
+  tc
