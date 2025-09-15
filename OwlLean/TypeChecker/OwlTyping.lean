@@ -205,6 +205,10 @@ inductive has_type : (Phi : phi_context l) -> (Delta : delta_context l d) -> (Ga
 | T_IUnit : has_type Phi Delta Gamma .skip .Unit
 | T_Const : forall b,
   has_type Phi Delta Gamma (.bitstring b) (.Data (.latl L.bot))
+| T_Op : forall op e1 e2 l,
+  has_type Phi Delta Gamma e1 (.Data l) ->
+  has_type Phi Delta Gamma e2 (.Data l) ->
+  has_type Phi Delta Gamma (.Op op e1 e2) (.Data l)
 | T_Zero : forall e l,
   has_type Phi Delta Gamma e (.Data l) ->
   has_type Phi Delta Gamma (.zero e) (.Data (.latl (L.bot)))
@@ -298,3 +302,8 @@ theorem simple_var_typing :
 
 theorem concrete_typing : @has_type 0 0 0 empty_phi empty_delta empty_gamma .skip .Unit :=
   has_type.T_IUnit
+
+-- NEEDED TACTICS
+-- has_type
+-- subtype
+-- phi_entails_c

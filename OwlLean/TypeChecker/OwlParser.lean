@@ -188,8 +188,6 @@ def STy.elab (s : STy) (P : TCtx) (D : TCtx): Option (Owl.ty P.length D.length) 
 elab "type_parse" "(" p:owl_type ")" : term =>
     elabType p
 
-
-
 def SExpr.elab (s : SExpr) (P : TCtx) (D : TCtx) (G : TCtx): Option (Owl.tm P.length D.length G.length) :=
   match s with
   | .var_tm i =>
