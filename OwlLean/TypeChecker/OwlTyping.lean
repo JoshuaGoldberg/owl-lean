@@ -40,6 +40,7 @@ noncomputable def interp_lattice (l : label 0) : L.labels :=
   | .ljoin x y => (L.join (interp_lattice x) (interp_lattice y))
   | .lmeet x y => (L.meet (interp_lattice x) (interp_lattice y))
   | .var_label n => nomatch n
+  | .default => L.bot
 
 def negate_cond (co : constr l) : constr l :=
   match co with

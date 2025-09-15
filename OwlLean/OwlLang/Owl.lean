@@ -348,4 +348,7 @@ ty n_label n_ty :=
         (subst_ty sigma_label sigma_ty s1) (subst_ty sigma_label sigma_ty s2)
   | .default => .default
 
+def shift_bound_by (shift_num : Nat) : Fin n -> Fin (n + shift_num) :=
+  fun x => (x.addNat shift_num)
+
 end Owl
