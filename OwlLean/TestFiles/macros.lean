@@ -14,6 +14,66 @@ inductive Expr : Nat → Type
 | Bind : (e1 : Expr Γ) → (e2 : Expr (Γ + 1)) → Expr Γ
 | Add : Expr Γ -> Expr Γ -> Expr Γ
 
+inductive Ty : Type
+| bool : Ty
+| int : Ty
+
+def TyEnv (n : Nat) := Fin n → Ty
+
+def cons (x : X) (f : Fin n -> X) (m : Fin (n + 1)) : X :=
+  match m with
+  | ⟨0,_⟩ => x
+  | ⟨k+1, hk⟩ =>
+      have hk' : k < n := Nat.lt_of_succ_lt_succ hk
+      let i : Fin n := ⟨k, hk'⟩
+      (f i)
+
+inductive has_type : TyEnv Γ -> Expr Γ -> Ty -> Prop where
+| T_True {Γ} : has_type Γ .True .bool
+| T_False : has_type Γ .False .bool
+| T_NatLit : has_type Γ (.NatLit n) .int
+| T_Ident : has_type Γ (.Ident i) (Γ i)
+| T_Ite : has_type Γ g .bool ->
+          has_type Γ thn t ->
+          has_type Γ els t ->
+          has_type Γ (.Ite g thn els) t
+| T_Bind : has_type Γ e1 τ1 ->
+           has_type (cons τ1 Γ) e2 τ2 ->
+           has_type Γ (.Bind e1 e2) τ2
+| T_Add : has_type Γ e1 .int ->
+          has_type Γ e2 .int ->
+          has_type Γ (.Add e1 e2) .int
+
+syntax "typecheck" : tactic
+
+macro_rules
+  | `(tactic| typecheck) => `(tactic|
+    first
+    | apply has_type.T_True
+    | apply has_type.T_False
+    | apply has_type.T_NatLit
+    | apply has_type.T_Ident
+    | (apply has_type.T_Ite; typecheck; typecheck; typecheck)
+    | (apply has_type.T_Bind; typecheck; typecheck)
+    | (apply has_type.T_Add; typecheck; typecheck)
+  )
+
+-- Empty environment
+def empty_env : TyEnv 0 := fun i => nomatch i
+
+-- Example 1: True has type bool
+example : has_type empty_env Expr.True Ty.bool := by
+  typecheck
+
+example : has_type empty_env (Expr.Add (Expr.NatLit 1) (Expr.NatLit 2)) Ty.int := by
+  typecheck
+
+-- Example 4: let x = 5 in x + 3
+example : has_type empty_env
+  (Expr.Bind (Expr.NatLit 5) (Expr.Add (Expr.Ident 0) (Expr.NatLit 3))) Ty.int := by
+    typecheck
+
+
 
 -- a TinyPPL parser and elaborator
 open Lean Elab Meta
