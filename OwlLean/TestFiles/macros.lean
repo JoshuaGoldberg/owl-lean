@@ -47,7 +47,8 @@ inductive has_type : TyEnv Γ -> Expr Γ -> Ty -> Prop where
 syntax "typecheck" : tactic
 
 macro_rules
-  | `(tactic| typecheck) => `(tactic|
+  | `(tactic| typecheck) =>
+  `(tactic|
     first
     | apply has_type.T_True
     | apply has_type.T_False
@@ -58,22 +59,20 @@ macro_rules
     | (apply has_type.T_Add; typecheck; typecheck)
   )
 
--- Empty environment
-def empty_env : TyEnv 0 := fun i => nomatch i
+-- empty gamma
+def empty_gamma : TyEnv 0 := fun i => nomatch i
 
--- Example 1: True has type bool
-example : has_type empty_env Expr.True Ty.bool := by
+-- example : True has type bool
+example : has_type empty_gamma Expr.True Ty.bool := by
   typecheck
 
-example : has_type empty_env (Expr.Add (Expr.NatLit 1) (Expr.NatLit 2)) Ty.int := by
+example : has_type empty_gamma (Expr.Add (Expr.NatLit 1) (Expr.NatLit 2)) Ty.int := by
   typecheck
 
--- Example 4: let x = 5 in x + 3
-example : has_type empty_env
+-- example : let x = 5 in x + 3
+example : has_type empty_gamma
   (Expr.Bind (Expr.NatLit 5) (Expr.Add (Expr.Ident 0) (Expr.NatLit 3))) Ty.int := by
     typecheck
-
-
 
 -- a TinyPPL parser and elaborator
 open Lean Elab Meta
