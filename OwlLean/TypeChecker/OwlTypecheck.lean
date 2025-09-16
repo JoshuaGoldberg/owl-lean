@@ -6,6 +6,8 @@ import Std.Data.HashMap
 open Lean Elab Meta
 
 syntax "tc" : tactic
+syntax "st" : tactic
+
 
 macro_rules
   | `(tactic| tc) =>
@@ -29,17 +31,38 @@ macro_rules
     | (apply has_type.T_ISumR; tc)
     | (apply has_type.T_ESum; tc; tc; tc)
     | (apply has_type.T_IUniv; tc)
+    | (apply has_type.T_EUniv; st; tc)
   )
+  | `(tactic| st) =>
+  `(tactic|
+    first
+    | apply subtype.ST_Unit
+    | apply subtype.ST_Any
+  )
+
+def tm_spec :=
+  Owl {
+    (Λ a . *) [[Unit]]
+  }
+
+def ty_spec :=
+  OwlTy{
+    Unit
+  }
+
+theorem tc_spec : has_type (@empty_phi 0) empty_delta empty_gamma tm_spec
+  (Owl.subst_ty .var_label (Owl.cons Owl.ty.Unit .var_ty) Owl.ty.Unit) := by
+  tc
 
 -- TYPECHECKER TESTS
 def tm1 :=
   Owl {
-    *
+    zero (["11101"])
   }
 
-def ty1 :=
+noncomputable def ty1 :=
   OwlTy {
-    Unit
+    (Data ⟨Owl.L.bot⟩)
   }
 
 -- example : True has type bool

@@ -259,10 +259,10 @@ inductive has_type : (Phi : phi_context l) -> (Delta : delta_context l d) -> (Ga
 | T_IUniv : forall t0 t e,
   has_type Phi (lift_delta (cons t0 Delta)) (lift_gamma_d Gamma) e t ->
   has_type Phi Delta Gamma (.tlam e) (.all t0 t)
-| T_EUniv : forall t t' t0 e,
+| T_EUniv {Phi Delta Gamma} : forall t t' t0 e,
   subtype Phi Delta t' t0 ->
   has_type Phi Delta Gamma e (.all t0 t) ->
-  has_type Phi Delta Gamma (.tapp e t') (subst_ty .var_label (cons t' var_ty) t)
+  has_type Phi Delta Gamma (.tapp e t') (subst_ty .var_label (cons t' .var_ty) t)
 | T_IExist : forall e t t' t0,
   has_type Phi Delta Gamma e (subst_ty .var_label (cons t' .var_ty) t) ->
   subtype Phi Delta t' t0 ->
@@ -304,7 +304,19 @@ theorem simple_var_typing :
 theorem concrete_typing : @has_type 0 0 0 empty_phi empty_delta empty_gamma .skip .Unit :=
   has_type.T_IUnit
 
+def infer_type (Phi : phi_context l) (Delta : delta_context l d) (Gamma : gamma_context l d m) (e : tm l d m) :
+(Option (ty l d)) :=
+    match e with
+    | .var_tm n => .some (Gamma n)
+    | .skip => .some .Unit
+    | _ => .some .Unit
+
+
 -- NEEDED TACTICS
 -- has_type
 -- subtype
 -- phi_entails_c
+
+-- search for a subtype???
+
+-- Give Tlam a subtyping
