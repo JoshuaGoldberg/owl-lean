@@ -31,6 +31,7 @@ macro_rules
     | (apply has_type.T_IUniv; tc)
   )
 
+-- TYPECHECKER TESTS
 def tm1 :=
   Owl {
     *
