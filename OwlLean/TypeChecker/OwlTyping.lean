@@ -131,7 +131,7 @@ inductive subtype : (phi_context l) -> (delta_context l d) ->
   subtype Phi Delta (Delta x) t' ->
   subtype Phi Delta (.var_ty x) t'
 | ST_Any : forall t,
-  subtype Phi Delta t Any
+  subtype Phi Delta t .Any
 | ST_Unit : subtype Phi Delta .Unit .Unit
 | ST_Data : forall lab (lab' : label l),
   (Phi |= (.condition .leq lab lab')) ->

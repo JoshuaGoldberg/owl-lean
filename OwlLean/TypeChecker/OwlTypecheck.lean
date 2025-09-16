@@ -36,8 +36,8 @@ macro_rules
   | `(tactic| st) =>
   `(tactic|
     first
-    | apply subtype.ST_Unit
     | apply subtype.ST_Any
+    | apply subtype.ST_Unit
   )
 
 def tm_spec :=
