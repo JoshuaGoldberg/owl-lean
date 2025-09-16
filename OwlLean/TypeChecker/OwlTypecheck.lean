@@ -54,6 +54,19 @@ theorem tc_spec : has_type (@empty_phi 0) empty_delta empty_gamma tm_spec
   (Owl.subst_ty .var_label (Owl.cons Owl.ty.Unit .var_ty) Owl.ty.Unit) := by
   tc
 
+def tm_spec2 :=
+  Owl {
+    (Λ a . *)
+  }
+
+noncomputable def ty_spec2 :=
+  OwlTy{
+    (∀ a <: (Data ⟨Owl.L.bot⟩) . Unit)
+  }
+
+theorem tc_spec2 : has_type (@empty_phi 0) empty_delta empty_gamma tm_spec2 ty_spec2:= by
+  tc
+
 -- TYPECHECKER TESTS
 def tm1 :=
   Owl {
