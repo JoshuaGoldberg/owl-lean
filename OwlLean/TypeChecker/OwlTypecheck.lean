@@ -16,6 +16,19 @@ macro_rules
     | apply has_type.T_Const
     | (apply has_type.T_Op; tc; tc)
     | (apply has_type.T_Zero; tc)
+    | (apply has_type.T_If; tc; tc; tc)
+    | (apply has_type.T_IRef; tc)
+    | (apply has_type.T_ERef; tc)
+    | (apply has_type.T_Assign; tc; tc)
+    | (apply has_type.T_IFun; tc)
+    | (apply has_type.T_EFun; tc; tc; tc)
+    | (apply has_type.T_IProd; tc; tc)
+    | (apply has_type.T_EProdL; tc)
+    | (apply has_type.T_EProdR; tc)
+    | (apply has_type.T_ISumL; tc)
+    | (apply has_type.T_ISumR; tc)
+    | (apply has_type.T_ESum; tc; tc; tc)
+    | (apply has_type.T_IUniv; tc)
   )
 
 def tm1 :=
@@ -49,4 +62,17 @@ noncomputable def ty2 :=
 
 -- example : True has type bool
 theorem tc2 : has_type (@empty_phi 0) empty_delta empty_gamma tm2 ty2 := by
+  tc
+
+def tm3 :=
+  Owl {
+    fix f (x) (zero x)
+  }
+
+noncomputable def ty3 :=
+  OwlTy {
+    ((Data ⟨Owl.L.bot⟩) -> (Data ⟨Owl.L.bot⟩))
+  }
+
+theorem tc3 : has_type (@empty_phi 0) empty_delta empty_gamma tm3 ty3 := by
   tc

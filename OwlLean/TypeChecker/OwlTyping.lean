@@ -203,7 +203,7 @@ inductive has_type : (Phi : phi_context l) -> (Delta : delta_context l d) -> (Ga
   tm l d m -> ty l d -> Prop where
 | T_Var : forall x,
   has_type Phi Delta Gamma (.var_tm x) (Gamma x)
-| T_IUnit : has_type Phi Delta Gamma .skip .Unit
+| T_IUnit {Phi Delta Gamma} : has_type Phi Delta Gamma .skip .Unit
 | T_Const : forall b,
   has_type Phi Delta Gamma (.bitstring b) (.Data (.latl L.bot))
 | T_Op : forall op e1 e2 l,
@@ -213,12 +213,12 @@ inductive has_type : (Phi : phi_context l) -> (Delta : delta_context l d) -> (Ga
 | T_Zero : forall e l,
   has_type Phi Delta Gamma e (.Data l) ->
   has_type Phi Delta Gamma (.zero e) (.Data (.latl (L.bot)))
-| T_If : forall e e1 e2 t,
+| T_If {Phi Delta Gamma} : forall e e1 e2 t,
   has_type Phi Delta Gamma e (.Data (.latl L.bot)) ->
   has_type Phi Delta Gamma e1 t ->
   has_type Phi Delta Gamma e2 t ->
   has_type Phi Delta Gamma (.if_tm e e1 e2) t
-| T_IRef : forall e t,
+| T_IRef {Phi Delta Gamma} : forall e t,
   has_type Phi Delta Gamma e t ->
   has_type Phi Delta Gamma (.alloc e) (.Ref t)
 | T_ERef : forall e t,
@@ -229,7 +229,7 @@ inductive has_type : (Phi : phi_context l) -> (Delta : delta_context l d) -> (Ga
   has_type Phi Delta Gamma e2 t ->
   has_type Phi Delta Gamma (.assign e1 e2) .Unit
 | T_IFun : forall e t t',
-  has_type Phi Delta (cons t (cons (.arr t t') Gamma)) e t ->
+  has_type Phi Delta (cons (.arr t t') (cons t Gamma)) e t' ->
   has_type Phi Delta Gamma (.fixlam e) (.arr t t')
 | T_EFun : forall e1 e2 t t',
   has_type Phi Delta Gamma e1 (.arr t t') ->
