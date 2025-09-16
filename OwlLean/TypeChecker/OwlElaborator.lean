@@ -1,4 +1,3 @@
-import OwlLean.OwlLang.Owl
 import OwlLean.TypeChecker.OwlSExpr
 import Lean
 import Std.Data.HashMap
@@ -303,10 +302,7 @@ partial def elabTm : Syntax → TermElabM Expr
 
 partial def elabLabel_closed : Syntax → MetaM Expr
   | `(owl_label| ( $e:owl_label)) => elabLabel_closed e
-  | `(owl_label| ⟨ $t:term ⟩ ) => do
-      let t' ← Term.TermElabM.run' do
-        Term.elabTerm t (mkConst ``Owl.Lcarrier)
-      mkAppM ``SLabel.latl #[t']
+  | `(owl_label| ⟨ $_:term ⟩ ) => do mkAppM ``SLabel.default #[]
   | `(owl_label| $e1:owl_label ⊔ $e2:owl_label) => do
       let elab_e1 <- elabLabel_closed e1
       let elab_e2 <- elabLabel_closed e2

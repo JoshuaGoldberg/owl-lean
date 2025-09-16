@@ -29,11 +29,11 @@ def cons (x : X) (f : Fin n -> X) (m : Fin (n + 1)) : X :=
       (f i)
 
 inductive has_type : TyEnv Γ -> Expr Γ -> Ty -> Prop where
-| T_True {Γ} : has_type Γ .True .bool
+| T_True : has_type Γ .True .bool
 | T_False : has_type Γ .False .bool
 | T_NatLit : has_type Γ (.NatLit n) .int
 | T_Ident : has_type Γ (.Ident i) (Γ i)
-| T_Ite : has_type Γ g .bool ->
+| T_Ite : forall g thn t els, has_type Γ g .bool ->
           has_type Γ thn t ->
           has_type Γ els t ->
           has_type Γ (.Ite g thn els) t

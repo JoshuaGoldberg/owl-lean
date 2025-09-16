@@ -1,5 +1,3 @@
-import OwlLean.OwlLang.Owl
-import OwlLean.TypeChecker.OwlSExpr
 import OwlLean.TypeChecker.OwlElaborator
 import Lean
 import Std.Data.HashMap
@@ -85,8 +83,6 @@ def SConstr.elab (s : SConstr) (P : TCtx) : Option (Owl.constr P.length) :=
 elab "constraint_parse" "(" p:owl_constr ")" : term =>
     elabConstr p
 
-
-
 def SBinary.elab (s : SBinary) : Option Owl.binary :=
   match s with
   | .bend => .some .bend
@@ -102,10 +98,6 @@ def SBinary.elab (s : SBinary) : Option Owl.binary :=
 -- test parser for binary
 elab "binary_parse" "(" p:owl_binary ")" : term =>
     elabBinary p
-
-
-
-
 
 def STy.elab (s : STy) (P : TCtx) (D : TCtx): Option (Owl.ty P.length D.length) :=
   match s with
