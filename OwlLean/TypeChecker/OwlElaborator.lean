@@ -181,7 +181,7 @@ syntax "ı2" owl_tm : owl_tm
 syntax "case" owl_tm "in" owl_tm "=>" owl_tm "|" owl_tm "=>" owl_tm : owl_tm
 syntax owl_tm "[[" owl_type "]]" : owl_tm
 syntax owl_tm "[[[" owl_label "]]]" : owl_tm
-syntax "pack" owl_tm : owl_tm
+syntax "pack" "(" owl_type "," owl_tm ")" : owl_tm
 syntax "unpack" owl_tm "as" "(" ident "," ident ")" "in" owl_tm : owl_tm
 syntax "if" owl_tm "then" owl_tm "else" owl_tm : owl_tm
 syntax "if" owl_constr "then" owl_tm "else" owl_tm : owl_tm
@@ -270,9 +270,10 @@ partial def elabTm : Syntax → TermElabM Expr
     let elab_e1 <- elabTm e1
     let elab_e2 <- elabTm e2
     mkAppM ``SExpr.unpack #[elab_e1, mkStrLit id1.getId.toString, mkStrLit id2.getId.toString, elab_e2]
-  | `(owl_tm| pack $e:owl_tm) => do
+  | `(owl_tm| pack ($t:owl_type, $e:owl_tm)) => do
+    let elab_t <- elabType t
     let elab_e <- elabTm e
-    mkAppM ``SExpr.pack #[elab_e]
+    mkAppM ``SExpr.pack #[elab_t, elab_e]
   | `(owl_tm| if $e1:owl_tm then $e2:owl_tm else $e3:owl_tm) => do
     let elab_e1 <- elabTm e1
     let elab_e2 <- elabTm e2
@@ -447,9 +448,10 @@ partial def elabTm_closed : Syntax → TermElabM Expr
     let elab_e1 <- elabTm_closed e1
     let elab_e2 <- elabTm_closed e2
     mkAppM ``SExpr.unpack #[elab_e1, mkStrLit id1.getId.toString, mkStrLit id2.getId.toString, elab_e2]
-  | `(owl_tm| pack $e:owl_tm) => do
+  | `(owl_tm| pack ($t:owl_type, $e:owl_tm)) => do
+    let elab_t <- elabType_closed t
     let elab_e <- elabTm_closed e
-    mkAppM ``SExpr.pack #[elab_e]
+    mkAppM ``SExpr.pack #[elab_t, elab_e]
   | `(owl_tm| if $e1:owl_tm then $e2:owl_tm else $e3:owl_tm) => do
     let elab_e1 <- elabTm_closed e1
     let elab_e2 <- elabTm_closed e2

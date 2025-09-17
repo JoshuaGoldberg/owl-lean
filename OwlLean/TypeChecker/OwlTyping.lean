@@ -120,69 +120,69 @@ inductive is_value : tm l d m -> Prop where
   is_value (.tlam e)
 | l_lam_value : forall e,
   is_value (.l_lam e)
-| pack_value : forall v,
+| pack_value : forall t v,
   is_value v ->
-  is_value (.pack v)
+  is_value (.pack t v)
 
--- subtyping rules for Owl
-inductive subtype : (phi_context l) -> (delta_context l d) ->
-    ty l d -> ty l d -> Prop where
-| ST_Var : forall x t',
-  subtype Phi Delta (Delta x) t' ->
-  subtype Phi Delta (.var_ty x) t'
-| ST_Any : forall t,
-  subtype Phi Delta t .Any
-| ST_Unit : subtype Phi Delta .Unit .Unit
-| ST_Data : forall lab (lab' : label l),
-  (Phi |= (.condition .leq lab lab')) ->
-  subtype Phi Delta (.Data lab) (.Data lab')
-| ST_Func : forall t1' t1 t2 t2',
-  subtype Phi Delta t1' t1 ->
-  subtype Phi Delta t2 t2' ->
-  subtype Phi Delta (.arr t1 t2) (.arr t1' t2')
-| ST_Prod : forall t1 t1' t2 t2',
-  subtype Phi Delta t1 t1' ->
-  subtype Phi Delta t2 t2' ->
-  subtype Phi Delta (.prod t1 t2) (.prod t1' t2')
-| ST_Sum : forall t1 t1' t2 t2',
-  subtype Phi Delta t1 t1' ->
-  subtype Phi Delta t2 t2' ->
-  subtype Phi Delta (.sum t1 t2) (.sum t1' t2')
-| ST_Ref : forall t,
-  subtype Phi Delta (.Ref t) (.Ref t)
-| ST_Univ : forall t0 t0' t t',
-  subtype Phi Delta t0 t0' ->
-  subtype Phi (lift_delta (cons t0' Delta)) t t' ->
-  subtype Phi Delta (.all t0 t) (.all t0' t')
-| ST_Exist : forall t0 t0' t t',
-  subtype Phi Delta t0 t0' ->
-  subtype Phi (lift_delta (cons t0 Delta)) t t' ->
-  subtype Phi Delta (.ex t0 t) (.ex t0' t')
-| ST_LatUniv : forall cs (lab : label l) (lab' : label l) t t',
-  (((.condition cs (.var_label var_zero) (ren_label shift lab)) :: (lift_phi Phi))
-  |= (.condition cs (.var_label var_zero) (ren_label shift lab'))) ->
-  subtype ((.condition cs (.var_label var_zero) (ren_label shift lab)) :: (lift_phi Phi)) (lift_delta_l Delta) t t' ->
-  subtype Phi Delta (.all_l cs lab t) (.all_l cs lab' t')
-| ST_IfElimL : forall co t1 t2 t1',
-  (Phi |= co) ->
-  subtype Phi Delta t1 t1' ->
-  subtype Phi Delta (.t_if co t1 t2) t1'
-| ST_IfElimR : forall co t1 t2 t2',
-  (Phi |= (negate_cond co)) ->
-  subtype Phi Delta t2 t2' ->
-  subtype Phi Delta (.t_if co t1 t2) t2'
-| ST_IfIntroL : forall co t1 t1' t2',
-  (Phi |= co) ->
-  subtype Phi Delta t1 t1' ->
-  subtype Phi Delta t1 (.t_if co t1' t2')
-| ST_IfIntroR : forall co t2 t1' t2',
-  (Phi |= (negate_cond co)) ->
-  subtype Phi Delta t2 t2' ->
-  subtype Phi Delta t2 (.t_if co t1' t2')
-| ST_Lem : forall co t t',
-  subtype (co :: Phi) Delta t t' ->
-  subtype ((negate_cond co) :: Phi) Delta t t' ->
-  subtype Phi Delta t t'
+  -- subtyping rules for Owl
+  inductive subtype : (phi_context l) -> (delta_context l d) ->
+      ty l d -> ty l d -> Prop where
+  | ST_Var : forall x t',
+    subtype Phi Delta (Delta x) t' ->
+    subtype Phi Delta (.var_ty x) t'
+  | ST_Any : forall t,
+    subtype Phi Delta t .Any
+  | ST_Unit : subtype Phi Delta .Unit .Unit
+  | ST_Data : forall lab lab',
+    (Phi |= (.condition .leq lab lab')) ->
+    subtype Phi Delta (.Data lab) (.Data lab')
+  | ST_Func : forall t1' t1 t2 t2',
+    subtype Phi Delta t1' t1 ->
+    subtype Phi Delta t2 t2' ->
+    subtype Phi Delta (.arr t1 t2) (.arr t1' t2')
+  | ST_Prod : forall t1 t1' t2 t2',
+    subtype Phi Delta t1 t1' ->
+    subtype Phi Delta t2 t2' ->
+    subtype Phi Delta (.prod t1 t2) (.prod t1' t2')
+  | ST_Sum : forall t1 t1' t2 t2',
+    subtype Phi Delta t1 t1' ->
+    subtype Phi Delta t2 t2' ->
+    subtype Phi Delta (.sum t1 t2) (.sum t1' t2')
+  | ST_Ref : forall t,
+    subtype Phi Delta (.Ref t) (.Ref t)
+  | ST_Univ : forall t0 t0' t t',
+    subtype Phi Delta t0 t0' ->
+    subtype Phi (lift_delta (cons t0' Delta)) t t' ->
+    subtype Phi Delta (.all t0 t) (.all t0' t')
+  | ST_Exist : forall t0 t0' t t',
+    subtype Phi Delta t0 t0' ->
+    subtype Phi (lift_delta (cons t0 Delta)) t t' ->
+    subtype Phi Delta (.ex t0 t) (.ex t0' t')
+  | ST_LatUniv : forall cs lab lab' t t',
+    (((.condition cs (.var_label var_zero) (ren_label shift lab)) :: (lift_phi Phi))
+    |= (.condition cs (.var_label var_zero) (ren_label shift lab'))) ->
+    subtype ((.condition cs (.var_label var_zero) (ren_label shift lab)) :: (lift_phi Phi)) (lift_delta_l Delta) t t' ->
+    subtype Phi Delta (.all_l cs lab t) (.all_l cs lab' t')
+  | ST_IfElimL : forall co t1 t2 t1',
+    (Phi |= co) ->
+    subtype Phi Delta t1 t1' ->
+    subtype Phi Delta (.t_if co t1 t2) t1'
+  | ST_IfElimR : forall co t1 t2 t2',
+    (Phi |= (negate_cond co)) ->
+    subtype Phi Delta t2 t2' ->
+    subtype Phi Delta (.t_if co t1 t2) t2'
+  | ST_IfIntroL : forall co t1 t1' t2',
+    (Phi |= co) ->
+    subtype Phi Delta t1 t1' ->
+    subtype Phi Delta t1 (.t_if co t1' t2')
+  | ST_IfIntroR : forall co t2 t1' t2',
+    (Phi |= (negate_cond co)) ->
+    subtype Phi Delta t2 t2' ->
+    subtype Phi Delta t2 (.t_if co t1' t2')
+  | ST_Lem : forall co t t',
+    subtype (co :: Phi) Delta t t' ->
+    subtype ((negate_cond co) :: Phi) Delta t t' ->
+    subtype Phi Delta t t'
 
 def last_var l : Fin (l + 1) :=
   match l with
@@ -213,12 +213,12 @@ inductive has_type : (Phi : phi_context l) -> (Delta : delta_context l d) -> (Ga
 | T_Zero : forall e l,
   has_type Phi Delta Gamma e (.Data l) ->
   has_type Phi Delta Gamma (.zero e) (.Data (.latl (L.bot)))
-| T_If {Phi Delta Gamma} : forall e e1 e2 t,
+| T_If : forall e e1 e2 t,
   has_type Phi Delta Gamma e (.Data (.latl L.bot)) ->
   has_type Phi Delta Gamma e1 t ->
   has_type Phi Delta Gamma e2 t ->
   has_type Phi Delta Gamma (.if_tm e e1 e2) t
-| T_IRef {Phi Delta Gamma} : forall e t,
+| T_IRef : forall e t,
   has_type Phi Delta Gamma e t ->
   has_type Phi Delta Gamma (.alloc e) (.Ref t)
 | T_ERef : forall e t,
@@ -266,7 +266,7 @@ inductive has_type : (Phi : phi_context l) -> (Delta : delta_context l d) -> (Ga
 | T_IExist : forall e t t' t0,
   has_type Phi Delta Gamma e (subst_ty .var_label (cons t' .var_ty) t) ->
   subtype Phi Delta t' t0 ->
-  has_type Phi Delta Gamma (.pack e) (.ex t0 t)
+  has_type Phi Delta Gamma (.pack t' e) (.ex t0 t)
 | T_EExist : forall e e' t0 t t',
   has_type Phi Delta Gamma e (.all t0 t) ->
   has_type Phi (lift_delta (cons t0 Delta)) (cons t (lift_gamma_d Gamma)) e' (ren_ty id shift t') ->
@@ -304,12 +304,12 @@ theorem simple_var_typing :
 theorem concrete_typing : @has_type 0 0 0 empty_phi empty_delta empty_gamma .skip .Unit :=
   has_type.T_IUnit
 
-def infer_type (Phi : phi_context l) (Delta : delta_context l d) (Gamma : gamma_context l d m) (e : tm l d m) :
-(Option (ty l d)) :=
+noncomputable def infer_type (Gamma : gamma_context l d m) (e : tm l d m) : (ty l d) :=
     match e with
-    | .var_tm n => .some (Gamma n)
-    | .skip => .some .Unit
-    | _ => .some .Unit
+    | .var_tm n => (Gamma n)
+    | .skip => .Unit
+    | .bitstring _ => (.Data (.latl L.bot))
+    | _ => .default
 
 
 -- NEEDED TACTICS
@@ -320,3 +320,7 @@ def infer_type (Phi : phi_context l) (Delta : delta_context l d) (Gamma : gamma_
 -- search for a subtype???
 
 -- Give Tlam a subtyping
+
+-- CLAIMS
+-- 1. SUBTYPING WILL JUST WORK ON ITS OWN BY BEING THE LAST RULE AND INFERRING
+-- 2. LABEL CONSTRAINTS CAN BE ASSUMED AS L.BOT, AND SUBTYPES CAN BE ASSUMED TO HAVE UPPER BOUNDS OF "ANY"

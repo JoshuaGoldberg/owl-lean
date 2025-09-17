@@ -87,13 +87,13 @@ inductive tm : Nat -> Nat -> Nat -> Type where
 | left_tm : tm n_label n_ty n_tm -> tm n_label n_ty n_tm
 | right_tm : tm n_label n_ty n_tm -> tm n_label n_ty n_tm
 | inl : tm n_label n_ty n_tm -> tm n_label n_ty n_tm
-| inr : tm n_label n_ty n_tm -> tm n_label n_ty n_tm
+| inr {n_label n_ty n_tm} : tm n_label n_ty n_tm -> tm n_label n_ty n_tm
 | case :
     tm n_label n_ty n_tm ->
     tm n_label n_ty (n_tm + 1) -> tm n_label n_ty (n_tm + 1) -> tm n_label n_ty n_tm
 | tapp : tm n_label n_ty n_tm -> ty n_label n_ty -> tm n_label n_ty n_tm
 | lapp : tm n_label n_ty n_tm -> label n_label -> tm n_label n_ty n_tm
-| pack : tm n_label n_ty n_tm -> tm n_label n_ty n_tm
+| pack : ty n_label n_ty -> tm n_label n_ty n_tm -> tm n_label n_ty n_tm
 | unpack : tm n_label n_ty n_tm -> tm n_label (n_ty + 1) (n_tm + 1) -> tm n_label n_ty n_tm
 | if_tm :
     tm n_label n_ty n_tm ->
@@ -263,7 +263,7 @@ tm n_label n_ty n_tm :=
   | .lapp s0 s1 =>
       .lapp (ren_tm xi_label xi_ty xi_tm s0)
         (ren_label xi_label s1)
-  | .pack s0 => .pack (ren_tm xi_label xi_ty xi_tm s0)
+  | .pack s s0 => .pack (ren_ty xi_label xi_ty s) (ren_tm xi_label xi_ty xi_tm s0)
   | .unpack s0 s1 =>
       .unpack (ren_tm xi_label xi_ty xi_tm s0)
         (ren_tm (upRen_tm_label xi_label) (upRen_tm_ty (upRen_ty_ty xi_ty))

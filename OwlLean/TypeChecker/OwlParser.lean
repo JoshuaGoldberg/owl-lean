@@ -290,10 +290,13 @@ def SExpr.elab (s : SExpr) (P : TCtx) (D : TCtx) (G : TCtx): Option (Owl.tm P.le
       match (SLabel.elab l P) with
       | .none => .none
       | .some l' => .some (tm.lapp e' l')
-  | .pack e =>
+  | .pack t e =>
     match (SExpr.elab e P D G) with
     | .none => .none
-    | .some e' => .some (tm.pack e')
+    | .some e' =>
+      match (STy.elab t P D) with
+      | .none => .none
+      | .some t' => .some (tm.pack t' e')
   | .unpack e a x e1 =>
     match (SExpr.elab e P D G) with
     | .none => .none

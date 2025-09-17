@@ -7,7 +7,7 @@ open Lean Elab Meta
 
 syntax "tc" : tactic
 syntax "st" : tactic
-
+syntax "pec" : tactic
 
 macro_rules
   | `(tactic| tc) =>
@@ -32,13 +32,124 @@ macro_rules
     | (apply has_type.T_ESum; tc; tc; tc)
     | (apply has_type.T_IUniv; tc)
     | (apply has_type.T_EUniv; st; tc)
+    | (apply has_type.T_IExist; tc; st)
+    | (apply has_type.T_EExist; tc; tc)
+    | (apply has_type.T_ILUniv; tc)
+    | (apply has_type.T_ELUniv (cs := .geq) (lab := .latl L.bot); pec; tc)
+    | (apply has_type.T_LIf; tc; tc)
+    | (apply has_type.T_Sync; tc)
+    | (apply has_type.T_Sub; st; tc)
   )
   | `(tactic| st) =>
   `(tactic|
     first
     | apply subtype.ST_Any
     | apply subtype.ST_Unit
+    | (apply subtype.ST_Var; st)
+    | (apply subtype.ST_Data; pec)
+    | (apply subtype.ST_Func; st; st)
+    | (apply subtype.ST_Prod; st; st)
+    | (apply subtype.ST_Sum; st; st)
+    | (apply subtype.ST_Ref)
+    | (apply subtype.ST_Univ; st; st)
+    | (apply subtype.ST_Exist; st; st)
+    | (apply subtype.ST_LatUniv; pec; st)
+    | (apply subtype.ST_IfElimL; pec; st)
+    | (apply subtype.ST_IfElimR; pec; st)
+    | (apply subtype.ST_IfElimL; pec; st)
+    | (apply subtype.ST_IfIntroR; pec; st)
+    | (apply subtype.ST_Lem; st; st)
   )
+  | `(tactic| pec) => `(tactic|
+    intro pm h_valid
+  )
+
+def tm1 := Owl { * }
+def ty1 := OwlTy { Unit }
+
+theorem test_unit :
+  has_type empty_phi empty_delta empty_gamma tm1 ty1 := by tc
+
+-- Bitstring test
+def tm2 := Owl { ["101"] }
+noncomputable def ty2 := OwlTy { Data ⟨Owl.L.bot⟩ }
+
+theorem test_bitstring :
+  has_type empty_phi empty_delta empty_gamma tm2 ty2 := by tc
+
+-- Pair test
+def tm3 := Owl { ⟨*, *⟩ }
+def ty3 := OwlTy { Unit * Unit }
+
+theorem test_pair :
+  has_type empty_phi empty_delta empty_gamma tm3 ty3 := by tc
+
+-- Function test (fixpoint)
+def tm4 := Owl { fix f(x) x }
+def ty4 := OwlTy { Unit -> Unit }
+
+theorem test_fixlam :
+  has_type empty_phi empty_delta empty_gamma tm4 ty4 := by tc
+
+-- Type abstraction
+def tm5 := Owl { Λ t . * }
+def ty5 := OwlTy { ∀ t <: Any . Unit }
+
+theorem test_type_abs :
+  has_type empty_phi empty_delta empty_gamma tm5 ty5 := by tc
+
+-- Label abstraction
+def tm6 := Owl { Λβ l . * }
+noncomputable def ty6 := OwlTy { ∀ l ⊒ ⟨Owl.L.bot⟩ . Unit }
+
+theorem test_label_abs :
+  has_type empty_phi empty_delta empty_gamma tm6 ty6 := by tc
+
+-- Pack/existential
+def tm7 := Owl { pack (Unit, *) }
+def ty7 := OwlTy { ∃ t <: Any . t }
+
+theorem test_pack :
+  has_type empty_phi empty_delta empty_gamma tm7 ty7 :=
+    by tc
+
+-- If-then-else
+def tm8 := Owl { if ["1"] then * else * }
+def ty8 := OwlTy { Unit }
+
+theorem test_if :
+  has_type empty_phi empty_delta empty_gamma tm8 ty8 := by tc
+
+-- Zero operation
+def tm9 := Owl { zero ["101"] }
+noncomputable def ty9 := OwlTy { Data ⟨Owl.L.bot⟩ }
+
+theorem test_zero :
+  has_type empty_phi empty_delta empty_gamma tm9 ty9 := by tc
+
+-- Test subsumption: Data bot <: Any
+def tm10 := Owl { * }
+def ty10 := OwlTy { Unit }
+
+theorem test_subsumption :
+  has_type empty_phi empty_delta empty_gamma tm10 ty10 := by tc
+
+-- Test subtyping directly
+theorem test_subtype_data_any :
+  subtype empty_phi empty_delta
+    (OwlTy { Data ⟨Owl.L.bot⟩ })
+    (OwlTy { Any }) := by st
+
+theorem test_subtype_unit_unit :
+  subtype empty_phi empty_delta
+    (OwlTy { Unit })
+    (OwlTy { Unit }) := by st
+
+theorem test_entails_bot :
+  (@empty_phi 0) |= (Owl.constr.condition .geq (Owl.label.latl Owl.L.bot) (Owl.label.latl Owl.L.bot)) := by
+  pec
+  -- Will need to prove L.bot ≥ L.bot
+  sorry
 
 def tm_spec :=
   Owl {
@@ -46,7 +157,7 @@ def tm_spec :=
   }
 
 def ty_spec :=
-  OwlTy{
+  OwlTy {
     Unit
   }
 
@@ -59,27 +170,29 @@ def tm_spec2 :=
     (Λ a . *)
   }
 
+axiom high : Owl.Lcarrier
+
 noncomputable def ty_spec2 :=
   OwlTy{
-    (∀ a <: (Data ⟨Owl.L.bot⟩) . Unit)
+    (∀ a <: (Data ⟨high⟩) . Unit)
   }
 
 theorem tc_spec2 : has_type (@empty_phi 0) empty_delta empty_gamma tm_spec2 ty_spec2:= by
   tc
 
 -- TYPECHECKER TESTS
-def tm1 :=
+def tm_1 :=
   Owl {
     zero (["11101"])
   }
 
-noncomputable def ty1 :=
+noncomputable def ty_1 :=
   OwlTy {
     (Data ⟨Owl.L.bot⟩)
   }
 
 -- example : True has type bool
-theorem tc1 : has_type (@empty_phi 0) empty_delta empty_gamma tm1 ty1 := by
+theorem tc1 : has_type (@empty_phi 0) empty_delta empty_gamma tm_1 ty_1 := by
   tc
 
 -- test operator
@@ -87,29 +200,29 @@ def coin_flip : Owl.op :=
   fun (_ _ : Owl.binary) =>
     Owl.Dist.ret (Owl.binary.bend)
 
-def tm2 :=
+def tm_2 :=
   Owl {
     ⟨coin_flip⟩ (["1101"], ["1001"])
   }
 
-noncomputable def ty2 :=
+noncomputable def ty_2 :=
   OwlTy {
     (Data ⟨Owl.L.bot⟩)
   }
 
 -- example : True has type bool
-theorem tc2 : has_type (@empty_phi 0) empty_delta empty_gamma tm2 ty2 := by
+theorem tc2 : has_type (@empty_phi 0) empty_delta empty_gamma tm_2 ty_2 := by
   tc
 
-def tm3 :=
+def tm_3 :=
   Owl {
     fix f (x) (zero x)
   }
 
-noncomputable def ty3 :=
+noncomputable def ty_3 :=
   OwlTy {
     ((Data ⟨Owl.L.bot⟩) -> (Data ⟨Owl.L.bot⟩))
   }
 
-theorem tc3 : has_type (@empty_phi 0) empty_delta empty_gamma tm3 ty3 := by
+theorem tc3 : has_type (@empty_phi 0) empty_delta empty_gamma tm_3 ty_3 := by
   tc
