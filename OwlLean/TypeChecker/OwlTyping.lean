@@ -324,3 +324,7 @@ noncomputable def infer_type (Gamma : gamma_context l d m) (e : tm l d m) : (ty 
 -- CLAIMS
 -- 1. SUBTYPING WILL JUST WORK ON ITS OWN BY BEING THE LAST RULE AND INFERRING
 -- 2. LABEL CONSTRAINTS CAN BE ASSUMED AS L.BOT, AND SUBTYPES CAN BE ASSUMED TO HAVE UPPER BOUNDS OF "ANY"
+
+-- TODO
+-- check/synthesize
+-- Annotation (for synthesis) + *maybe* subtyping notation
