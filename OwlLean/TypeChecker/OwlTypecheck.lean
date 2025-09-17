@@ -5,9 +5,23 @@ import Lean
 import Std.Data.HashMap
 open Lean Elab Meta
 
+
+@[simp] theorem interp_latl (x : Owl.L.labels) :
+  interp_lattice (Owl.label.latl x) = x := rfl
+
+@[simp] theorem subst_label_latl (pm : phi_map l) (x : Owl.L.labels) :
+  Owl.subst_label pm (Owl.label.latl x) = Owl.label.latl x := by
+  simp [Owl.subst_label]
+
+-- Assume you have basic lattice lemmas
+axiom L_bot_leq (x : Owl.L.labels) : Owl.L.leq Owl.L.bot x = true
+axiom L_leq_refl (x : Owl.L.labels) : Owl.L.leq x x = true
+
+-- Main tactic for phi_entails_c
+syntax "pec" : tactic
+
 syntax "tc" : tactic
 syntax "st" : tactic
-syntax "pec" : tactic
 
 macro_rules
   | `(tactic| tc) =>
@@ -61,8 +75,28 @@ macro_rules
     | (apply subtype.ST_Lem; st; st)
   )
   | `(tactic| pec) => `(tactic|
-    intro pm h_valid
+    intro pm h_valid;
+    unfold phi_map_holds valid_constraint;
+    simp only [interp_lattice, Owl.subst_label];
+    first
+    | exact L_leq_refl _
+    | exact L_bot_leq _
+    | rfl
+    | simp [Owl.L.leq]
   )
+
+theorem test_empty_entails_bot_geq :
+  (empty_phi : phi_context 1) |= (Owl.constr.condition .geq (Owl.label.latl Owl.L.bot) (Owl.label.latl Owl.L.bot)) := by
+  pec
+
+noncomputable def c : Owl.constr 0 := (Owl.constr.condition .leq (Owl.label.latl Owl.L.bot) (Owl.label.latl Owl.L.bot))
+
+axiom top : Owl.Lcarrier
+axiom middle : Owl.Lcarrier
+axiom middle_leq_top : Owl.L.leq middle top = true
+
+theorem test_context_self : [c, c, c, c, c] |= c := by
+  pec
 
 def tm1 := Owl { * }
 def ty1 := OwlTy { Unit }
@@ -148,8 +182,6 @@ theorem test_subtype_unit_unit :
 theorem test_entails_bot :
   (@empty_phi 0) |= (Owl.constr.condition .geq (Owl.label.latl Owl.L.bot) (Owl.label.latl Owl.L.bot)) := by
   pec
-  -- Will need to prove L.bot ≥ L.bot
-  sorry
 
 def tm_spec :=
   Owl {
