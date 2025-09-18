@@ -82,5 +82,6 @@ inductive SExpr : Type where
     SConstr -> SExpr -> SExpr -> SExpr
 | sync : SExpr -> SExpr
 | embedtm : Owl.tm 0 0 0 -> SExpr
+| annot : SExpr -> STy -> SExpr
 | default : SExpr
 deriving Repr

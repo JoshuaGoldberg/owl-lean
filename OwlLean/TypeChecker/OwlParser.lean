@@ -328,6 +328,13 @@ def SExpr.elab (s : SExpr) (P : TCtx) (D : TCtx) (G : TCtx): Option (Owl.tm P.le
     match (SExpr.elab e P D G) with
     | .none => .none
     | .some e' => .some (tm.sync e')
+  | .annot e t =>
+    match (SExpr.elab e P D G) with
+    | .none => .none
+    | .some e' =>
+      match (STy.elab t P D) with
+      | .none => .none
+      | .some t' => .some (tm.annot e' t')
   | .default => .some tm.default
 
 -- test parser for terms

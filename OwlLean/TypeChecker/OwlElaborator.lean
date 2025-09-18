@@ -189,6 +189,7 @@ syntax "sync" owl_tm : owl_tm
 syntax "let" ident "=" owl_tm "in" owl_tm : owl_tm
 syntax "λ" ident "." owl_tm : owl_tm
 syntax "$" term : owl_tm
+syntax "(" owl_tm ":" owl_type ")" : owl_tm
 
 partial def elabTm : Syntax → TermElabM Expr
   | `(owl_tm| ( $e:owl_tm)) => elabTm e
@@ -297,6 +298,10 @@ partial def elabTm : Syntax → TermElabM Expr
     let elab_e <- elabTm e
     let unused := "unused variable"
     mkAppM ``SExpr.fixlam #[mkStrLit unused, mkStrLit id.getId.toString, elab_e]
+  | `(owl_tm| ( $e:owl_tm : $t:owl_type)) => do
+    let elab_e <- elabTm e
+    let elab_t <- elabType t
+    mkAppM ``SExpr.annot #[elab_e, elab_t]
   | _ => throwUnsupportedSyntax
 
 -- CLOSED ELABORATORS
@@ -475,4 +480,8 @@ partial def elabTm_closed : Syntax → TermElabM Expr
     let elab_e <- elabTm_closed e
     let unused := "unused variable"
     mkAppM ``SExpr.fixlam #[mkStrLit unused, mkStrLit id.getId.toString, elab_e]
+  | `(owl_tm| ( $e:owl_tm : $t:owl_type)) => do
+    let elab_e <- elabTm_closed e
+    let elab_t <- elabType_closed t
+    mkAppM ``SExpr.annot #[elab_e, elab_t]
   | _ => throwUnsupportedSyntax

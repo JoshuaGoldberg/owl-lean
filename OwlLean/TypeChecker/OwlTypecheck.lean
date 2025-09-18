@@ -23,6 +23,9 @@ syntax "pec" : tactic
 syntax "tc" : tactic
 syntax "st" : tactic
 
+syntax "check" : tactic
+syntax "synth" : tactic
+
 macro_rules
   | `(tactic| tc) =>
   `(tactic|
@@ -84,177 +87,64 @@ macro_rules
     | rfl
     | simp [Owl.L.leq]
   )
+  | `(tactic| check) => `(tactic|
+    first
+    | (apply check.C_Lam; check)
+    | (apply check.C_Inl; check)
+    | (apply check.C_Inr; check)
+    | (apply check.C_Pack; check; st)
+    | (apply check.C_TLam; check)
+    | (apply check.C_LLam; check)
+    | (apply check.C_Sub; synth; st)
+  )
+  | `(tactic| synth) => `(tactic|
+    first
+    | (apply synth.S_Var)
+    | (apply synth.S_Unit)
+    | (apply synth.S_Const)
+    | (apply synth.S_App; synth; check)
+    | (apply synth.S_Deref; synth)
+    | (apply synth.S_ProjL; synth)
+    | (apply synth.S_ProjR; synth)
+    | (apply synth.S_Case; synth; check; check)
+    | (apply synth.S_TApp; synth; st)
+    | (apply synth.S_LApp; synth; pec)
+    | (apply synth.S_LApp; synth; pec)
+    | (apply synth.S_Unpack; synth; check)
+    | (apply synth.S_Op; check; check)
+    | (apply synth.S_Zero; synth)
+    | (apply synth.S_If; check; check; check)
+    | (apply synth.S_Assign; synth; check)
+    | (apply synth.S_Pair; synth; synth)
+    | (apply synth.S_IfC; synth; synth; synth)
+    | (apply synth.S_Alloc; synth)
+    | (apply synth.S_Sync; synth)
+    | (apply synth.S_Annot; check)
+  )
 
-theorem test_empty_entails_bot_geq :
-  (empty_phi : phi_context 1) |= (Owl.constr.condition .geq (Owl.label.latl Owl.L.bot) (Owl.label.latl Owl.L.bot)) := by
-  pec
+-- NEW Tests!!!
 
-noncomputable def c : Owl.constr 0 := (Owl.constr.condition .leq (Owl.label.latl Owl.L.bot) (Owl.label.latl Owl.L.bot))
+theorem test_unit : check empty_phi empty_delta empty_gamma (Owl { * }) (OwlTy { Unit }) := by check
 
-axiom top : Owl.Lcarrier
-axiom middle : Owl.Lcarrier
-axiom middle_leq_top : Owl.L.leq middle top = true
+theorem test_const : check empty_phi empty_delta empty_gamma
+  (Owl { ["101"] }) (OwlTy { Data ⟨Owl.sec⟩ }) := by check
 
-theorem test_context_self : [c, c, c, c, c] |= c := by
-  pec
+theorem test_pair : check empty_phi empty_delta empty_gamma
+  (Owl { ⟨*, *⟩ }) (OwlTy { Unit * Unit }) := by check
 
-def tm1 := Owl { * }
-def ty1 := OwlTy { Unit }
+theorem test_proj :
+  check empty_phi empty_delta empty_gamma
+    (Owl { π1 ⟨*, ["1"]⟩ }) (OwlTy { Unit }) := by check
 
-theorem test_unit :
-  has_type empty_phi empty_delta empty_gamma tm1 ty1 := by tc
+-- Function application
+theorem test_lambda : check empty_phi empty_delta empty_gamma
+  (Owl { fix f(x) * }) (OwlTy { Unit -> Unit }) := by check
 
--- Bitstring test
-def tm2 := Owl { ["101"] }
-noncomputable def ty2 := OwlTy { Data ⟨Owl.L.bot⟩ }
+-- Sum types
+theorem test_inl : check empty_phi empty_delta empty_gamma
+  (Owl { ı1 * }) (OwlTy { Unit + (Data ⟨Owl.pub⟩) }) := by check
 
-theorem test_bitstring :
-  has_type empty_phi empty_delta empty_gamma tm2 ty2 := by tc
-
--- Pair test
-def tm3 := Owl { ⟨*, *⟩ }
-def ty3 := OwlTy { Unit * Unit }
-
-theorem test_pair :
-  has_type empty_phi empty_delta empty_gamma tm3 ty3 := by tc
-
--- Function test (fixpoint)
-def tm4 := Owl { fix f(x) x }
-def ty4 := OwlTy { Unit -> Unit }
-
-theorem test_fixlam :
-  has_type empty_phi empty_delta empty_gamma tm4 ty4 := by tc
-
--- Type abstraction
-def tm5 := Owl { Λ t . * }
-def ty5 := OwlTy { ∀ t <: Any . Unit }
-
-theorem test_type_abs :
-  has_type empty_phi empty_delta empty_gamma tm5 ty5 := by tc
-
--- Label abstraction
-def tm6 := Owl { Λβ l . * }
-noncomputable def ty6 := OwlTy { ∀ l ⊒ ⟨Owl.L.bot⟩ . Unit }
-
-theorem test_label_abs :
-  has_type empty_phi empty_delta empty_gamma tm6 ty6 := by tc
-
--- Pack/existential
-def tm7 := Owl { pack (Unit, *) }
-def ty7 := OwlTy { ∃ t <: Any . t }
-
-theorem test_pack :
-  has_type empty_phi empty_delta empty_gamma tm7 ty7 :=
-    by tc
-
--- If-then-else
-def tm8 := Owl { if ["1"] then * else * }
-def ty8 := OwlTy { Unit }
-
-theorem test_if :
-  has_type empty_phi empty_delta empty_gamma tm8 ty8 := by tc
-
--- Zero operation
-def tm9 := Owl { zero ["101"] }
-noncomputable def ty9 := OwlTy { Data ⟨Owl.L.bot⟩ }
-
-theorem test_zero :
-  has_type empty_phi empty_delta empty_gamma tm9 ty9 := by tc
-
--- Test subsumption: Data bot <: Any
-def tm10 := Owl { * }
-def ty10 := OwlTy { Unit }
-
-theorem test_subsumption :
-  has_type empty_phi empty_delta empty_gamma tm10 ty10 := by tc
-
--- Test subtyping directly
-theorem test_subtype_data_any :
-  subtype empty_phi empty_delta
-    (OwlTy { Data ⟨Owl.L.bot⟩ })
-    (OwlTy { Any }) := by st
-
-theorem test_subtype_unit_unit :
-  subtype empty_phi empty_delta
-    (OwlTy { Unit })
-    (OwlTy { Unit }) := by st
-
-theorem test_entails_bot :
-  (@empty_phi 0) |= (Owl.constr.condition .geq (Owl.label.latl Owl.L.bot) (Owl.label.latl Owl.L.bot)) := by
-  pec
-
-def tm_spec :=
-  Owl {
-    (Λ a . *) [[Unit]]
-  }
-
-def ty_spec :=
-  OwlTy {
-    Unit
-  }
-
-theorem tc_spec : has_type (@empty_phi 0) empty_delta empty_gamma tm_spec
-  (Owl.subst_ty .var_label (Owl.cons Owl.ty.Unit .var_ty) Owl.ty.Unit) := by
-  tc
-
-def tm_spec2 :=
-  Owl {
-    (Λ a . *)
-  }
-
-axiom high : Owl.Lcarrier
-
-noncomputable def ty_spec2 :=
-  OwlTy{
-    (∀ a <: (Data ⟨high⟩) . Unit)
-  }
-
-theorem tc_spec2 : has_type (@empty_phi 0) empty_delta empty_gamma tm_spec2 ty_spec2:= by
-  tc
-
--- TYPECHECKER TESTS
-def tm_1 :=
-  Owl {
-    zero (["11101"])
-  }
-
-noncomputable def ty_1 :=
-  OwlTy {
-    (Data ⟨Owl.L.bot⟩)
-  }
-
--- example : True has type bool
-theorem tc1 : has_type (@empty_phi 0) empty_delta empty_gamma tm_1 ty_1 := by
-  tc
-
--- test operator
-def coin_flip : Owl.op :=
-  fun (_ _ : Owl.binary) =>
-    Owl.Dist.ret (Owl.binary.bend)
-
-def tm_2 :=
-  Owl {
-    ⟨coin_flip⟩ (["1101"], ["1001"])
-  }
-
-noncomputable def ty_2 :=
-  OwlTy {
-    (Data ⟨Owl.L.bot⟩)
-  }
-
--- example : True has type bool
-theorem tc2 : has_type (@empty_phi 0) empty_delta empty_gamma tm_2 ty_2 := by
-  tc
-
-def tm_3 :=
-  Owl {
-    fix f (x) (zero x)
-  }
-
-noncomputable def ty_3 :=
-  OwlTy {
-    ((Data ⟨Owl.L.bot⟩) -> (Data ⟨Owl.L.bot⟩))
-  }
-
-theorem tc3 : has_type (@empty_phi 0) empty_delta empty_gamma tm_3 ty_3 := by
-  tc
+theorem test_case :
+  check empty_phi empty_delta empty_gamma
+    (Owl { case ((ı1 *) : (Unit * Unit)) in x => x | y => y })
+    (OwlTy { Unit }) := by check

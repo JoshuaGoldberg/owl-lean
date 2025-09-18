@@ -7,7 +7,30 @@ structure Lattice where
   join   : labels -> labels -> labels
   meet   : labels -> labels -> labels
 
-axiom L : Lattice
+inductive SecurityLevel where
+  | pub : SecurityLevel
+  | confidential : SecurityLevel
+  | secret : SecurityLevel
+  | topsecret : SecurityLevel
+deriving DecidableEq, Repr
+
+def SecurityLevel.toNat : SecurityLevel → Nat
+  | .pub => 0
+  | .confidential => 1
+  | .secret => 2
+  | .topsecret => 3
+
+def L : Lattice where
+  labels := SecurityLevel
+  leq := fun a b => a.toNat ≤ b.toNat
+  bot := .pub
+  join := fun a b => if a.toNat ≥ b.toNat then a else b
+  meet := fun a b => if a.toNat ≤ b.toNat then a else b
+
+abbrev pub := SecurityLevel.pub
+abbrev conf := SecurityLevel.confidential
+abbrev sec := SecurityLevel.secret
+abbrev top := SecurityLevel.topsecret
 
 abbrev Lcarrier : Type := L.labels
 
@@ -101,6 +124,7 @@ inductive tm : Nat -> Nat -> Nat -> Type where
 | if_c :
     constr n_label -> tm n_label n_ty n_tm -> tm n_label n_ty n_tm -> tm n_label n_ty n_tm
 | sync : tm n_label n_ty n_tm -> tm n_label n_ty n_tm
+| annot : tm n_label n_ty n_tm -> ty n_label n_ty -> tm n_label n_ty n_tm
 | default : tm n_label n_ty n_tm
 deriving Repr
 
@@ -275,6 +299,7 @@ tm n_label n_ty n_tm :=
       .if_c (ren_constr xi_label s0)
         (ren_tm xi_label xi_ty xi_tm s1) (ren_tm xi_label xi_ty xi_tm s2)
   | .sync s0 => .sync (ren_tm xi_label xi_ty xi_tm s0)
+  | .annot e t => .annot (ren_tm xi_label xi_ty xi_tm e) (ren_ty xi_label xi_ty t)
   | .default => .default
 
 def subst_label
