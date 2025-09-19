@@ -449,6 +449,13 @@ theorem inl_skip_has_sum_type (Phi : phi_context l) (Delta : delta_context l d)
                               has_type Phi Delta Gamma (.inl .skip) (.sum .Unit t2) := by
   tc Phi Delta Gamma (.inl .skip) (.sum .Unit t2)
 
+theorem fixlam_identity (Phi : phi_context l) (Delta : delta_context l d)
+                        (Gamma : gamma_context l d m) :
+                        has_type Phi Delta Gamma
+                          (.fixlam .skip)
+                          (.arr .Any .Unit) := by
+  tc Phi Delta Gamma (.fixlam .skip) (.arr .Any .Unit)
+
 mutual
 -- Synthesis rules (infer type from term structure)
 inductive synth : (Phi : phi_context l) → (Delta : delta_context l d) →
