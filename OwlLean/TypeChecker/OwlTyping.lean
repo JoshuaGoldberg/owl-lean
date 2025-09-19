@@ -453,7 +453,6 @@ def infer (Phi : phi_context l) (Delta : delta_context l d)
     | .some _ => .none
     | .none => .none
 
-
 syntax "tc" term:max term:max term:max term:max term:max : tactic
 
 macro_rules
