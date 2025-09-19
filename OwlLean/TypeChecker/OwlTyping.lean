@@ -234,7 +234,7 @@ inductive has_type : (Phi : phi_context l) -> (Delta : delta_context l d) -> (Ga
 | T_EFun : forall e1 e2 t t',
   has_type Phi Delta Gamma e1 (.arr t t') ->
   has_type Phi Delta Gamma e2 t ->
-  has_type Phi Delta Gamma (.app e1 e2) t
+  has_type Phi Delta Gamma (.app e1 e2) t'
 | T_IProd : forall e1 e2 t1 t2,
   has_type Phi Delta Gamma e1 t1 ->
   has_type Phi Delta Gamma e2 t2 ->
@@ -351,12 +351,12 @@ def infer (Phi : phi_context l) (Delta : delta_context l d)
   match e with
   | .var_tm x =>
     match exp with
-    | .none => some ⟨(Gamma x), { check := has_type.T_Var x}⟩
+    | .none => .some ⟨(Gamma x), { check := has_type.T_Var x}⟩
     | .some t =>
       let et1 := (Gamma x)
       let et2 := has_type.T_Var x
       let es := check_subtype Phi Delta et1 t
-      some { check := has_type.T_Sub (.var_tm x) et1 t es et2 }
+      .some { check := has_type.T_Sub (.var_tm x) et1 t es et2 }
   | .skip =>
     match exp with
     | .none => .some ⟨.Unit, { check := has_type.T_IUnit }⟩
@@ -366,10 +366,10 @@ def infer (Phi : phi_context l) (Delta : delta_context l d)
       | _ => .none
   | .bitstring b =>
     match exp with
-    | .none => some ⟨.Data (.latl SecurityLevel.pub), { check := has_type.T_Const b }⟩
+    | .none => .some ⟨.Data (.latl SecurityLevel.pub), { check := has_type.T_Const b }⟩
     | .some t =>
       match t with
-      | .Data (.latl SecurityLevel.pub) => some { check := has_type.T_Const b }
+      | .Data (.latl SecurityLevel.pub) => .some { check := has_type.T_Const b }
       | _ => .none
   | .inl e =>
     match exp with
@@ -379,9 +379,46 @@ def infer (Phi : phi_context l) (Delta : delta_context l d)
       | .sum t1 t2 =>
         let epf := infer Phi Delta Gamma e (.some t1)
         match epf with
-        | .some pr => some { check :=  has_type.T_ISumL e t1 t2 pr.check }
+        | .some pr => .some { check :=  has_type.T_ISumL e t1 t2 pr.check }
         | .none => .none
       | _ => .none
+  | .fixlam e =>
+    match exp with
+    | .none => .none -- TODO, allow synthesis
+    | .some t =>
+      match t with
+      | .arr t t' =>
+        let extended_gamma := cons (.arr t t') (cons t Gamma)
+        let pe := infer Phi Delta extended_gamma e (.some t')
+        match pe with
+        | .some pe' => .some { check :=  has_type.T_IFun e t t' pe'.check }
+        | .none => .none
+      | _ => .none
+  | .app e1 e2 =>
+    match exp with
+    | .none =>
+      match infer Phi Delta Gamma e1 .none with
+      | .some ⟨ty1, pf1⟩ =>
+        match ty1 with
+        | .arr t t' =>
+          match infer Phi Delta Gamma e2 (.some t) with
+          | .some pf2 => .some ⟨t', { check := has_type.T_EFun e1 e2 t t' pf1.check pf2.check }⟩
+          | .none => .none
+        | _ => .none
+      | .none => .none
+    | .some exp_ty =>
+      match infer Phi Delta Gamma e1 .none with -- synthesize a type for e1
+      | .some ⟨ty1, pf1⟩ =>
+        match ty1 with
+            | .arr t t' => -- correct type synthesized
+              match infer Phi Delta Gamma e2 (some t) with -- check type of e2
+              | .some pf2 =>
+                let sub := check_subtype Phi Delta t' exp_ty -- check that t' is a subtype of exp_ty
+                let app_proof := has_type.T_EFun e1 e2 t t' pf1.check pf2.check -- proof that |- e1 e2 : t'
+                .some { check := has_type.T_Sub (.app e1 e2) t' exp_ty sub app_proof } -- proof that |- e1 e2 : exp_ty
+              | .none => .none
+            | _ => .none
+      | .none => .none
   | _ =>
     match exp with
     | .some _ => .none
