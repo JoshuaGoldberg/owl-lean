@@ -329,6 +329,63 @@ noncomputable def infer_type (Gamma : gamma_context l d m) (e : tm l d m) : (ty 
 -- check/synthesize
 -- Annotation (for synthesis) + *maybe* subtyping notation
 
+-- ALL NEW *Infer* function!!!
+
+structure CheckType (Phi : phi_context l) (Delta : delta_context l d)
+                     (Gamma : gamma_context l d m) (e : tm l d m) (exp : ty l d) : Type where
+  check : has_type Phi Delta Gamma e exp
+
+structure InferType (Phi : phi_context l) (Delta : delta_context l d)
+                     (Gamma : gamma_context l d m) (e : tm l d m) (exp : ty l d) : Type where
+  infer : ((t : ty l d) × CheckType Phi Delta Gamma e t)
+
+def infer (Phi : phi_context l) (Delta : delta_context l d)
+          (Gamma : gamma_context l d m) (e : tm l d m) (exp : Option (ty l d)) :
+          match exp with
+          | .none => ((t : ty l d) × CheckType Phi Delta Gamma e t)
+          | .some exp' => CheckType Phi Delta Gamma e exp'  :=
+  match e with
+  | .skip =>
+    match exp with
+    | .none => ⟨.Unit, { check := has_type.T_IUnit }⟩
+    | .some t =>
+      match t with
+      | .Unit => { check :=  has_type.T_IUnit }
+      | _ => sorry
+  | .bitstring b =>
+    match exp with
+    | .none => ⟨.Data (.latl SecurityLevel.pub), { check := has_type.T_Const b }⟩
+    | .some t =>
+      match t with
+      | .Data (.latl SecurityLevel.pub) => { check := has_type.T_Const b }
+      | _ => sorry
+  | .inl e =>
+    match exp with
+    | .none => sorry
+    | .some t =>
+      match t with
+      | .sum t1 t2 =>
+        let epf := infer Phi Delta Gamma e (.some t1)
+        { check :=  has_type.T_ISumL e t1 t2 epf.check }
+      | _ => sorry
+  | _ => sorry
+
+theorem skip_has_unit_type (Phi : phi_context l) (Delta : delta_context l d)
+                           (Gamma : gamma_context l d m) :
+                           has_type Phi Delta Gamma .skip .Unit := by
+  exact (infer Phi Delta Gamma .skip (.some .Unit)).check
+
+theorem bitstring_has_bot_type (Phi : phi_context l) (Delta : delta_context l d)
+                                (Gamma : gamma_context l d m) (b : binary) :
+                                has_type Phi Delta Gamma (.bitstring b) (.Data (.latl L.bot)) := by
+  exact (infer Phi Delta Gamma (.bitstring b) (.some (.Data (.latl L.bot)))).check
+
+theorem inl_skip_has_sum_type (Phi : phi_context l) (Delta : delta_context l d)
+                              (Gamma : gamma_context l d m) (t2 : ty l d) :
+                              has_type Phi Delta Gamma (.inl .skip) (.sum .Unit t2) := by
+  have h := infer Phi Delta Gamma (.inl .skip) (some (.sum .Unit t2))
+  exact h.check
+
 mutual
 -- Synthesis rules (infer type from term structure)
 inductive synth : (Phi : phi_context l) → (Delta : delta_context l d) →
