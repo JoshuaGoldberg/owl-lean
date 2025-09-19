@@ -335,13 +335,14 @@ structure CheckType (Phi : phi_context l) (Delta : delta_context l d)
                      (Gamma : gamma_context l d m) (e : tm l d m) (exp : ty l d) : Type where
   check : has_type Phi Delta Gamma e exp
 
-def check_subtype  (Phi : phi_context l) (Delta : delta_context l d)
-                           (t1 : ty l d) (t2 : ty l d) : subtype Phi Delta t1 t2 :=
-    sorry
+structure STType (Phi : phi_context l) (Delta : delta_context l d)
+                     (t1 : ty l d) (t2 : ty l d) : Type where
+  st : subtype Phi Delta t1 t2
 
-theorem test_sub (Phi : phi_context l) (Delta : delta_context l d)
-                           (t1: ty l d) (t2 : ty l d) : subtype Phi Delta t1 t2 := by
-    exact check_subtype Phi Delta t1 t2
+
+def check_subtype  (Phi : phi_context l) (Delta : delta_context l d)
+                           (t1 : ty l d) (t2 : ty l d) : Option (STType Phi Delta t1 t2) :=
+    .none
 
 def infer (Phi : phi_context l) (Delta : delta_context l d)
           (Gamma : gamma_context l d m) (e : tm l d m) (exp : Option (ty l d)) :
@@ -356,7 +357,10 @@ def infer (Phi : phi_context l) (Delta : delta_context l d)
       let et1 := (Gamma x)
       let et2 := has_type.T_Var x
       let es := check_subtype Phi Delta et1 t
-      .some { check := has_type.T_Sub (.var_tm x) et1 t es et2 }
+      match es with
+      | .some es' =>
+        .some { check := has_type.T_Sub (.var_tm x) et1 t es'.st et2 }
+      | .none => .none
   | .skip =>
     match exp with
     | .none => .some ⟨.Unit, { check := has_type.T_IUnit }⟩
@@ -371,6 +375,28 @@ def infer (Phi : phi_context l) (Delta : delta_context l d)
       match t with
       | .Data (.latl SecurityLevel.pub) => .some { check := has_type.T_Const b }
       | _ => .none
+  | .Op op e1 e2 =>
+    match exp with
+    | .none => -- try to synthesize
+      match infer Phi Delta Gamma e1 .none with -- find type of e1
+      | .some ⟨.Data l1, pf1⟩ =>
+        match infer Phi Delta Gamma e2 .none with  -- find type of e2 -- the join
+        | .some ⟨.Data l2, pf2⟩ =>
+            match check_subtype Phi Delta (.Data l2) (.Data l1) with -- check if e2 <: e1
+            | .some sub_pf =>
+              let pf2_sub := has_type.T_Sub e2 (.Data l2) (.Data l1) sub_pf.st pf2.check
+              .some ⟨.Data l1, { check := has_type.T_Op op e1 e2 l1 pf1.check pf2_sub }⟩
+            | .none =>
+              match check_subtype Phi Delta (.Data l1) (.Data l2) with -- check if e1 <: e2
+              | .some sub_pf =>
+                let pf1_sub := has_type.T_Sub e1 (.Data l1) (.Data l2) sub_pf.st pf1.check
+                .some ⟨.Data l2, { check := has_type.T_Op op e1 e2 l2 pf1_sub pf2.check }⟩
+              | .none => .none
+        | .some _ => .none
+        | .none => .none
+      | .some _ => .none
+      | .none => .none
+    | .some t => .none -- TODO
   | .inl e =>
     match exp with
     | .none => .none
@@ -396,7 +422,7 @@ def infer (Phi : phi_context l) (Delta : delta_context l d)
       | _ => .none
   | .app e1 e2 =>
     match exp with
-    | .none =>
+    | .none => -- synthesize
       match infer Phi Delta Gamma e1 .none with
       | .some ⟨ty1, pf1⟩ =>
         match ty1 with
@@ -414,8 +440,11 @@ def infer (Phi : phi_context l) (Delta : delta_context l d)
               match infer Phi Delta Gamma e2 (some t) with -- check type of e2
               | .some pf2 =>
                 let sub := check_subtype Phi Delta t' exp_ty -- check that t' is a subtype of exp_ty
-                let app_proof := has_type.T_EFun e1 e2 t t' pf1.check pf2.check -- proof that |- e1 e2 : t'
-                .some { check := has_type.T_Sub (.app e1 e2) t' exp_ty sub app_proof } -- proof that |- e1 e2 : exp_ty
+                match sub with
+                | .some sub' =>
+                    let app_proof := has_type.T_EFun e1 e2 t t' pf1.check pf2.check -- proof that |- e1 e2 : t'
+                    .some { check := has_type.T_Sub (.app e1 e2) t' exp_ty sub'.st app_proof } -- proof that |- e1 e2 : exp_ty
+                | .none => .none
               | .none => .none
             | _ => .none
       | .none => .none
