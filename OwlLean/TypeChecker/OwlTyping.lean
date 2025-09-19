@@ -396,7 +396,16 @@ def infer (Phi : phi_context l) (Delta : delta_context l d)
         | .none => .none
       | .some _ => .none
       | .none => .none
-    | .some t => .none -- TODO
+    | .some t =>
+      match t with
+      | .Data l =>
+        match infer Phi Delta Gamma e1 (.some (.Data l)) with
+        | .some pf1 =>
+          match infer Phi Delta Gamma e2 (.some (.Data l)) with
+          | .some pf2 => .some { check := has_type.T_Op op e1 e2 l pf1.check pf2.check }
+          | .none => .none
+        | .none => .none
+      | _ => .none
   | .inl e =>
     match exp with
     | .none => .none
