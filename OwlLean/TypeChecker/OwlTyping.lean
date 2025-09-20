@@ -376,10 +376,10 @@ def infer (Phi : phi_context l) (Delta : delta_context l d)
       | .none => .none
   | .bitstring b =>
     match exp with
-    | .none => .some ⟨.Data (.latl SecurityLevel.pub), { check := has_type.T_Const b }⟩
+    | .none => .some ⟨.Data (.latl L.bot), { check := has_type.T_Const b }⟩
     | .some t =>
-      match (check_subtype Phi Delta (.Data (.latl SecurityLevel.pub)) t) with
-      | .some pf => .some { check := has_type.T_Sub (.bitstring b) (.Data (.latl SecurityLevel.pub)) t pf.st (has_type.T_Const b)  }
+      match (check_subtype Phi Delta (.Data (.latl L.bot)) t) with
+      | .some pf => .some { check := has_type.T_Sub (.bitstring b) (.Data (.latl L.bot)) t pf.st (has_type.T_Const b)  }
       | .none => .none
   | .Op op e1 e2 =>
     match exp with
@@ -404,6 +404,22 @@ def infer (Phi : phi_context l) (Delta : delta_context l d)
           match infer Phi Delta Gamma e2 (.some (.Data l)) with
           | .some pf2 => .some { check := has_type.T_Op op e1 e2 l pf1.check pf2.check }
           | .none => .none
+        | .none => .none
+      | _ => .none
+  | .zero e =>
+    match exp with
+    | .none =>
+      match infer Phi Delta Gamma e .none with
+      | .some ⟨.Data l, pf⟩ =>
+            .some ⟨.Data (.latl L.bot), { check := has_type.T_Zero e l pf.check }⟩
+      | _ => .none
+    | .some t =>
+      match infer Phi Delta Gamma e .none with
+      | .some ⟨.Data l, pf⟩ =>
+        let zero_proof := has_type.T_Zero e l pf.check
+        match check_subtype Phi Delta (.Data (.latl L.bot)) t with
+        | .some sub =>
+          .some { check := has_type.T_Sub (.zero e) (.Data (.latl L.bot)) t sub.st zero_proof }
         | .none => .none
       | _ => .none
   | .inl e =>
