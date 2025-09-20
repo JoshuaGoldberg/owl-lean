@@ -294,6 +294,9 @@ inductive has_type : (Phi : phi_context l) -> (Delta : delta_context l d) -> (Ga
   subtype Phi Delta t t' ->
   has_type Phi Delta Gamma e t ->
   has_type Phi Delta Gamma e t'
+| T_Annot : forall e t,
+  has_type Phi Delta Gamma e t ->
+  has_type Phi Delta Gamma (.annot e t) t
 
 theorem simple_var_typing :
   forall x Phi Delta (Gamma : gamma_context l d m),
@@ -414,6 +417,17 @@ def infer (Phi : phi_context l) (Delta : delta_context l d)
         | .some pr => .some { check :=  has_type.T_ISumL e t1 t2 pr.check }
         | .none => .none
       | _ => .none
+  | .inr e =>
+    match exp with
+    | .none => .none
+    | .some t =>
+      match t with
+      | .sum t1 t2 =>
+        let epf := infer Phi Delta Gamma e (.some t2)
+        match epf with
+        | .some pr => .some { check :=  has_type.T_ISumR e t1 t2 pr.check }
+        | .none => .none
+      | _ => .none
   | .fixlam e =>
     match exp with
     | .none => .none -- TODO, allow synthesis
@@ -453,6 +467,21 @@ def infer (Phi : phi_context l) (Delta : delta_context l d)
                 | .none => .none
               | .none => .none
             | _ => .none
+      | .none => .none
+  | .annot e t =>
+    match exp with
+    | .none =>
+      match infer Phi Delta Gamma e (.some t) with
+      | .some pf => .some ⟨t, { check := has_type.T_Annot e t pf.check }⟩
+      | .none => .none
+    | .some t_exp =>
+      match check_subtype Phi Delta t t_exp with
+      | .some sub =>
+        match infer Phi Delta Gamma e (.some t) with
+        | .some pf =>
+          let annot_proof := has_type.T_Annot e t pf.check
+          .some { check := has_type.T_Sub (.annot e t) t t_exp sub.st annot_proof }
+        | .none => .none
       | .none => .none
   | _ =>
     match exp with
