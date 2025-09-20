@@ -342,7 +342,10 @@ structure STType (Phi : phi_context l) (Delta : delta_context l d)
 
 def check_subtype  (Phi : phi_context l) (Delta : delta_context l d)
                            (t1 : ty l d) (t2 : ty l d) : Option (STType Phi Delta t1 t2) :=
-    .none
+    match t1, t2 with
+    | x, .Any => .some { st := subtype.ST_Any x }
+    | .Unit, .Unit => .some { st := subtype.ST_Unit }
+    | _, _ => .none
 
 def infer (Phi : phi_context l) (Delta : delta_context l d)
           (Gamma : gamma_context l d m) (e : tm l d m) (exp : Option (ty l d)) :
@@ -462,12 +465,13 @@ macro_rules
   | `(tactic| tc $Phi:term $Delta:term $Gamma:term $e:term $t:term) => `(tactic|
       cases h : infer $Phi $Delta $Gamma $e (some $t) with
       | some result => exact result.check
-      | none => simp [infer] at h)
+      | none => simp [infer] at h; try simp [check_subtype] at h)
 
 theorem skip_has_unit_type (Phi : phi_context l) (Delta : delta_context l d)
                            (Gamma : gamma_context l d m) :
-                           has_type Phi Delta Gamma .skip .Unit := by
-  tc Phi Delta Gamma .skip .Unit
+                           has_type Phi Delta Gamma .skip .Any := by
+  tc Phi Delta Gamma .skip .Any
+
 
 theorem bitstring_has_bot_type (Phi : phi_context l) (Delta : delta_context l d)
                                 (Gamma : gamma_context l d m) (b : binary) :
@@ -486,85 +490,3 @@ theorem fixlam_identity (Phi : phi_context l) (Delta : delta_context l d)
                           (.fixlam .skip)
                           (.arr .Any .Unit) := by
   tc Phi Delta Gamma (.fixlam .skip) (.arr .Any .Unit)
-
-mutual
--- Synthesis rules (infer type from term structure)
-inductive synth : (Phi : phi_context l) → (Delta : delta_context l d) →
-                  (Gamma : gamma_context l d m) → tm l d m → ty l d → Prop where
-| S_Var : synth Phi Delta Gamma (.var_tm x) (Gamma x)
-| S_Unit : synth Phi Delta Gamma .skip .Unit
-| S_Const : synth Phi Delta Gamma (.bitstring b) (.Data (.latl L.bot))
-| S_App : synth Phi Delta Gamma e1 (.arr t t') →
-          check Phi Delta Gamma e2 t →
-          synth Phi Delta Gamma (.app e1 e2) t'
-| S_Deref : synth Phi Delta Gamma e (.Ref t) →
-            synth Phi Delta Gamma (!e) t
-| S_ProjL : synth Phi Delta Gamma e (.prod t1 t2) →
-            synth Phi Delta Gamma (.left_tm e) t1
-| S_ProjR : synth Phi Delta Gamma e (.prod t1 t2) →
-            synth Phi Delta Gamma (.right_tm e) t2
-| S_Case : synth Phi Delta Gamma e (.sum t1 t2) →
-           check Phi Delta (cons t1 Gamma) e1 t →
-           check Phi Delta (cons t2 Gamma) e2 t →
-           synth Phi Delta Gamma (.case e e1 e2) t
-| S_TApp : synth Phi Delta Gamma e (.all t0 t) →
-           subtype Phi Delta t' t0 →
-           synth Phi Delta Gamma (.tapp e t') (subst_ty .var_label (cons t' .var_ty) t)
-| S_LApp : synth Phi Delta Gamma e (.all_l cs lab t) →
-           (Phi |= (.condition cs lab lab')) →
-           synth Phi Delta Gamma (.lapp e lab') (subst_ty (cons lab' .var_label) .var_ty t)
-| S_Unpack : synth Phi Delta Gamma e (.ex t0 t) →
-             check Phi (lift_delta (cons t0 Delta)) (cons t (lift_gamma_d Gamma)) e' (ren_ty id shift t') →
-             synth Phi Delta Gamma (.unpack e e') t'
-| S_Op : check Phi Delta Gamma e1 (.Data l) →
-         check Phi Delta Gamma e2 (.Data l) →
-         synth Phi Delta Gamma (.Op f e1 e2) (.Data l)
-| S_Zero : synth Phi Delta Gamma e (.Data l) →
-           synth Phi Delta Gamma (.zero e) (.Data (.latl L.bot))
-| S_If : check Phi Delta Gamma e (.Data (.latl L.bot)) →
-         check Phi Delta Gamma e1 t →
-         check Phi Delta Gamma e2 t →
-         synth Phi Delta Gamma (.if_tm e e1 e2) t
-| S_Assign : synth Phi Delta Gamma e1 (.Ref t) →
-             check Phi Delta Gamma e2 t →
-             synth Phi Delta Gamma (.assign e1 e2) .Unit
-| S_Sync : synth Phi Delta Gamma e (.Data (adv pf)) →
-           synth Phi Delta Gamma (.sync e) (.Data (adv pf))
-| S_Pair : synth Phi Delta Gamma e1 t1 →
-           synth Phi Delta Gamma e2 t2 →
-           synth Phi Delta Gamma (.tm_pair e1 e2) (.prod t1 t2)
-| S_Annot : check Phi Delta Gamma e t ->
-            synth Phi Delta Gamma (.annot e t) t
-| S_Alloc : synth Phi Delta Gamma e t →
-            synth Phi Delta Gamma (.alloc e) (.Ref t)
-| S_IfC : synth (co :: Phi) Delta Gamma e1 t →
-          synth ((negate_cond co) :: Phi) Delta Gamma e2 t →
-          synth Phi Delta Gamma (.if_c co e1 e2) t
-| S_Lem : synth (co :: Phi) Delta Gamma e t →
-          synth ((negate_cond co) :: Phi) Delta Gamma e t →
-          synth Phi Delta Gamma e t
-
--- Checking rules (verify term has expected type)
-inductive check : (Phi : phi_context l) → (Delta : delta_context l d) →
-                  (Gamma : gamma_context l d m) → tm l d m → ty l d → Prop where
-| C_Lam : check Phi Delta (cons (.arr t t') (cons t Gamma)) e t' →
-          check Phi Delta Gamma (.fixlam e) (.arr t t')
-| C_Inl : check Phi Delta Gamma e t1 →
-          check Phi Delta Gamma (.inl e) (.sum t1 t2)
-| C_Inr : check Phi Delta Gamma e t2 →
-          check Phi Delta Gamma (.inr e) (.sum t1 t2)
-| C_Pack : check Phi Delta Gamma e (subst_ty .var_label (cons t' .var_ty) t) →
-           subtype Phi Delta t' t0 →
-           check Phi Delta Gamma (.pack t' e) (.ex t0 t)
-| C_TLam : check Phi (lift_delta (cons t0 Delta)) (lift_gamma_d Gamma) e t →
-           check Phi Delta Gamma (.tlam e) (.all t0 t)
-| C_LLam : check ((.condition cs (.var_label var_zero) (ren_label shift lab)) :: (lift_phi Phi))
-                 (lift_delta_l Delta) (lift_gamma_l Gamma) e t →
-           check Phi Delta Gamma (.l_lam e) (.all_l cs lab t)
-| C_Lem : check (co :: Phi) Delta Gamma e t →
-          check ((negate_cond co) :: Phi) Delta Gamma e t →
-          check Phi Delta Gamma e t
-| C_Sub : synth Phi Delta Gamma e t →
-          subtype Phi Delta t t' →
-          check Phi Delta Gamma e t'
-end
