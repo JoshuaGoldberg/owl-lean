@@ -365,37 +365,31 @@ def infer (Phi : phi_context l) (Delta : delta_context l d)
     match exp with
     | .none => .some ⟨.Unit, { check := has_type.T_IUnit }⟩
     | .some t =>
-      match t with
-      | .Unit => .some { check :=  has_type.T_IUnit }
-      | _ => .none
+      match (check_subtype Phi Delta .Unit t) with
+      | .some pf => .some { check := has_type.T_Sub .skip .Unit t pf.st has_type.T_IUnit }
+      | .none => .none
   | .bitstring b =>
     match exp with
     | .none => .some ⟨.Data (.latl SecurityLevel.pub), { check := has_type.T_Const b }⟩
     | .some t =>
-      match t with
-      | .Data (.latl SecurityLevel.pub) => .some { check := has_type.T_Const b }
-      | _ => .none
+      match (check_subtype Phi Delta (.Data (.latl SecurityLevel.pub)) t) with
+      | .some pf => .some { check := has_type.T_Sub (.bitstring b) (.Data (.latl SecurityLevel.pub)) t pf.st (has_type.T_Const b)  }
+      | .none => .none
   | .Op op e1 e2 =>
     match exp with
     | .none => -- try to synthesize
       match infer Phi Delta Gamma e1 .none with -- find type of e1
       | .some ⟨.Data l1, pf1⟩ =>
-        match infer Phi Delta Gamma e2 .none with  -- find type of e2 -- the join
-        | .some ⟨.Data l2, pf2⟩ =>
-            match check_subtype Phi Delta (.Data l2) (.Data l1) with -- check if e2 <: e1
-            | .some sub_pf =>
-              let pf2_sub := has_type.T_Sub e2 (.Data l2) (.Data l1) sub_pf.st pf2.check
-              .some ⟨.Data l1, { check := has_type.T_Op op e1 e2 l1 pf1.check pf2_sub }⟩
-            | .none =>
-              match check_subtype Phi Delta (.Data l1) (.Data l2) with -- check if e1 <: e2
-              | .some sub_pf =>
-                let pf1_sub := has_type.T_Sub e1 (.Data l1) (.Data l2) sub_pf.st pf1.check
-                .some ⟨.Data l2, { check := has_type.T_Op op e1 e2 l2 pf1_sub pf2.check }⟩
-              | .none => .none
-        | .some _ => .none
-        | .none => .none
-      | .some _ => .none
-      | .none => .none
+        match infer Phi Delta Gamma e2 (.some (.Data l1)) with
+        | .some e2pf => .some ⟨.Data l1, { check := has_type.T_Op op e1 e2 l1 pf1.check e2pf.check }⟩
+        | .none =>
+          match infer Phi Delta Gamma e2 .none with  -- find type of e2 -- the join
+          | .some ⟨.Data l2, pf2⟩ =>
+            match infer Phi Delta Gamma e1 (.some (.Data l2)) with
+            | .some e1pf => .some ⟨.Data l2, { check := has_type.T_Op op e1 e2 l2 e1pf.check pf2.check }⟩
+            | .none => .none
+          | _ => .none
+      | _ => .none
     | .some t =>
       match t with
       | .Data l =>
@@ -477,8 +471,8 @@ theorem skip_has_unit_type (Phi : phi_context l) (Delta : delta_context l d)
 
 theorem bitstring_has_bot_type (Phi : phi_context l) (Delta : delta_context l d)
                                 (Gamma : gamma_context l d m) (b : binary) :
-                                has_type Phi Delta Gamma (.bitstring b) (.Data (.latl L.bot)) := by
-  tc Phi Delta Gamma (.bitstring b) (.Data (.latl SecurityLevel.pub))
+                                has_type Phi Delta Gamma (.bitstring b) (.Data (.latl SecurityLevel.secret)) := by
+  tc Phi Delta Gamma (.bitstring b) (.Data (.latl SecurityLevel.secret))
 
 -- Test theorem for inl with skip
 theorem inl_skip_has_sum_type (Phi : phi_context l) (Delta : delta_context l d)
