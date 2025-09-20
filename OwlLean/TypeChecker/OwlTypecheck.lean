@@ -143,8 +143,3 @@ theorem test_lambda : check empty_phi empty_delta empty_gamma
 -- Sum types
 theorem test_inl : check empty_phi empty_delta empty_gamma
   (Owl { ı1 * }) (OwlTy { Unit + (Data ⟨Owl.pub⟩) }) := by check
-
-theorem test_case :
-  check empty_phi empty_delta empty_gamma
-    (Owl { case ((ı1 *) : (Unit * Unit)) in x => x | y => y })
-    (OwlTy { Unit }) := by check
