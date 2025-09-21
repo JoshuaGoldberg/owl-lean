@@ -213,8 +213,8 @@ inductive has_type : (Phi : phi_context l) -> (Delta : delta_context l d) -> (Ga
 | T_Zero : forall e l,
   has_type Phi Delta Gamma e (.Data l) ->
   has_type Phi Delta Gamma (.zero e) (.Data (.latl (L.bot)))
-| T_If : forall e e1 e2 t,
-  has_type Phi Delta Gamma e (.Data (.latl L.bot)) ->
+| T_If : forall e e1 e2 l t,
+  has_type Phi Delta Gamma e (.Data l) ->
   has_type Phi Delta Gamma e1 t ->
   has_type Phi Delta Gamma e2 t ->
   has_type Phi Delta Gamma (.if_tm e e1 e2) t
@@ -350,6 +350,12 @@ def check_subtype  (Phi : phi_context l) (Delta : delta_context l d)
     | .Unit, .Unit => .some { st := subtype.ST_Unit }
     | _, _ => .none
 
+-- Infer performs the dual roles of synthesis and checking
+-- This is controlled via the the "exp" argument
+-- When supplied with a type, the input term will be checked against "exp"
+-- If it typechecks, a proof that the input term has type "exp"
+-- If no type is provided, infer will attempt to synthesize the type of the input term
+-- If successful, it will return the synthesized type, and a proof that the input term has that type
 def infer (Phi : phi_context l) (Delta : delta_context l d)
           (Gamma : gamma_context l d m) (e : tm l d m) (exp : Option (ty l d)) :
           Option (match exp with
@@ -389,7 +395,7 @@ def infer (Phi : phi_context l) (Delta : delta_context l d)
         match infer Phi Delta Gamma e2 (.some (.Data l1)) with
         | .some e2pf => .some ⟨.Data l1, { check := has_type.T_Op op e1 e2 l1 pf1.check e2pf.check }⟩
         | .none =>
-          match infer Phi Delta Gamma e2 .none with  -- find type of e2 -- the join
+          match infer Phi Delta Gamma e2 .none with  -- find type of e2
           | .some ⟨.Data l2, pf2⟩ =>
             match infer Phi Delta Gamma e1 (.some (.Data l2)) with
             | .some e1pf => .some ⟨.Data l2, { check := has_type.T_Op op e1 e2 l2 e1pf.check pf2.check }⟩
@@ -420,6 +426,37 @@ def infer (Phi : phi_context l) (Delta : delta_context l d)
         match check_subtype Phi Delta (.Data (.latl L.bot)) t with
         | .some sub =>
           .some { check := has_type.T_Sub (.zero e) (.Data (.latl L.bot)) t sub.st zero_proof }
+        | .none => .none
+      | _ => .none
+  | .if_tm e e1 e2 =>
+    match exp with
+    | .none =>
+      match infer Phi Delta Gamma e .none with
+      | .some ⟨.Data l, cond_pf⟩ =>
+        match infer Phi Delta Gamma e1 .none with
+        | .some ⟨t1, pf1⟩ =>
+          match infer Phi Delta Gamma e2 (.some t1) with
+          | .some pf2 =>
+            .some ⟨t1, { check := has_type.T_If e e1 e2 l t1 cond_pf.check pf1.check pf2.check }⟩
+          | .none =>
+            match infer Phi Delta Gamma e2 .none with
+            | .some ⟨t2, pf2⟩ =>
+              match infer Phi Delta Gamma e1 (.some t2) with
+              | .some pf1 =>
+                .some ⟨t2, { check := has_type.T_If e e1 e2 l t2 cond_pf.check pf1.check pf2.check }⟩
+              | .none => .none
+            | .none => .none
+        | .none => .none
+      | _ => .none
+    | .some t =>
+      match infer Phi Delta Gamma e .none with
+      | .some ⟨.Data l, cond_pf⟩ =>
+        match infer Phi Delta Gamma e1 (.some t) with
+        | .some pf1 =>
+           match infer Phi Delta Gamma e2 (.some t) with
+           | .some pf2 =>
+             .some { check := has_type.T_If e e1 e2 l t cond_pf.check pf1.check pf2.check }
+           | .none => .none
         | .none => .none
       | _ => .none
   | .inl e =>
