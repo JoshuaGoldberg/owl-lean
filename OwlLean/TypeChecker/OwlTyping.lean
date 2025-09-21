@@ -459,6 +459,21 @@ def infer (Phi : phi_context l) (Delta : delta_context l d)
            | .none => .none
         | .none => .none
       | _ => .none
+  | .alloc e =>
+    match exp with
+    | .none =>
+      match infer Phi Delta Gamma e .none with
+      | .some ⟨t, pf⟩ =>
+        .some ⟨.Ref t, { check := has_type.T_IRef e t pf.check }⟩
+      | .none => .none
+    | .some exp_ty =>
+      match exp_ty with
+      | .Ref t =>
+        match infer Phi Delta Gamma e (.some t) with
+        | .some pf =>
+          .some { check := has_type.T_IRef e t pf.check }
+        | .none => .none
+      | _ => .none  -- Expected a Ref type
   | .inl e =>
     match exp with
     | .none => .none
