@@ -568,6 +568,27 @@ def infer (Phi : phi_context l) (Delta : delta_context l d)
               | .none => .none
             | _ => .none
       | .none => .none
+  | .tm_pair e1 e2 =>
+    match exp with
+    | .none =>
+      match infer Phi Delta Gamma e1 .none with
+      | .some ⟨t1, pf1⟩ =>
+        match infer Phi Delta Gamma e2 .none with
+        | .some ⟨t2, pf2⟩ =>
+          .some ⟨.prod t1 t2, { check := has_type.T_IProd e1 e2 t1 t2 pf1.check pf2.check}⟩
+        | .none => .none
+      | .none => .none
+    | .some exp_ty =>
+      match exp_ty with
+      | .prod t1 t2 =>
+        match infer Phi Delta Gamma e1 (.some t1) with
+        | .some pf1 =>
+          match infer Phi Delta Gamma e2 (.some t2) with
+          | .some pf2 =>
+            .some { check := has_type.T_IProd e1 e2 t1 t2 pf1.check pf2.check }
+          | .none => .none
+        | .none => .none
+      | _ => .none
   | .annot e t =>
     match exp with
     | .none =>
