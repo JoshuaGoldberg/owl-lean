@@ -591,17 +591,17 @@ def infer (Phi : phi_context l) (Delta : delta_context l d)
       | _ => .none
   | .annot e t =>
     match exp with
-    | .none =>
+    | .none => -- synthesize a type
       match infer Phi Delta Gamma e (.some t) with
       | .some pf => .some ⟨t, { check := has_type.T_Annot e t pf.check }⟩
       | .none => .none
-    | .some t_exp =>
-      match check_subtype Phi Delta t t_exp with
+    | .some exp_ty => -- check the type of annotation
+      match check_subtype Phi Delta t exp_ty with -- first check for subtype
       | .some sub =>
-        match infer Phi Delta Gamma e (.some t) with
+        match infer Phi Delta Gamma e (.some t) with -- check that e has type t
         | .some pf =>
-          let annot_proof := has_type.T_Annot e t pf.check
-          .some { check := has_type.T_Sub (.annot e t) t t_exp sub.st annot_proof }
+          let annot_proof := has_type.T_Annot e t pf.check -- output a proof
+          .some { check := has_type.T_Sub (.annot e t) t exp_ty sub.st annot_proof }
         | .none => .none
       | .none => .none
   | _ =>
