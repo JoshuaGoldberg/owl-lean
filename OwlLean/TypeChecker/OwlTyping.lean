@@ -333,6 +333,9 @@ noncomputable def infer_type (Gamma : gamma_context l d m) (e : tm l d m) : (ty 
 -- Annotation (for synthesis) + *maybe* subtyping notation
 
 -- ALL NEW *Infer* function!!!
+structure Conditional (p : Prop) where
+  side_condition : Prop
+  side_condition_sound : side_condition -> p
 
 structure CheckType (Phi : phi_context l) (Delta : delta_context l d)
                      (Gamma : gamma_context l d m) (e : tm l d m) (exp : ty l d) : Type where
