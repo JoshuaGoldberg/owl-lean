@@ -349,8 +349,8 @@ structure STType (Phi : phi_context l) (Delta : delta_context l d)
 def check_subtype  (Phi : phi_context l) (Delta : delta_context l d)
                            (t1 : ty l d) (t2 : ty l d) : Option (Conditional (subtype Phi Delta t1 t2)) :=
     match t1, t2 with
-    | x, .Any => .some { st := subtype.ST_Any x }
-    | .Unit, .Unit => .some { st := subtype.ST_Unit }
+    | x, .Any => .some ⟨True, fun _ => subtype.ST_Any x⟩
+    | .Unit, .Unit => .some ⟨True, fun _ => subtype.ST_Unit⟩
     | _, _ => .none
 
 -- Infer performs the dual roles of synthesis and checking
