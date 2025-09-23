@@ -347,7 +347,7 @@ structure STType (Phi : phi_context l) (Delta : delta_context l d)
 
 
 def check_subtype  (Phi : phi_context l) (Delta : delta_context l d)
-                           (t1 : ty l d) (t2 : ty l d) : Option (STType Phi Delta t1 t2) :=
+                           (t1 : ty l d) (t2 : ty l d) : Option (Conditional (subtype Phi Delta t1 t2)) :=
     match t1, t2 with
     | x, .Any => .some { st := subtype.ST_Any x }
     | .Unit, .Unit => .some { st := subtype.ST_Unit }
@@ -362,19 +362,24 @@ def check_subtype  (Phi : phi_context l) (Delta : delta_context l d)
 def infer (Phi : phi_context l) (Delta : delta_context l d)
           (Gamma : gamma_context l d m) (e : tm l d m) (exp : Option (ty l d)) :
           Option (match exp with
-                  | .none => ((t : ty l d) × CheckType Phi Delta Gamma e t)
-                  | .some exp' => (CheckType Phi Delta Gamma e exp')) :=
+                  | .none => ((t : ty l d) × Conditional (has_type Phi Delta Gamma e t))
+                  | .some exp' => Conditional (has_type Phi Delta Gamma e exp')) :=
   match e with
   | .var_tm x =>
     match exp with
-    | .none => .some ⟨(Gamma x), { check := has_type.T_Var x}⟩
+    | .none =>
+        let proof := fun _ => has_type.T_Var x
+        .some ⟨(Gamma x), ⟨True, proof⟩⟩
     | .some t =>
       let et1 := (Gamma x)
       let et2 := has_type.T_Var x
       let es := check_subtype Phi Delta et1 t
       match es with
       | .some es' =>
-        .some { check := has_type.T_Sub (.var_tm x) et1 t es'.st et2 }
+        let combined_condition := es'.side_condition
+        let combined_proof :=
+          fun sc => has_type.T_Sub (.var_tm x) et1 t (es'.side_condition_sound sc) et2
+        .some ⟨combined_condition, combined_proof⟩
       | .none => .none
   | .skip =>
     match exp with
