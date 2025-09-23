@@ -383,17 +383,22 @@ def infer (Phi : phi_context l) (Delta : delta_context l d)
       | .none => .none
   | .skip =>
     match exp with
-    | .none => .some ⟨.Unit, { check := has_type.T_IUnit }⟩
+    | .none => .some ⟨.Unit, ⟨True, fun _ => has_type.T_IUnit⟩⟩
     | .some t =>
       match (check_subtype Phi Delta .Unit t) with
-      | .some pf => .some { check := has_type.T_Sub .skip .Unit t pf.st has_type.T_IUnit }
+      | .some pf =>
+        .some ⟨pf.side_condition,
+              fun sc =>
+                has_type.T_Sub .skip .Unit t (pf.side_condition_sound sc) has_type.T_IUnit⟩
       | .none => .none
   | .bitstring b =>
     match exp with
-    | .none => .some ⟨.Data (.latl L.bot), { check := has_type.T_Const b }⟩
+    | .none => .some ⟨.Data (.latl L.bot), ⟨True, fun _ => has_type.T_Const b⟩⟩
     | .some t =>
       match (check_subtype Phi Delta (.Data (.latl L.bot)) t) with
-      | .some pf => .some { check := has_type.T_Sub (.bitstring b) (.Data (.latl L.bot)) t pf.st (has_type.T_Const b)  }
+      | .some pf =>
+        .some ⟨pf.side_condition,
+               fun sc => has_type.T_Sub (.bitstring b) (.Data (.latl L.bot)) t (pf.side_condition_sound sc) (has_type.T_Const b)⟩
       | .none => .none
   | .Op op e1 e2 =>
     match exp with
