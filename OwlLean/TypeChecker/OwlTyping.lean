@@ -406,12 +406,18 @@ def infer (Phi : phi_context l) (Delta : delta_context l d)
       match infer Phi Delta Gamma e1 .none with -- find type of e1
       | .some ⟨.Data l1, pf1⟩ =>
         match infer Phi Delta Gamma e2 (.some (.Data l1)) with
-        | .some e2pf => .some ⟨.Data l1, { check := has_type.T_Op op e1 e2 l1 pf1.check e2pf.check }⟩
+        | .some e2pf =>
+          .some ⟨.Data l1,
+                 ⟨pf1.side_condition /\ e2pf.side_condition,
+                  fun sc => has_type.T_Op op e1 e2 l1 (pf1.side_condition_sound (by grind)) (e2pf.side_condition_sound (by grind))⟩⟩
         | .none =>
           match infer Phi Delta Gamma e2 .none with  -- find type of e2
           | .some ⟨.Data l2, pf2⟩ =>
             match infer Phi Delta Gamma e1 (.some (.Data l2)) with
-            | .some e1pf => .some ⟨.Data l2, { check := has_type.T_Op op e1 e2 l2 e1pf.check pf2.check }⟩
+            | .some e1pf =>
+              .some ⟨.Data l2,
+                     ⟨e1pf.side_condition /\ pf2.side_condition,
+                      fun sc => has_type.T_Op op e1 e2 l2 (e1pf.side_condition_sound (by grind)) (pf2.side_condition_sound (by grind))⟩⟩
             | .none => .none
           | _ => .none
       | _ => .none
