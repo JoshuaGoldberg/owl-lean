@@ -352,6 +352,7 @@ def check_subtype  (Phi : phi_context l) (Delta : delta_context l d)
     match t1, t2 with
     | x, .Any => .some ⟨True, fun _ => subtype.ST_Any x⟩
     | .Unit, .Unit => .some ⟨True, fun _ => subtype.ST_Unit⟩
+    | .Data l1, .Data l2 => .some ⟨(Phi |= (.condition .leq l1 l2)), fun sc => subtype.ST_Data l1 l2 sc⟩
     | _, _ => .none
 
 -- Infer performs the dual roles of synthesis and checking
