@@ -674,7 +674,7 @@ macro_rules
       | some result =>
           dsimp [infer] at h
           dsimp [check_subtype] at h
-          have sc : result.side_condition := by grind
+          have sc : result.side_condition := by try grind
           exact result.side_condition_sound sc
       | none =>
           dsimp [infer] at h
