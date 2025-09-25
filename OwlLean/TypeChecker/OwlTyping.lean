@@ -535,7 +535,7 @@ def infer (Phi : phi_context l) (Delta : delta_context l d)
       | _ => .none
   | .inl e =>
     match exp with
-    | .none => .none
+    | .none => .none -- CANNOT synthesize! Abort! Abort!
     | .some t =>
       match t with
       | .sum t1 t2 =>
@@ -545,7 +545,7 @@ def infer (Phi : phi_context l) (Delta : delta_context l d)
       | _ => .none
   | .inr e =>
     match exp with
-    | .none => .none
+    | .none => .none -- CANNOT synthesize! Abort! Abort!
     | .some t =>
       match t with
       | .sum t1 t2 =>
