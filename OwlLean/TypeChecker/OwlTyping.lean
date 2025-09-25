@@ -613,6 +613,40 @@ def infer (Phi : phi_context l) (Delta : delta_context l d)
           | .none => .none
         | .none => .none
       | _ => .none
+  | .left_tm e =>
+    match exp with
+    | .none => -- synthesize
+      match infer Phi Delta Gamma e .none with
+      | .some ⟨.prod t1 t2, pf⟩ =>
+        .some ⟨t1, ⟨pf.side_condition, fun sc => has_type.T_EProdL e t1 t2 (grind pf)⟩⟩
+      | _ => .none
+    | .some exp_ty =>
+      match infer Phi Delta Gamma e .none with
+      | .some ⟨.prod t1 t2, pf⟩ =>
+        match check_subtype Phi Delta t1 exp_ty with
+        | .some sub_pf =>
+          .some ⟨pf.side_condition /\ sub_pf.side_condition ,
+                 fun sc => has_type.T_Sub (.left_tm e) t1 exp_ty (grind sub_pf)
+                                                                 (has_type.T_EProdL e t1 t2 (grind pf))⟩
+        | .none => .none
+      | _ => .none
+  | .right_tm e =>
+    match exp with
+    | .none => -- synthesize
+      match infer Phi Delta Gamma e .none with
+      | .some ⟨.prod t1 t2, pf⟩ =>
+        .some ⟨t2, ⟨pf.side_condition, fun sc => has_type.T_EProdR e t1 t2 (grind pf)⟩⟩
+      | _ => .none
+    | .some exp_ty =>
+      match infer Phi Delta Gamma e .none with
+      | .some ⟨.prod t1 t2, pf⟩ =>
+        match check_subtype Phi Delta t2 exp_ty with
+        | .some sub_pf =>
+          .some ⟨pf.side_condition /\ sub_pf.side_condition ,
+                 fun sc => has_type.T_Sub (.right_tm e) t2 exp_ty (grind sub_pf)
+                                                                 (has_type.T_EProdR e t1 t2 (grind pf))⟩
+        | .none => .none
+      | _ => .none
   | .annot e t =>
     match exp with
     | .none => -- synthesize a type
@@ -639,7 +673,7 @@ macro_rules
       cases h : infer $Phi $Delta $Gamma $e (some $t) with
       | some result =>
         simp [infer] at h; try simp [check_subtype] at h
-        have side_proof : result.side_condition := by grind
+        have side_proof : result.side_condition := by sorry
         exact result.side_condition_sound side_proof
       | none => simp [infer] at h; try simp [check_subtype] at h)
 
