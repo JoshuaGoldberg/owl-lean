@@ -669,13 +669,18 @@ def infer (Phi : phi_context l) (Delta : delta_context l d)
 syntax "tc" term:max term:max term:max term:max term:max : tactic
 
 macro_rules
-  | `(tactic| tc $Phi:term $Delta:term $Gamma:term $e:term $t:term) => `(tactic|
+  | `(tactic| tc $Phi $Delta $Gamma $e $t) => `(tactic|
       cases h : infer $Phi $Delta $Gamma $e (some $t) with
       | some result =>
-        simp [infer] at h; try simp [check_subtype] at h
-        have side_proof : result.side_condition := by sorry
-        exact result.side_condition_sound side_proof
-      | none => simp [infer] at h; try simp [check_subtype] at h)
+          dsimp [infer] at h
+          dsimp [check_subtype] at h
+          have sc : result.side_condition := by grind
+          exact result.side_condition_sound sc
+      | none =>
+          dsimp [infer] at h
+          dsimp [check_subtype] at h
+          cases h
+    )
 
 theorem skip_has_unit_type (Phi : phi_context l) (Delta : delta_context l d)
                            (Gamma : gamma_context l d m) :
