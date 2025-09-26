@@ -354,12 +354,6 @@ structure STType (Phi : phi_context l) (Delta : delta_context l d)
 
 notation:100  "grind" ck => (Conditional.side_condition_sound ck (by grind))
 
-open Lean Elab Meta
-
-syntax "pec" : tactic
-syntax "st" : tactic
-
-
 def check_subtype  (Phi : phi_context l) (Delta : delta_context l d)
                            (t1 : ty l d) (t2 : ty l d) : Option (Conditional (subtype Phi Delta t1 t2)) :=
     match t1, t2 with
@@ -390,8 +384,6 @@ def infer (Phi : phi_context l) (Delta : delta_context l d)
         .some ⟨(Gamma x), ⟨True, proof⟩⟩
     | .some t =>
       let et1 := (Gamma x)
-      let et10 : ty l d := by exact Gamma x
-      dbg_trace s!"type is now!!!: {repr et10}"
       let et2 := has_type.T_Var x
       let es := check_subtype Phi Delta (Gamma x) t
       match es with
@@ -766,6 +758,7 @@ macro_rules
       | some result =>
           dsimp [infer] at h
           dsimp [check_subtype] at h
+          try simp [cons] at h
           have sc : result.side_condition := by try grind
           exact result.side_condition_sound sc
       | none =>
@@ -774,20 +767,33 @@ macro_rules
           cases h
     )
 
+#reduce infer (@empty_phi 0) empty_delta empty_gamma (.fixlam (.var_tm ⟨1, by omega⟩)) (.some (.arr .Unit .Unit))
+
+#reduce infer (@empty_phi 0) empty_delta (cons .Unit empty_gamma) (.var_tm ⟨0, by omega⟩) (.some .Unit)
+
 theorem skip_has_unit_type (Phi : phi_context l) (Delta : delta_context l d)
                            (Gamma : gamma_context l d m) :
                            has_type Phi Delta Gamma .skip .Any := by
   tc Phi Delta Gamma .skip .Any
 
-theorem lambda_simple (Phi : phi_context l) (Delta : delta_context l d)
-                            (Gamma : gamma_context l d m) :
-                            has_type Phi Delta Gamma (.fixlam (.alloc .skip)) (.arr .Unit (.Ref .Unit)) := by
+theorem lambda_simple (Phi : phi_context l) (Delta : delta_context l d) (Gamma : gamma_context l d m) :
+          has_type Phi Delta Gamma (.fixlam (.alloc .skip)) (.arr .Unit (.Ref .Unit)) := by
   tc Phi Delta Gamma (.fixlam (.alloc .skip)) (.arr .Unit (.Ref .Unit))
 
-theorem lambda_identity_unit (Phi : phi_context l) (Delta : delta_context l d)
-                            (Gamma : gamma_context l d m) :
-                            has_type Phi Delta Gamma (.fixlam (.var_tm ⟨1, by omega⟩)) (.arr .Unit .Unit) := by
-  tc Phi Delta Gamma (.fixlam (.var_tm ⟨1, by omega⟩)) (.arr .Unit .Unit)
+theorem lambda_identity_unit (Phi : phi_context l) (Delta : delta_context l d) (Gamma : gamma_context l d m) :
+          has_type Phi Delta Gamma (.fixlam (.var_tm ⟨1, by omega⟩)) (.arr .Unit .Unit) := by
+  cases h : infer Phi Delta Gamma (.fixlam (.var_tm ⟨1, by omega⟩)) (some (.arr .Unit .Unit)) with
+      | some result =>
+          dsimp [infer] at h
+          dsimp [check_subtype] at h
+          simp only [cons] at h
+
+          have sc : result.side_condition := by try grind
+          exact result.side_condition_sound sc
+      | none =>
+          dsimp [infer] at h
+          dsimp [check_subtype] at h
+          cases h
 
 theorem bitstring_has_bot_type (Phi : phi_context l) (Delta : delta_context l d)
                                 (Gamma : gamma_context l d m) (b : binary) :
