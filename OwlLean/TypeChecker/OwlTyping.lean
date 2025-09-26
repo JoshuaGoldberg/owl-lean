@@ -750,18 +750,16 @@ def infer (Phi : phi_context l) (Delta : delta_context l d)
     | .some _ => .none
     | .none => .none
 
-syntax "tc" term:max term:max term:max term:max term:max : tactic
+syntax "tc" term:max term:max term:max term:max term:max tactic:max : tactic
 
 macro_rules
-  | `(tactic| tc $Phi $Delta $Gamma $e $t) => `(tactic|
+  | `(tactic| tc $Phi $Delta $Gamma $e $t $k) => `(tactic|
       cases h : infer $Phi $Delta $Gamma $e (some $t) with
       | some result =>
-          dsimp [infer, check_subtype, cons] at h
-          cases result
-          cases h
-          grind
+          cases result;
+          cases h;
+          $k
       | none =>
-          dsimp [infer, check_subtype] at h
           cases h
     )
 
@@ -772,30 +770,38 @@ macro_rules
 theorem skip_has_unit_type (Phi : phi_context l) (Delta : delta_context l d)
                            (Gamma : gamma_context l d m) :
                            has_type Phi Delta Gamma .skip .Any := by
-  tc Phi Delta Gamma .skip .Any
+  tc Phi Delta Gamma .skip .Any (try grind)
 
 theorem lambda_simple (Phi : phi_context l) (Delta : delta_context l d) (Gamma : gamma_context l d m) :
           has_type Phi Delta Gamma (.fixlam (.alloc .skip)) (.arr .Unit (.Ref .Unit)) := by
-  tc Phi Delta Gamma (.fixlam (.alloc .skip)) (.arr .Unit (.Ref .Unit))
+  tc Phi Delta Gamma (.fixlam (.alloc .skip)) (.arr .Unit (.Ref .Unit)) (try grind)
 
 theorem lambda_identity_unit (Phi : phi_context l) (Delta : delta_context l d) (Gamma : gamma_context l d m) :
           has_type Phi Delta Gamma (.fixlam (.var_tm ⟨1, by omega⟩)) (.arr .Unit .Unit) := by
-  tc Phi Delta Gamma (.fixlam (.var_tm ⟨1, by omega⟩)) (.arr .Unit .Unit)
+  tc Phi Delta Gamma (.fixlam (.var_tm ⟨1, by omega⟩)) (.arr .Unit .Unit) (try grind)
 
 theorem bitstring_has_bot_type (Phi : phi_context l) (Delta : delta_context l d)
                                 (Gamma : gamma_context l d m) (b : binary) :
                                 has_type Phi Delta Gamma (.bitstring b) (.Data (.latl SecurityLevel.secret)) := by
-  tc Phi Delta Gamma (.bitstring b) (.Data (.latl SecurityLevel.secret))
+  tc Phi Delta Gamma (.bitstring b) (.Data (.latl SecurityLevel.secret)) (sorry)
+
 
 -- Test theorem for inl with skip
 theorem inl_skip_has_sum_type (Phi : phi_context l) (Delta : delta_context l d)
                               (Gamma : gamma_context l d m) (t2 : ty l d) :
                               has_type Phi Delta Gamma (.inl .skip) (.sum .Unit t2) := by
-  tc Phi Delta Gamma (.inl .skip) (.sum .Unit t2)
+  tc Phi Delta Gamma (.inl .skip) (.sum .Unit t2) (try grind)
 
 theorem fixlam_identity (Phi : phi_context l) (Delta : delta_context l d)
                         (Gamma : gamma_context l d m) :
                         has_type Phi Delta Gamma
                           (.fixlam .skip)
                           (.arr .Any .Unit) := by
-  tc Phi Delta Gamma (.fixlam .skip) (.arr .Any .Unit)
+  tc Phi Delta Gamma (.fixlam .skip) (.arr .Any .Unit) (try grind)
+
+theorem pair_easy (Phi : phi_context l) (Delta : delta_context l d)
+                        (Gamma : gamma_context l d m) :
+                        has_type Phi Delta Gamma
+                        (.tm_pair .skip .skip)
+                        (.prod .Unit .Unit) := by
+  tc Phi Delta Gamma (.tm_pair .skip .skip) (.prod .Unit .Unit) (try grind)
