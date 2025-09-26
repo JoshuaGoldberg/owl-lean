@@ -757,9 +757,10 @@ macro_rules
       cases h : infer $Phi $Delta $Gamma $e (some $t) with
       | some result =>
           dsimp [infer, check_subtype, cons] at h;
-          cases result;
-          cases h;
-          $k
+          cases result with
+          | mk side_condition side_condition_sound =>
+            cases h;
+            $k
       | none =>
           dsimp [infer, check_subtype] at h
           cases h
@@ -772,7 +773,17 @@ macro_rules
 theorem skip_has_unit_type (Phi : phi_context l) (Delta : delta_context l d)
                            (Gamma : gamma_context l d m) :
                            has_type Phi Delta Gamma .skip .Any := by
-  tc Phi Delta Gamma .skip .Any (try grind)
+  cases h : infer Phi Delta Gamma .skip (.some .Any) with
+  | some result =>
+          dsimp [infer, check_subtype, cons] at h;
+          cases result with
+          | mk side_condition side_condition_sound =>
+            cases h;
+            apply side_condition_sound
+            grind
+  | none =>
+          dsimp [infer, check_subtype] at h
+          cases h
 
 theorem lambda_simple (Phi : phi_context l) (Delta : delta_context l d) (Gamma : gamma_context l d m) :
           has_type Phi Delta Gamma (.fixlam (.alloc .skip)) (.arr .Unit (.Ref .Unit)) := by
