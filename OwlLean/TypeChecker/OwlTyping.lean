@@ -759,6 +759,7 @@ macro_rules
           dsimp [infer] at h
           dsimp [check_subtype] at h
           try simp [cons] at h
+          try (conv at h => lhs; reduce)
           have sc : result.side_condition := by try grind
           exact result.side_condition_sound sc
       | none =>
@@ -782,18 +783,7 @@ theorem lambda_simple (Phi : phi_context l) (Delta : delta_context l d) (Gamma :
 
 theorem lambda_identity_unit (Phi : phi_context l) (Delta : delta_context l d) (Gamma : gamma_context l d m) :
           has_type Phi Delta Gamma (.fixlam (.var_tm ⟨1, by omega⟩)) (.arr .Unit .Unit) := by
-  cases h : infer Phi Delta Gamma (.fixlam (.var_tm ⟨1, by omega⟩)) (some (.arr .Unit .Unit)) with
-      | some result =>
-          dsimp [infer] at h
-          dsimp [check_subtype] at h
-          simp only [cons] at h
-
-          have sc : result.side_condition := by try grind
-          exact result.side_condition_sound sc
-      | none =>
-          dsimp [infer] at h
-          dsimp [check_subtype] at h
-          cases h
+  tc Phi Delta Gamma (.fixlam (.var_tm ⟨1, by omega⟩)) (.arr .Unit .Unit)
 
 theorem bitstring_has_bot_type (Phi : phi_context l) (Delta : delta_context l d)
                                 (Gamma : gamma_context l d m) (b : binary) :
