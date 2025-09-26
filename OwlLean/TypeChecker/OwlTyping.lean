@@ -756,15 +756,12 @@ macro_rules
   | `(tactic| tc $Phi $Delta $Gamma $e $t) => `(tactic|
       cases h : infer $Phi $Delta $Gamma $e (some $t) with
       | some result =>
-          dsimp [infer] at h
-          dsimp [check_subtype] at h
-          try simp [cons] at h
-          try (conv at h => lhs; reduce)
-          have sc : result.side_condition := by try grind
-          exact result.side_condition_sound sc
+          dsimp [infer, check_subtype, cons] at h
+          cases result
+          cases h
+          grind
       | none =>
-          dsimp [infer] at h
-          dsimp [check_subtype] at h
+          dsimp [infer, check_subtype] at h
           cases h
     )
 
