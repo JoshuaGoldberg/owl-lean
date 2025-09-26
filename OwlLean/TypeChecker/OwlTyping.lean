@@ -756,10 +756,12 @@ macro_rules
   | `(tactic| tc $Phi $Delta $Gamma $e $t $k) => `(tactic|
       cases h : infer $Phi $Delta $Gamma $e (some $t) with
       | some result =>
+          dsimp [infer, check_subtype, cons] at h;
           cases result;
           cases h;
           $k
       | none =>
+          dsimp [infer, check_subtype] at h
           cases h
     )
 
@@ -783,7 +785,7 @@ theorem lambda_identity_unit (Phi : phi_context l) (Delta : delta_context l d) (
 theorem bitstring_has_bot_type (Phi : phi_context l) (Delta : delta_context l d)
                                 (Gamma : gamma_context l d m) (b : binary) :
                                 has_type Phi Delta Gamma (.bitstring b) (.Data (.latl SecurityLevel.secret)) := by
-  tc Phi Delta Gamma (.bitstring b) (.Data (.latl SecurityLevel.secret)) (sorry)
+  tc Phi Delta Gamma (.bitstring b) (.Data (.latl SecurityLevel.secret)) (try grind)
 
 
 -- Test theorem for inl with skip
