@@ -760,6 +760,7 @@ macro_rules
           cases result with
           | mk side_condition side_condition_sound =>
             cases h;
+            apply side_condition_sound
             $k
       | none =>
           dsimp [infer, check_subtype] at h
@@ -793,11 +794,14 @@ theorem lambda_identity_unit (Phi : phi_context l) (Delta : delta_context l d) (
           has_type Phi Delta Gamma (.fixlam (.var_tm ⟨1, by omega⟩)) (.arr .Unit .Unit) := by
   tc Phi Delta Gamma (.fixlam (.var_tm ⟨1, by omega⟩)) (.arr .Unit .Unit) (try grind)
 
+-- Proof that injection into a larger goal works
+theorem test_inject : (Phi |= constr.condition cond_sym.leq (label.latl L.bot) (label.latl SecurityLevel.secret)) := by
+  sorry
+
 theorem bitstring_has_bot_type (Phi : phi_context l) (Delta : delta_context l d)
                                 (Gamma : gamma_context l d m) (b : binary) :
                                 has_type Phi Delta Gamma (.bitstring b) (.Data (.latl SecurityLevel.secret)) := by
-  tc Phi Delta Gamma (.bitstring b) (.Data (.latl SecurityLevel.secret)) (try grind)
-
+  tc Phi Delta Gamma (.bitstring b) (.Data (.latl SecurityLevel.secret)) (exact test_inject)
 
 -- Test theorem for inl with skip
 theorem inl_skip_has_sum_type (Phi : phi_context l) (Delta : delta_context l d)
