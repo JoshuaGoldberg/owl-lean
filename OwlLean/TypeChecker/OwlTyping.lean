@@ -798,6 +798,7 @@ theorem lambda_identity_unit (Phi : phi_context l) (Delta : delta_context l d) (
 theorem test_inject : (Phi |= constr.condition cond_sym.leq (label.latl L.bot) (label.latl SecurityLevel.secret)) := by
   sorry
 
+-- Proof, that you can pass in a proof (proof of proof)
 theorem bitstring_has_bot_type (Phi : phi_context l) (Delta : delta_context l d)
                                 (Gamma : gamma_context l d m) (b : binary) :
                                 has_type Phi Delta Gamma (.bitstring b) (.Data (.latl SecurityLevel.secret)) := by
