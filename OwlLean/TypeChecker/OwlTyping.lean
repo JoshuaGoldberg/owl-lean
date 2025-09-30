@@ -8,7 +8,7 @@ open Owl
 
 def gamma_context (l : Nat) (d : Nat) (m : Nat) := Fin m -> ty l d
 def delta_context (l : Nat) (d : Nat) := Fin d -> ty l d
-def phi_context (l : Nat) := (List (constr l))
+def phi_context (l : Nat) := Fin l -> (cond_sym × label l)
 
 @[simp] theorem cons_zero {l d m} (t : ty l d) (Γ : gamma_context l d m) (h : 0 < m+1) :
   cons t Γ ⟨0, h⟩ = t := rfl
@@ -23,7 +23,8 @@ def empty_gamma : gamma_context l d 0 :=
 def empty_delta : delta_context l 0 :=
   fun (i : Fin 0) => nomatch i
 
-def empty_phi : (phi_context l) := []
+def empty_phi : (phi_context 0) :=
+  fun (i : Fin 0) => nomatch i
 
 def lift_delta (Delta : Fin (d + 1) -> ty l d)
   : delta_context l (d + 1)
@@ -75,24 +76,23 @@ def valid_constraint (co : constr 0) : Prop :=
 
 
 def phi_map (l : Nat) : Type := (Fin l) -> (label 0)
+def empty_phi_map : phi_map 0 := fun (i : Fin 0) => nomatch i
 
 def phi_map_holds (l : Nat) (pm : phi_map l) (co : constr l) : Prop :=
   match co with
   | (.condition c l1 l2) => (valid_constraint (.condition c (subst_label pm l1) (subst_label pm l2)))
 
-def lift_phi (pm : phi_context l) : phi_context (l + 1) :=
-  .map (ren_constr shift) pm
+def lift_phi (pm : Fin (l + 1) -> (cond_sym × label l)) : phi_context (l + 1) :=
+  fun i =>
+    let ⟨sym, lab⟩ := (pm i)
+    ⟨sym, ren_label shift lab⟩
 
 inductive valid_phi_map : forall l, phi_map l -> phi_context l -> Prop where
-| phi_empty_valid : forall (pm : phi_map 1),
-  valid_phi_map 1 pm empty_phi
-| phi_constraint_valid : forall l pm phictx c,
+| phi_empty_valid : valid_phi_map 0 empty_phi_map empty_phi
+| phi_cons : forall l pm phictx (sym : cond_sym) (lab : label l) (lab_val : label 0),
   valid_phi_map l pm phictx ->
-  phi_map_holds l pm c ->
-  valid_phi_map l pm (c :: phictx)
-| phi_var_holds : forall l lab pm phictx,
-  valid_phi_map l pm phictx ->
-  valid_phi_map (l + 1) (cons lab pm) (lift_phi phictx)
+  phi_map_holds (l+1) (cons lab_val pm) (.condition sym (.var_label var_zero) (ren_label shift lab)) ->
+  valid_phi_map (l+1) (cons lab_val pm) (lift_phi (cons (sym, lab) phictx))
 
 def phi_entails_c (pctx : phi_context l) (co : constr l) : Prop :=
   (forall pm,
@@ -166,9 +166,9 @@ inductive is_value : tm l d m -> Prop where
     subtype Phi (lift_delta (cons t0 Delta)) t t' ->
     subtype Phi Delta (.ex t0 t) (.ex t0' t')
   | ST_LatUniv : forall cs lab lab' t t',
-    (((.condition cs (.var_label var_zero) (ren_label shift lab)) :: (lift_phi Phi))
+    ((lift_phi (cons (cs, lab) Phi))
     |= (.condition cs (.var_label var_zero) (ren_label shift lab'))) ->
-    subtype ((.condition cs (.var_label var_zero) (ren_label shift lab)) :: (lift_phi Phi)) (lift_delta_l Delta) t t' ->
+    subtype (lift_phi (cons (cs, lab) Phi)) (lift_delta_l Delta) t t' ->
     subtype Phi Delta (.all_l cs lab t) (.all_l cs lab' t')
   | ST_IfElimL : forall co t1 t2 t1',
     (Phi |= co) ->
@@ -186,10 +186,6 @@ inductive is_value : tm l d m -> Prop where
     (Phi |= (negate_cond co)) ->
     subtype Phi Delta t2 t2' ->
     subtype Phi Delta t2 (.t_if co t1' t2')
-  | ST_Lem : forall co t t',
-    subtype (co :: Phi) Delta t t' ->
-    subtype ((negate_cond co) :: Phi) Delta t t' ->
-    subtype Phi Delta t t'
 
 def last_var l : Fin (l + 1) :=
   match l with
@@ -279,21 +275,13 @@ inductive has_type : (Phi : phi_context l) -> (Delta : delta_context l d) -> (Ga
   has_type Phi (lift_delta (cons t0 Delta)) (cons t (lift_gamma_d Gamma)) e' (ren_ty id shift t') ->
   has_type Phi Delta Gamma (.unpack e e') t'
 | T_ILUniv : forall cs lab e t,
-  has_type ((.condition cs (.var_label var_zero) (ren_label shift lab)) :: (lift_phi Phi))
-                                        (lift_delta_l Delta) (lift_gamma_l Gamma) e t ->
+  has_type (lift_phi ((cons (cs, lab)) Phi))
+           (lift_delta_l Delta) (lift_gamma_l Gamma) e t ->
   has_type Phi Delta Gamma (.l_lam e) (.all_l cs lab t)
 | T_ELUniv : forall cs lab lab' e t,
   (Phi |= (.condition cs lab lab')) ->
   has_type Phi Delta Gamma e (.all_l cs lab t) ->
   has_type Phi Delta Gamma (.lapp e lab') (subst_ty (cons lab' .var_label) .var_ty t)
-| T_Lem : forall co e t,
-  has_type (co :: Phi) Delta Gamma e t ->
-  has_type ((negate_cond co) :: Phi) Delta Gamma e t ->
-  has_type Phi Delta Gamma e t
-| T_LIf : forall co e1 e2 t,
-  has_type (co :: Phi) Delta Gamma e1 t ->
-  has_type (co :: Phi) Delta Gamma e2 t ->
-  has_type Phi Delta Gamma (.if_c co e1 e2) t
 | T_Sync : forall e pf,
   has_type Phi Delta Gamma e (.Data (adv pf)) ->
   has_type Phi Delta Gamma (.sync e) (.Data (adv pf))
@@ -304,6 +292,7 @@ inductive has_type : (Phi : phi_context l) -> (Delta : delta_context l d) -> (Ga
 | T_Annot : forall e t,
   has_type Phi Delta Gamma e t ->
   has_type Phi Delta Gamma (.annot e t) t
+-- NEED TO ADD IF STATEMENTS BACK (RELFLECTING NEW CORR DEFS)
 
 theorem simple_var_typing :
   forall x Phi Delta (Gamma : gamma_context l d m),
@@ -767,9 +756,9 @@ macro_rules
           cases h
     )
 
-#reduce infer (@empty_phi 0) empty_delta empty_gamma (.fixlam (.var_tm ⟨1, by omega⟩)) (.some (.arr .Unit .Unit))
+#reduce infer empty_phi empty_delta empty_gamma (.fixlam (.var_tm ⟨1, by omega⟩)) (.some (.arr .Unit .Unit))
 
-#reduce infer (@empty_phi 0) empty_delta (cons .Unit empty_gamma) (.var_tm ⟨0, by omega⟩) (.some .Unit)
+#reduce infer empty_phi empty_delta (cons .Unit empty_gamma) (.var_tm ⟨0, by omega⟩) (.some .Unit)
 
 theorem skip_has_unit_type (Phi : phi_context l) (Delta : delta_context l d)
                            (Gamma : gamma_context l d m) :
@@ -803,10 +792,8 @@ theorem test_inject : (Phi |= constr.condition cond_sym.leq (label.latl L.bot) (
   dsimp
   unfold valid_constraint
   dsimp
-  simp [subst_label]
-  simp [interp_lattice]
-  unfold L.leq
-  sorry
+  simp [subst_label, interp_lattice]
+  trivial
   trivial
 
 theorem test_inject_2 : (Phi |= constr.condition cond_sym.leq (label.latl L.bot) (label.latl SecurityLevel.secret)) := by
