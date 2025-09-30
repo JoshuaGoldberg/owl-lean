@@ -9,6 +9,7 @@ open Owl
 def gamma_context (l : Nat) (d : Nat) (m : Nat) := Fin m -> ty l d
 def delta_context (l : Nat) (d : Nat) := Fin d -> ty l d
 def phi_context (l : Nat) := Fin l -> (cond_sym × label l)
+def sigma_context (l : Nat) (d : Nat) := Nat -> Option (ty l d)
 
 @[simp] theorem cons_zero {l d m} (t : ty l d) (Γ : gamma_context l d m) (h : 0 < m+1) :
   cons t Γ ⟨0, h⟩ = t := rfl
@@ -143,6 +144,8 @@ inductive is_value : tm l d m -> Prop where
   | ST_Data : forall lab lab',
     (Phi |= (.condition .leq lab lab')) ->
     subtype Phi Delta (.Data lab) (.Data lab')
+  | ST_RPublic : forall lab,
+    subtype Phi Delta .Public (.Data lab)
   | ST_Func : forall t1' t1 t2 t2',
     subtype Phi Delta t1' t1 ->
     subtype Phi Delta t2 t2' ->
@@ -208,14 +211,14 @@ inductive has_type : (Phi : phi_context l) -> (Delta : delta_context l d) -> (Ga
   has_type Phi Delta Gamma (.var_tm x) (Gamma x)
 | T_IUnit {Phi Delta Gamma} : has_type Phi Delta Gamma .skip .Unit
 | T_Const : forall b,
-  has_type Phi Delta Gamma (.bitstring b) (.Data (.latl L.bot))
+  has_type Phi Delta Gamma (.bitstring b) .Public
 | T_Op : forall op e1 e2 l,
   has_type Phi Delta Gamma e1 (.Data l) ->
   has_type Phi Delta Gamma e2 (.Data l) ->
   has_type Phi Delta Gamma (.Op op e1 e2) (.Data l)
 | T_Zero : forall e l,
   has_type Phi Delta Gamma e (.Data l) ->
-  has_type Phi Delta Gamma (.zero e) (.Data (.latl (L.bot)))
+  has_type Phi Delta Gamma (.zero e) .Public
 | T_If : forall e e1 e2 l t,
   has_type Phi Delta Gamma e (.Data l) ->
   has_type Phi Delta Gamma e1 t ->
@@ -352,6 +355,8 @@ def check_subtype  (Phi : phi_context l) (Delta : delta_context l d)
     | .var_ty x, t' =>
         .some ⟨subtype Phi Delta (Delta x) t',
                fun sub_proof => subtype.ST_Var x t' sub_proof⟩
+    | .Public, .Data l1 =>
+      .some ⟨True, fun _ => subtype.ST_RPublic l1⟩
     | _, _ => .none
 
 -- Infer performs the dual roles of synthesis and checking
@@ -391,12 +396,12 @@ def infer (Phi : phi_context l) (Delta : delta_context l d)
       | .none => .none
   | .bitstring b =>
     match exp with
-    | .none => .some ⟨.Data (.latl L.bot), ⟨True, fun _ => has_type.T_Const b⟩⟩
+    | .none => .some ⟨.Public, ⟨True, fun _ => has_type.T_Const b⟩⟩
     | .some t =>
-      match (check_subtype Phi Delta (.Data (.latl L.bot)) t) with
+      match (check_subtype Phi Delta .Public t) with
       | .some pf =>
         .some ⟨pf.side_condition,
-               fun sc => has_type.T_Sub (.bitstring b) (.Data (.latl L.bot)) t (pf.side_condition_sound sc) (has_type.T_Const b)⟩
+               fun sc => has_type.T_Sub (.bitstring b) .Public t (pf.side_condition_sound sc) (has_type.T_Const b)⟩
       | .none => .none
   | .Op op e1 e2 =>
     match exp with
@@ -436,16 +441,16 @@ def infer (Phi : phi_context l) (Delta : delta_context l d)
     | .none =>
       match infer Phi Delta Gamma e .none with
       | .some ⟨.Data l, pf⟩ =>
-            .some ⟨.Data (.latl L.bot),
+            .some ⟨.Public,
                    ⟨pf.side_condition, fun sc => has_type.T_Zero e l (pf.side_condition_sound (by grind))⟩⟩
       | _ => .none
     | .some t =>
       match infer Phi Delta Gamma e .none with
       | .some ⟨.Data l, pf⟩ =>
-        match check_subtype Phi Delta (.Data (.latl L.bot)) t with
+        match check_subtype Phi Delta .Public t with
         | .some sub =>
           .some ⟨pf.side_condition /\ sub.side_condition,
-                fun sc => has_type.T_Sub (.zero e) (.Data (.latl L.bot)) t (sub.side_condition_sound (by grind)) (has_type.T_Zero e l (pf.side_condition_sound (by grind)))⟩
+                fun sc => has_type.T_Sub (.zero e) .Public t (sub.side_condition_sound (by grind)) (has_type.T_Zero e l (pf.side_condition_sound (by grind)))⟩
         | .none => .none
       | _ => .none
   | .if_tm e e1 e2 =>
@@ -805,7 +810,7 @@ theorem test_inject_2 : (Phi |= constr.condition cond_sym.leq (label.latl L.bot)
 theorem bitstring_has_bot_type (Phi : phi_context l) (Delta : delta_context l d)
                                 (Gamma : gamma_context l d m) (b : binary) :
                                 has_type Phi Delta Gamma (.bitstring b) (.Data (.latl SecurityLevel.secret)) := by
-  tc Phi Delta Gamma (.bitstring b) (.Data (.latl SecurityLevel.secret)) (apply test_inject_2)
+  tc Phi Delta Gamma (.bitstring b) (.Data (.latl SecurityLevel.secret)) (try grind)
 
 -- Test theorem for inl with skip
 theorem inl_skip_has_sum_type (Phi : phi_context l) (Delta : delta_context l d)
