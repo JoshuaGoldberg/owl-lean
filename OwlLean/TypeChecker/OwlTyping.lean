@@ -795,14 +795,21 @@ theorem lambda_identity_unit (Phi : phi_context l) (Delta : delta_context l d) (
   tc Phi Delta Gamma (.fixlam (.var_tm ⟨1, by omega⟩)) (.arr .Unit .Unit) (try grind)
 
 -- Proof that injection into a larger goal works
-theorem test_inject : (Phi |= constr.condition cond_sym.leq (label.latl L.bot) (label.latl SecurityLevel.secret)) := by
+theorem test_inject : (Phi |= constr.condition cond_sym.leq (label.latl L.bot) (label.latl SecurityLevel.secret)) /\ True := by
+  apply And.intro
   sorry
+  trivial
+
+theorem test_inject_2 : (Phi |= constr.condition cond_sym.leq (label.latl L.bot) (label.latl SecurityLevel.secret)) := by
+  have ti : (Phi |= constr.condition cond_sym.leq (label.latl L.bot) (label.latl SecurityLevel.secret)) /\ True :=
+    test_inject
+  exact ti.left
 
 -- Proof, that you can pass in a proof (proof of proof)
 theorem bitstring_has_bot_type (Phi : phi_context l) (Delta : delta_context l d)
                                 (Gamma : gamma_context l d m) (b : binary) :
                                 has_type Phi Delta Gamma (.bitstring b) (.Data (.latl SecurityLevel.secret)) := by
-  tc Phi Delta Gamma (.bitstring b) (.Data (.latl SecurityLevel.secret)) (exact test_inject)
+  tc Phi Delta Gamma (.bitstring b) (.Data (.latl SecurityLevel.secret)) (apply test_inject_2)
 
 -- Test theorem for inl with skip
 theorem inl_skip_has_sum_type (Phi : phi_context l) (Delta : delta_context l d)
