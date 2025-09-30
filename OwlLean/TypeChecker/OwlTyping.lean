@@ -797,6 +797,15 @@ theorem lambda_identity_unit (Phi : phi_context l) (Delta : delta_context l d) (
 -- Proof that injection into a larger goal works
 theorem test_inject : (Phi |= constr.condition cond_sym.leq (label.latl L.bot) (label.latl SecurityLevel.secret)) /\ True := by
   apply And.intro
+  unfold phi_entails_c
+  intro pm vpm
+  unfold phi_map_holds
+  dsimp
+  unfold valid_constraint
+  dsimp
+  simp [subst_label]
+  simp [interp_lattice]
+  unfold L.leq
   sorry
   trivial
 
