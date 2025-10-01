@@ -198,20 +198,6 @@ inductive is_value : tm l d m -> Prop where
     subtype Phi Delta t2 t2' ->
     subtype Phi Delta t2 (.t_if co t1' t2')
 
-def last_var l : Fin (l + 1) :=
-  match l with
-  | 0   => 0
-  | n + 1 => (last_var n).succ
-
-def adv (pf : l > 0) : label l :=
-  match l with
-  | 0 => by contradiction
-  | n + 1 => .var_label (last_var n)
-
-theorem three_proof :
-  3 > 0 := by
-    simp
-
 -- Typing rules for Owl
 inductive has_type : (sigma : sigma_context l d) -> (Phi : phi_context l) -> (Delta : delta_context l d) -> (Gamma : gamma_context l d m) ->
   tm l d m -> ty l d -> Prop where
@@ -296,9 +282,9 @@ inductive has_type : (sigma : sigma_context l d) -> (Phi : phi_context l) -> (De
   (Phi |= (.condition cs lab lab')) ->
   has_type sigma Phi Delta Gamma e (.all_l cs lab t) ->
   has_type sigma Phi Delta Gamma (.lapp e lab') (subst_ty (cons lab' .var_label) .var_ty t)
-| T_Sync : forall e pf,
-  has_type sigma Phi Delta Gamma e (.Data (adv pf)) ->
-  has_type sigma Phi Delta Gamma (.sync e) (.Data (adv pf))
+| T_Sync : forall e,
+  has_type sigma Phi Delta Gamma e .Public ->
+  has_type sigma Phi Delta Gamma (.sync e) .Public
 | T_Sub : forall e t t',
   subtype Phi Delta t t' ->
   has_type sigma Phi Delta Gamma e t ->
@@ -397,7 +383,7 @@ def infer (sigma : sigma_context l d) (Phi : phi_context l) (Delta : delta_conte
     | .some t =>
       let et1 := (Gamma x)
       let et2 := has_type.T_Var x
-      let es := check_subtype Phi Delta (Gamma x) t
+      let es := check_subtype 150 Phi Delta (Gamma x) t
       match es with
       | .some es' =>
         .some ⟨es'.side_condition, fun sc => has_type.T_Sub (.var_tm x) et1 t (grind es') et2⟩
@@ -406,7 +392,7 @@ def infer (sigma : sigma_context l d) (Phi : phi_context l) (Delta : delta_conte
     match exp with
     | .none => .some ⟨.Unit, ⟨True, fun _ => has_type.T_IUnit⟩⟩
     | .some t =>
-      match (check_subtype Phi Delta .Unit t) with
+      match (check_subtype 150 Phi Delta .Unit t) with
       | .some pf =>
         .some ⟨pf.side_condition,
               fun sc =>
@@ -416,7 +402,7 @@ def infer (sigma : sigma_context l d) (Phi : phi_context l) (Delta : delta_conte
     match exp with
     | .none => .some ⟨.Public, ⟨True, fun _ => has_type.T_Const b⟩⟩
     | .some t =>
-      match (check_subtype Phi Delta .Public t) with
+      match (check_subtype 150 Phi Delta .Public t) with
       | .some pf =>
         .some ⟨pf.side_condition,
                fun sc => has_type.T_Sub (.bitstring b) .Public t (pf.side_condition_sound sc) (has_type.T_Const b)⟩
@@ -465,7 +451,7 @@ def infer (sigma : sigma_context l d) (Phi : phi_context l) (Delta : delta_conte
     | .some t =>
       match infer sigma Phi Delta Gamma e .none with
       | .some ⟨.Data l, pf⟩ =>
-        match check_subtype Phi Delta .Public t with
+        match check_subtype 150 Phi Delta .Public t with
         | .some sub =>
           .some ⟨pf.side_condition /\ sub.side_condition,
                 fun sc => has_type.T_Sub (.zero e) .Public t (sub.side_condition_sound (by grind)) (has_type.T_Zero e l (pf.side_condition_sound (by grind)))⟩
@@ -482,7 +468,7 @@ def infer (sigma : sigma_context l d) (Phi : phi_context l) (Delta : delta_conte
       match h : (sigma n) with
       | .none => .none
       | .some t =>
-        match check_subtype Phi Delta t exp_ty with
+        match check_subtype 150 Phi Delta t exp_ty with
         | .none => .none
         | .some sub =>
            .some ⟨sub.side_condition,
@@ -618,7 +604,7 @@ def infer (sigma : sigma_context l d) (Phi : phi_context l) (Delta : delta_conte
             | .arr t t' => -- correct type synthesized
               match infer sigma Phi Delta Gamma e2 (some t) with -- check type of e2
               | .some pf2 =>
-                let sub := check_subtype Phi Delta t' exp_ty -- check that t' is a subtype of exp_ty
+                let sub := check_subtype 150 Phi Delta t' exp_ty -- check that t' is a subtype of exp_ty
                 match sub with
                 | .some sub' =>
                     .some ⟨pf1.side_condition /\ pf2.side_condition /\ sub'.side_condition,
@@ -658,7 +644,7 @@ def infer (sigma : sigma_context l d) (Phi : phi_context l) (Delta : delta_conte
     | .some exp_ty =>
       match infer sigma Phi Delta Gamma e .none with
       | .some ⟨.prod t1 t2, pf⟩ =>
-        match check_subtype Phi Delta t1 exp_ty with
+        match check_subtype 150 Phi Delta t1 exp_ty with
         | .some sub_pf =>
           .some ⟨pf.side_condition /\ sub_pf.side_condition ,
                  fun sc => has_type.T_Sub (.left_tm e) t1 exp_ty (grind sub_pf)
@@ -675,7 +661,7 @@ def infer (sigma : sigma_context l d) (Phi : phi_context l) (Delta : delta_conte
     | .some exp_ty =>
       match infer sigma Phi Delta Gamma e .none with
       | .some ⟨.prod t1 t2, pf⟩ =>
-        match check_subtype Phi Delta t2 exp_ty with
+        match check_subtype 150 Phi Delta t2 exp_ty with
         | .some sub_pf =>
           .some ⟨pf.side_condition /\ sub_pf.side_condition,
                  fun sc => has_type.T_Sub (.right_tm e) t2 exp_ty (grind sub_pf)
@@ -733,7 +719,7 @@ def infer (sigma : sigma_context l d) (Phi : phi_context l) (Delta : delta_conte
     | .none =>
       match infer sigma Phi Delta Gamma e .none with
       | .some ⟨.all t0 t, pf1⟩ =>
-        let sub := check_subtype Phi Delta t' t0
+        let sub := check_subtype 150 Phi Delta t' t0
         match sub with
         | .some sub' =>
           let result_ty := subst_ty .var_label (cons t' .var_ty) t
@@ -745,11 +731,11 @@ def infer (sigma : sigma_context l d) (Phi : phi_context l) (Delta : delta_conte
     | .some exp_ty =>
       match infer sigma Phi Delta Gamma e .none with
       | .some ⟨.all t0 t, pf⟩ =>
-        let sub := check_subtype Phi Delta t' t0
+        let sub := check_subtype 150 Phi Delta t' t0
         match sub with
         | some sub' =>
           let result_ty := subst_ty .var_label (cons t' .var_ty) t
-          let sub_result := check_subtype Phi Delta result_ty exp_ty
+          let sub_result := check_subtype 150 Phi Delta result_ty exp_ty
           match sub_result with
           | .some sub_result' =>
             .some ⟨pf.side_condition /\ sub'.side_condition /\ sub_result'.side_condition,
@@ -764,7 +750,7 @@ def infer (sigma : sigma_context l d) (Phi : phi_context l) (Delta : delta_conte
     | .none => .none -- TODO : potentially ADD Synthesis!
     | .some (.ex t0 t) =>
       let substituted_type := subst_ty .var_label (cons t' .var_ty) t
-      match check_subtype Phi Delta t' t0 with
+      match check_subtype 150 Phi Delta t' t0 with
       | .some sub =>
         match infer sigma Phi Delta Gamma e (.some substituted_type) with
         | .some pf =>
@@ -806,7 +792,7 @@ def infer (sigma : sigma_context l d) (Phi : phi_context l) (Delta : delta_conte
       | .some pf => .some ⟨t, ⟨pf.side_condition, fun sc => has_type.T_Annot e t (grind pf)⟩⟩
       | .none => .none
     | .some exp_ty => -- check the type of annotation
-      match check_subtype Phi Delta t exp_ty with -- first check for subtype
+      match check_subtype 150 Phi Delta t exp_ty with -- first check for subtype
       | .some sub =>
         match infer sigma Phi Delta Gamma e (.some t) with -- check that e has type t
         | .some pf =>
@@ -824,14 +810,15 @@ macro_rules
   | `(tactic| tc $sigma $Phi $Delta $Gamma $e $t $k) => `(tactic|
       cases h : infer $sigma $Phi $Delta $Gamma $e (some $t) with
       | some result =>
-          dsimp [infer, check_subtype, cons] at h;
+          dsimp [infer, cons] at h;
+          try dsimp [check_subtype] at h
           cases result with
           | mk side_condition side_condition_sound =>
             cases h;
             apply side_condition_sound
             $k
       | none =>
-          dsimp [infer, check_subtype] at h
+          dsimp [infer] at h
           cases h
     )
 
@@ -857,6 +844,18 @@ theorem skip_has_unit_type (Phi : phi_context l) (Delta : delta_context l d)
 def packed_unit : tm l d m := .pack .Unit .skip
 
 #reduce infer empty_sigma empty_phi empty_delta empty_gamma (.unpack (.annot packed_unit (.ex .Any .Unit)) .skip) (.some .Unit)
+
+-- for label testing purposes!
+theorem stub_label_flow : Phi |= constr.condition cond_sym.leq (label.latl l1) (label.latl l2) := by
+  sorry
+
+theorem tc_label (sigma : sigma_context l d) (Phi : phi_context l)
+                         (Delta : delta_context l d) :
+                         has_type sigma Phi Delta (cons (.Data (.latl l1)) empty_gamma)
+                           (tm.var_tm ⟨0, by omega⟩)
+                           (.Data (.latl l2)) := by
+  tc sigma Phi Delta (cons (.Data (.latl l1)) empty_gamma)  (tm.var_tm ⟨0, by omega⟩) (.Data (.latl l2)) (exact stub_label_flow)
+
 
 theorem packed_unit_tc (sigma : sigma_context l d) (Phi : phi_context l)
                          (Delta : delta_context l d) (Gamma : gamma_context l d m) :
