@@ -3,56 +3,56 @@ import OwlLean.OwlLang.Owl
 open Owl
 
 -- sanity checks
-#check (tm.error : tm 0 0 0)
-#check (ty.Any : ty 0 0)
+#check (tm.error : tm L' 0 0 0)
+#check (ty.Any : ty L' 0 0)
 
-def gamma_context (l : Nat) (d : Nat) (m : Nat) := Fin m -> ty l d
-def delta_context (l : Nat) (d : Nat) := Fin d -> ty l d
-def phi_context (l : Nat) := Fin l -> (cond_sym × label l)
-def sigma_context (l : Nat) (d : Nat) := Nat -> Option (ty l d)
+def gamma_context (L : Lattice) (l : Nat) (d : Nat) (m : Nat) := Fin m -> ty L l d
+def delta_context (L : Lattice) (l : Nat) (d : Nat) := Fin d -> ty L l d
+def phi_context (L : Lattice) (l : Nat) := Fin l -> (cond_sym × label L l)
+def sigma_context (L : Lattice) (l : Nat) (d : Nat) := Nat -> Option (ty L l d)
 
-def empty_gamma : gamma_context l d 0 :=
+def empty_gamma : gamma_context L l d 0 :=
   fun (i : Fin 0) => nomatch i
 
-def empty_delta : delta_context l 0 :=
+def empty_delta : delta_context L l 0 :=
   fun (i : Fin 0) => nomatch i
 
-def empty_phi : (phi_context 0) :=
+def empty_phi : (phi_context L 0) :=
   fun (i : Fin 0) => nomatch i
 
-def empty_sigma : (sigma_context 0 0) :=
+def empty_sigma : (sigma_context L 0 0) :=
   fun _ => .none
 
-def lift_delta (Delta : Fin (d + 1) -> ty l d)
-  : delta_context l (d + 1)
+def lift_delta (Delta : Fin (d + 1) -> ty L l d)
+  : delta_context L l (d + 1)
   := fun i => ren_ty id shift (Delta i)
 
-def lift_sigma (sigma : sigma_context l d) : sigma_context l (d + 1)
+def lift_sigma (sigma : sigma_context L l d) : sigma_context L l (d + 1)
   := fun i =>
     match (sigma i) with
     | .some t => ren_ty id shift t
     | .none => .none
 
-def lift_sigma_l (sigma : sigma_context l d) : sigma_context (l + 1) d
+def lift_sigma_l (sigma : sigma_context L l d) : sigma_context L (l + 1) d
   := fun i =>
     match (sigma i) with
     | .some t => ren_ty shift id t
     | .none => .none
 
-def lift_delta_l (Delta : delta_context l d)
-  : delta_context (l + 1) d
+def lift_delta_l (Delta : delta_context L l d)
+  : delta_context L (l + 1) d
   := fun i => ren_ty shift id (Delta i)
 
-def lift_gamma_d (Gamma : gamma_context l d m)
-  : gamma_context l (d + 1) m
+def lift_gamma_d (Gamma : gamma_context L l d m)
+  : gamma_context L l (d + 1) m
   := fun i => ren_ty id shift (Gamma i)
 
-def lift_gamma_l (Gamma : gamma_context l d m)
-  : gamma_context (l + 1) d m
+def lift_gamma_l (Gamma : gamma_context L l d m)
+  : gamma_context L (l + 1) d m
   := fun i => ren_ty shift id (Gamma i)
 
 -- Convert from labels down to lattice elements
-noncomputable def interp_lattice (l : label 0) : L.labels :=
+noncomputable def interp_lattice (l : label L 0) : L.labels :=
   match l with
   | .latl x => x
   | .ljoin x y => (L.join (interp_lattice x) (interp_lattice y))
@@ -60,7 +60,7 @@ noncomputable def interp_lattice (l : label 0) : L.labels :=
   | .var_label n => nomatch n
   | .default => L.bot
 
-def negate_cond (co : constr l) : constr l :=
+def negate_cond (co : constr L l) : constr L l :=
   match co with
   | (.condition .leq x y) => (.condition .nleq x y)
   | (.condition .geq x y) => (.condition .ngeq x y)
@@ -72,7 +72,7 @@ def negate_cond (co : constr l) : constr l :=
   | (.condition .nlt x y) => (.condition .lt x y)
 
 -- Check if a constraint is valid, under the assumption it is closed *)
-def valid_constraint (co : constr 0) : Prop :=
+def valid_constraint (co : constr L 0) : Prop :=
   match co with
   | (.condition .leq x y) => L.leq (interp_lattice x) (interp_lattice y) = true
   | (.condition .geq x y) => L.leq (interp_lattice y) (interp_lattice x) = true
@@ -84,26 +84,27 @@ def valid_constraint (co : constr 0) : Prop :=
   | (.condition .nlt x y) => L.leq (interp_lattice x) (interp_lattice y) = false \/ L.leq (interp_lattice y) (interp_lattice x) = false
 
 
-def phi_map (l : Nat) : Type := (Fin l) -> (label 0)
-def empty_phi_map : phi_map 0 := fun (i : Fin 0) => nomatch i
+def phi_map (L : Lattice) (l : Nat) : Type := (Fin l) -> (label L 0)
 
-def phi_map_holds (l : Nat) (pm : phi_map l) (co : constr l) : Prop :=
+def empty_phi_map : phi_map L 0 := fun (i : Fin 0) => nomatch i
+
+def phi_map_holds (l : Nat) (pm : phi_map L l) (co : constr L l) : Prop :=
   match co with
   | (.condition c l1 l2) => (valid_constraint (.condition c (subst_label pm l1) (subst_label pm l2)))
 
-def lift_phi (pm : Fin (l + 1) -> (cond_sym × label l)) : phi_context (l + 1) :=
+def lift_phi (pm : Fin (l + 1) -> (cond_sym × label L l)) : phi_context L (l + 1) :=
   fun i =>
     let ⟨sym, lab⟩ := (pm i)
     ⟨sym, ren_label shift lab⟩
 
-inductive valid_phi_map : forall l, phi_map l -> phi_context l -> Prop where
+inductive valid_phi_map : forall l, phi_map L l -> phi_context L l -> Prop where
 | phi_empty_valid : valid_phi_map 0 empty_phi_map empty_phi
-| phi_cons : forall l pm phictx (sym : cond_sym) (lab : label l) (lab_val : label 0),
+| phi_cons : forall l pm phictx (sym : cond_sym) (lab : label L l) (lab_val : label L 0),
   valid_phi_map l pm phictx ->
   phi_map_holds (l+1) (cons lab_val pm) (.condition sym (.var_label var_zero) (ren_label shift lab)) ->
   valid_phi_map (l+1) (cons lab_val pm) (lift_phi (cons (sym, lab) phictx))
 
-def phi_entails_c (pctx : phi_context l) (co : constr l) : Prop :=
+def phi_entails_c (pctx : phi_context L l) (co : constr L l) : Prop :=
   (forall pm,
     valid_phi_map l pm pctx ->
     phi_map_holds l pm co)
@@ -113,7 +114,7 @@ notation:100 pctx " |= " co => phi_entails_c pctx co
 notation:100 "! " e => tm.dealloc e
 
 -- Checks for proper values within terms
-inductive is_value : tm l d m -> Prop where
+inductive is_value : tm L l d m -> Prop where
 | error_value : is_value .error
 | skip_value : is_value .skip
 | loc_value : forall n,
@@ -141,8 +142,8 @@ inductive is_value : tm l d m -> Prop where
   is_value (.pack t v)
 
   -- subtyping rules for Owl
-  inductive subtype : (phi_context l) -> (delta_context l d) ->
-      ty l d -> ty l d -> Prop where
+  inductive subtype : (phi_context L l) -> (delta_context L l d) ->
+      ty L l d -> ty L l d -> Prop where
   | ST_Var : forall x t',
     subtype Phi Delta (Delta x) t' ->
     subtype Phi Delta (.var_ty x) t'
@@ -199,8 +200,8 @@ inductive is_value : tm l d m -> Prop where
     subtype Phi Delta t2 (.t_if co t1' t2')
 
 -- Typing rules for Owl
-inductive has_type : (sigma : sigma_context l d) -> (Phi : phi_context l) -> (Delta : delta_context l d) -> (Gamma : gamma_context l d m) ->
-  tm l d m -> ty l d -> Prop where
+inductive has_type : (sigma : sigma_context L l d) -> (Phi : phi_context L l) -> (Delta : delta_context L l d) -> (Gamma : gamma_context L l d m) ->
+  tm L l d m -> ty L l d -> Prop where
 | T_Var : forall x,
   has_type sigma Phi Delta Gamma (.var_tm x) (Gamma x)
 | T_IUnit : has_type sigma Phi Delta Gamma .skip .Unit
@@ -213,7 +214,7 @@ inductive has_type : (sigma : sigma_context l d) -> (Phi : phi_context l) -> (De
 | T_Zero : forall e l,
   has_type sigma Phi Delta Gamma e (.Data l) ->
   has_type sigma Phi Delta Gamma (.zero e) .Public
-| T_Loc : forall n (t : ty l d),
+| T_Loc : forall n (t : ty L l d),
   (sigma n) = .some t ->
   has_type sigma Phi Delta Gamma (.loc n) t
 | T_If : forall e e1 e2 l t,
@@ -279,7 +280,7 @@ inductive has_type : (sigma : sigma_context l d) -> (Phi : phi_context l) -> (De
            (lift_delta_l Delta) (lift_gamma_l Gamma) e t ->
   has_type sigma Phi Delta Gamma (.l_lam e) (.all_l cs lab t)
 | T_ELUniv : forall cs lab lab' e t,
-  (Phi |= (.condition cs lab lab')) ->
+  (Phi |= (.condition cs lab' lab)) ->
   has_type sigma Phi Delta Gamma e (.all_l cs lab t) ->
   has_type sigma Phi Delta Gamma (.lapp e lab') (subst_ty (cons lab' .var_label) .var_ty t)
 | T_Sync : forall e,
@@ -296,21 +297,13 @@ inductive has_type : (sigma : sigma_context l d) -> (Phi : phi_context l) -> (De
 -- NEED TO ADD IF STATEMENTS BACK (RELFLECTING NEW CORR DEFS)
 
 theorem simple_var_typing :
-  forall x sigma Phi Delta (Gamma : gamma_context l d m),
+  forall x sigma Phi Delta (Gamma : gamma_context L l d m),
      has_type sigma Phi Delta Gamma (.var_tm x) (Gamma x) := by
   intro x sigma Phi Delta Gamma
   exact has_type.T_Var x
 
-theorem concrete_typing : @has_type 0 0 0 empty_sigma empty_phi empty_delta empty_gamma .skip .Unit :=
+theorem concrete_typing : @has_type L' 0 0 0 empty_sigma empty_phi empty_delta empty_gamma .skip .Unit :=
   has_type.T_IUnit
-
-noncomputable def infer_type (Gamma : gamma_context l d m) (e : tm l d m) : (ty l d) :=
-    match e with
-    | .var_tm n => (Gamma n)
-    | .skip => .Unit
-    | .bitstring _ => (.Data (.latl L.bot))
-    | _ => .default
-
 
 -- NEEDED TACTICS
 -- has_type
@@ -330,22 +323,23 @@ noncomputable def infer_type (Gamma : gamma_context l d m) (e : tm l d m) : (ty 
 -- Annotation (for synthesis) + *maybe* subtyping notation
 
 -- ALL NEW *Infer* function!!!
+
 structure Conditional (p : Prop) where
   side_condition : Prop
   side_condition_sound : side_condition -> p
 
-structure CheckType (sigma : sigma_context l d) (Phi : phi_context l) (Delta : delta_context l d)
-                     (Gamma : gamma_context l d m) (e : tm l d m) (exp : ty l d) : Type where
+structure CheckType (sigma : sigma_context L l d) (Phi : phi_context L l) (Delta : delta_context L l d)
+                     (Gamma : gamma_context L l d m) (e : tm L l d m) (exp : ty L l d) : Type where
   check : has_type sigma Phi Delta Gamma e exp
 
-structure STType (Phi : phi_context l) (Delta : delta_context l d)
-                     (t1 : ty l d) (t2 : ty l d) : Type where
+structure STType (Phi : phi_context L l) (Delta : delta_context L l d)
+                     (t1 : ty L l d) (t2 : ty L l d) : Type where
   st : subtype Phi Delta t1 t2
 
 notation:100  "grind" ck => (Conditional.side_condition_sound ck (by grind))
 
-def check_subtype  (fuel : Nat) (Phi : phi_context l) (Delta : delta_context l d)
-                           (t1 : ty l d) (t2 : ty l d) : Option (Conditional (subtype Phi Delta t1 t2)) :=
+def check_subtype  (fuel : Nat) (Phi : phi_context L l) (Delta : delta_context L l d)
+                           (t1 : ty L l d) (t2 : ty L l d) : Option (Conditional (subtype Phi Delta t1 t2)) :=
     match fuel with
     | 0 => .none
     | (n + 1) =>
@@ -361,6 +355,29 @@ def check_subtype  (fuel : Nat) (Phi : phi_context l) (Delta : delta_context l d
           | .none => .none
       | .Public, .Data l1 =>
         .some ⟨True, fun _ => subtype.ST_RPublic l1⟩
+      | (.arr t1 t2), (.arr t1' t2') =>
+        match check_subtype n Phi Delta t1' t1, check_subtype n Phi Delta t2 t2' with
+        | .some pf1, .some pf2 =>
+          .some ⟨pf1.side_condition /\ pf2.side_condition,
+                fun sc => subtype.ST_Func t1' t1 t2 t2' (grind pf1) (grind pf2)⟩
+        | _, _ => .none
+      | (.prod t1 t2), (.prod t1' t2') =>
+        match check_subtype n Phi Delta t1 t1', check_subtype n Phi Delta t2 t2' with
+        | .some pf1, .some pf2 =>
+          .some ⟨pf1.side_condition /\ pf2.side_condition,
+                fun sc => subtype.ST_Prod t1 t1' t2 t2' (grind pf1) (grind pf2)⟩
+        | _, _ => .none
+      | (.sum t1 t2), (.sum t1' t2') =>
+        match check_subtype n Phi Delta t1 t1', check_subtype n Phi Delta t2 t2' with
+        | .some pf1, .some pf2 =>
+          .some ⟨pf1.side_condition /\ pf2.side_condition,
+                fun sc => subtype.ST_Sum t1 t1' t2 t2' (grind pf1) (grind pf2)⟩
+        | _, _ => .none
+      | .Ref t1, .Ref t2 =>
+        if h : t1 = t2 then
+            .some ⟨True, fun _ => h ▸ subtype.ST_Ref t1⟩
+        else
+          .none
       | _, _ => .none
 
 -- Infer performs the dual roles of synthesis and checking
@@ -369,10 +386,10 @@ def check_subtype  (fuel : Nat) (Phi : phi_context l) (Delta : delta_context l d
 -- If it typechecks, a proof that the input term has type "exp"
 -- If no type is provided, infer will attempt to synthesize the type of the input term
 -- If successful, it will return the synthesized type, and a proof that the input term has that type
-def infer (sigma : sigma_context l d) (Phi : phi_context l) (Delta : delta_context l d)
-          (Gamma : gamma_context l d m) (e : tm l d m) (exp : Option (ty l d)) :
+def infer (sigma : sigma_context L l d) (Phi : phi_context L l) (Delta : delta_context L l d)
+          (Gamma : gamma_context L l d m) (e : tm L l d m) (exp : Option (ty L l d)) :
           Option (match exp with
-                  | .none => ((t : ty l d) × Conditional (has_type sigma Phi Delta Gamma e t))
+                  | .none => ((t : ty L l d) × Conditional (has_type sigma Phi Delta Gamma e t))
                   | .some exp' => Conditional (has_type sigma Phi Delta Gamma e exp')) :=
   match e with
   | .var_tm x =>
@@ -866,8 +883,8 @@ macro_rules
 
 #reduce infer empty_sigma empty_phi empty_delta empty_gamma (.fixlam (.var_tm ⟨1, by omega⟩)) (.some (.arr .Unit .Unit))
 
-theorem skip_has_unit_type (Phi : phi_context l) (Delta : delta_context l d)
-                           (Gamma : gamma_context l d m) :
+theorem skip_has_unit_type (Phi : phi_context L l) (Delta : delta_context L l d)
+                           (Gamma : gamma_context L l d m) :
                            has_type sigma Phi Delta Gamma .skip .Any := by
   cases h : infer sigma Phi Delta Gamma .skip (.some .Any) with
   | some result =>
@@ -881,7 +898,7 @@ theorem skip_has_unit_type (Phi : phi_context l) (Delta : delta_context l d)
           dsimp [infer, check_subtype] at h
           cases h
 
-def packed_unit : tm l d m := .pack .Unit .skip
+def packed_unit : tm L l d m := .pack .Unit .skip
 
 #reduce infer empty_sigma empty_phi empty_delta empty_gamma (.unpack (.annot packed_unit (.ex .Any .Unit)) .skip) (.some .Unit)
 
@@ -889,40 +906,40 @@ def packed_unit : tm l d m := .pack .Unit .skip
 theorem stub_label_flow : Phi |= constr.condition cond_sym.leq (label.latl l1) (label.latl l2) := by
   sorry
 
-theorem tc_label (sigma : sigma_context l d) (Phi : phi_context l)
-                         (Delta : delta_context l d) :
+theorem tc_label (sigma : sigma_context L l d) (Phi : phi_context L l)
+                         (Delta : delta_context L l d) :
                          has_type sigma Phi Delta (cons (.Data (.latl l1)) empty_gamma)
                            (tm.var_tm ⟨0, by omega⟩)
                            (.Data (.latl l2)) := by
   tc sigma Phi Delta (cons (.Data (.latl l1)) empty_gamma)  (tm.var_tm ⟨0, by omega⟩) (.Data (.latl l2)) (exact stub_label_flow)
 
-theorem packed_unit_tc (sigma : sigma_context l d) (Phi : phi_context l)
-                         (Delta : delta_context l d) (Gamma : gamma_context l d m) :
+theorem packed_unit_tc (sigma : sigma_context L l d) (Phi : phi_context L l)
+                         (Delta : delta_context L l d) (Gamma : gamma_context L l d m) :
                          has_type sigma Phi Delta Gamma
                            packed_unit
                            (.ex .Any .Unit) := by
   tc sigma Phi Delta Gamma packed_unit (.ex .Any .Unit) (try grind)
 
-theorem unpack_packed_skip (sigma : sigma_context l d) (Phi : phi_context l)
-                           (Delta : delta_context l d) (Gamma : gamma_context l d m) :
+theorem unpack_packed_skip (sigma : sigma_context L l d) (Phi : phi_context L l)
+                           (Delta : delta_context L l d) (Gamma : gamma_context L l d m) :
                            has_type sigma Phi Delta Gamma
                              (.unpack (.annot packed_unit (.ex .Any .Unit)) .skip)
                              .Unit := by
   tc sigma Phi Delta Gamma (.unpack (.annot packed_unit (.ex .Any .Unit)) .skip) .Unit (try grind)
 
 
-theorem pack_unit_exists (sigma : sigma_context l d) (Phi : phi_context l)
-                         (Delta : delta_context l d) (Gamma : gamma_context l d m) :
+theorem pack_unit_exists (sigma : sigma_context L l d) (Phi : phi_context L l)
+                         (Delta : delta_context L l d) (Gamma : gamma_context L l d m) :
                          has_type sigma Phi Delta Gamma
                            (.pack .Unit (.tm_pair .skip .skip))
                            (.ex .Any (.prod (.var_ty 0) (.var_ty 0))) := by
   tc sigma Phi Delta Gamma (.pack .Unit (.tm_pair .skip .skip)) (.ex .Any (.prod (.var_ty 0) (.var_ty 0))) (try grind)
 
-theorem lambda_simple (Phi : phi_context l) (Delta : delta_context l d) (Gamma : gamma_context l d m) :
+theorem lambda_simple (Phi : phi_context L l) (Delta : delta_context L l d) (Gamma : gamma_context L l d m) :
           has_type sigma Phi Delta Gamma (.fixlam (.alloc .skip)) (.arr .Unit (.Ref .Unit)) := by
   tc sigma Phi Delta Gamma (.fixlam (.alloc .skip)) (.arr .Unit (.Ref .Unit)) (try grind)
 
-theorem lambda_identity_unit (Phi : phi_context l) (Delta : delta_context l d) (Gamma : gamma_context l d m) :
+theorem lambda_identity_unit (Phi : phi_context L l) (Delta : delta_context L l d) (Gamma : gamma_context L l d m) :
           has_type sigma Phi Delta Gamma (.fixlam (.var_tm ⟨1, by omega⟩)) (.arr .Unit .Unit) := by
   tc sigma Phi Delta Gamma (.fixlam (.var_tm ⟨1, by omega⟩)) (.arr .Unit .Unit) (try grind)
 

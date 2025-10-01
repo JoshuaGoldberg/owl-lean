@@ -1,12 +1,13 @@
 import OwlLean.TypeChecker.OwlElaborator
 import Lean
 import Std.Data.HashMap
+import OwlLean.OwlLang.Owl
 
 open Owl
 
 -- sanity checks
-#check (tm.error : tm 0 0 0)
-#check (ty.Any : ty 0 0)
+#check (tm.error : tm L' 0 0 0)
+#check (ty.Any : ty L' 0 0)
 
 def TCtx := List String
 
@@ -22,10 +23,10 @@ def TCtx.lookup (t : TCtx) (s : String) : Option (Fin t.length) :=
         omega⟩
 
 -- test parser for labels
-elab "label_parse" "(" p:owl_label ")" : term =>
-    elabLabel p
+elab "label_parse" L:term "(" p:owl_label ")" : term =>
+    elabLabel L p
 
-def SLabel.elab (s : SLabel) (P : TCtx) : Option (Owl.label P.length) :=
+def SLabel.elab (s : SLabel L) (P : TCtx) : Option (Owl.label L P.length) :=
   match s with
   | .var_label i =>
     match TCtx.lookup P i with
@@ -66,7 +67,7 @@ def SCondSym.elab (s : SCondSym) : Option Owl.cond_sym :=
 elab "cond_sym_parse" "(" p:owl_cond_sym ")" : term =>
     elabCondSym p
 
-def SConstr.elab (s : SConstr) (P : TCtx) : Option (Owl.constr P.length) :=
+def SConstr.elab (s : SConstr L) (P : TCtx) : Option (Owl.constr L P.length) :=
   match s with
   | .condition cs l1 l2 =>
     match (SCondSym.elab cs) with
@@ -80,8 +81,8 @@ def SConstr.elab (s : SConstr) (P : TCtx) : Option (Owl.constr P.length) :=
         | .some l2' => .some (.condition cs' l1' l2')
 
 -- test parser for constraints
-elab "constraint_parse" "(" p:owl_constr ")" : term =>
-    elabConstr p
+elab "constraint_parse" L:term "(" p:owl_constr ")" : term =>
+    elabConstr L p
 
 def SBinary.elab (s : SBinary) : Option Owl.binary :=
   match s with
@@ -99,7 +100,7 @@ def SBinary.elab (s : SBinary) : Option Owl.binary :=
 elab "binary_parse" "(" p:owl_binary ")" : term =>
     elabBinary p
 
-def STy.elab (s : STy) (P : TCtx) (D : TCtx): Option (Owl.ty P.length D.length) :=
+def STy.elab (s : STy L) (P : TCtx) (D : TCtx): Option (Owl.ty L P.length D.length) :=
   match s with
   | .var_ty i =>
     match TCtx.lookup D i with
@@ -174,13 +175,14 @@ def STy.elab (s : STy) (P : TCtx) (D : TCtx): Option (Owl.ty P.length D.length) 
     let t' := (ren_ty (shift_bound_by P.length) (shift_bound_by D.length) t)
     .some (Eq.symm (Nat.zero_add D.length) ▸
           Eq.symm (Nat.zero_add P.length) ▸ t')
+  | .Public => .some ty.Public
   | .default => .some ty.default
 
 -- test parser for types
-elab "type_parse" "(" p:owl_type ")" : term =>
-    elabType p
+elab "type_parse" L:term "(" p:owl_type ")" : term =>
+    elabType L p
 
-def SExpr.elab (s : SExpr) (P : TCtx) (D : TCtx) (G : TCtx): Option (Owl.tm P.length D.length G.length) :=
+def SExpr.elab (s : SExpr L) (P : TCtx) (D : TCtx) (G : TCtx): Option (Owl.tm L P.length D.length G.length) :=
   match s with
   | .var_tm i =>
     match TCtx.lookup G i with
@@ -338,37 +340,37 @@ def SExpr.elab (s : SExpr) (P : TCtx) (D : TCtx) (G : TCtx): Option (Owl.tm P.le
   | .default => .some tm.default
 
 -- test parser for terms
-elab "term_parse" "(" p:owl_tm ")" : term =>
-    elabTm p
+elab "term_parse" L:term "(" p:owl_tm ")" : term =>
+    elabTm L p
 
 -- check that terms works
-elab "Owl_Parse" "{" p:owl_tm "}" : term => do
-    elabTm p
+elab "Owl_Parse" L:term "{" p:owl_tm "}" : term => do
+    elabTm L p
 
-def elabHelperTy (s : STy) : ty 0 0 :=
+def elabHelperTy (s : STy L) : ty L 0 0 :=
   match STy.elab s [] [] with
   | .some e => e
   | .none => ty.Any --default value
 
-def elabHelper (s : SExpr) : tm 0 0 0 :=
+def elabHelper (s : SExpr L) : tm L 0 0 0 :=
   match SExpr.elab s [] [] [] with
   | .some e => e
   | .none => tm.skip --default value
 
 open Lean Elab Meta
 
-elab "Owl" "{" p:owl_tm "}" : term => do
-  let sexprTerm ← elabTm p
+elab "Owl" L:term "{" p:owl_tm "}" : term => do
+  let sexprTerm ← elabTm L p
   let sexprTerm2 ← elabTm_closed p
-  let sVal : SExpr ← unsafe do Meta.evalExpr SExpr (mkConst ``SExpr) sexprTerm2
+  let sVal ← unsafe do Meta.evalExpr (SExpr L) (mkConst ``SExpr) sexprTerm2
     match SExpr.elab sVal [] [] [] with
     | .none   => throwError "owl: ill-formed term"
     | .some _ => mkAppM ``elabHelper #[sexprTerm]
 
-elab "OwlTy" "{" p:owl_type "}" : term => do
-  let sexprTerm : Expr <- elabType p
+elab "OwlTy" L:term "{" p:owl_type "}" : term => do
+  let sexprTerm : Expr <- elabType L p
   let sexprTerm2 ← elabType_closed p
-  let sVal : STy <- (unsafe do Meta.evalExpr STy (mkConst ``STy) sexprTerm2)
+  let sVal <- (unsafe do Meta.evalExpr (STy L) (mkConst ``STy) sexprTerm2)
     match STy.elab sVal [] [] with
     | .none => throwError "owl: ill-formed term"
     | .some _ => mkAppM ``elabHelperTy #[sexprTerm]
