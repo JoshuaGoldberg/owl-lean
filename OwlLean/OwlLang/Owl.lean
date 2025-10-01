@@ -1,7 +1,7 @@
 namespace Owl
 
-structure Lattice where
-  labels : Type
+structure Lattice.{u} where
+  labels : Type u  -- Can be Type 0, Type 1, Type 2, etc.
   leq    : labels -> labels -> Bool
   decidable_eq_labels : DecidableEq labels
   bot    : labels

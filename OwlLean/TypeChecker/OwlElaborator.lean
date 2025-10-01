@@ -19,7 +19,7 @@ syntax owl_label "⊓" owl_label : owl_label
 syntax "$" term : owl_label
 syntax "(" owl_label ")" : owl_label
 
-partial def elabLabel (L : Lattice) : Syntax → MetaM Expr
+partial def elabLabel (L : Owl.Lattice) : Syntax → MetaM Expr
   | `(owl_label| ( $e:owl_label)) => elabLabel L e
   | `(owl_label| ⟨ $t:term ⟩ ) => do
       let t' ← Term.TermElabM.run' do
@@ -66,7 +66,7 @@ partial def elabCondSym : Syntax → MetaM Expr
 syntax "(" owl_constr ")" : owl_constr
 syntax owl_label owl_cond_sym owl_label : owl_constr
 
-partial def elabConstr (L : Lattice) : Syntax → MetaM Expr
+partial def elabConstr (L : Owl.Lattice) : Syntax → MetaM Expr
   | `(owl_constr| ( $e:owl_constr)) => elabConstr L e
   | `(owl_constr| $l1:owl_label $c:owl_cond_sym $l2:owl_label) => do
       let elab_l1 <- elabLabel L l1
@@ -110,7 +110,7 @@ syntax "∀" owl_label owl_cond_sym owl_label "." owl_type : owl_type
 syntax "if" owl_constr "then" owl_type "else" owl_type : owl_type
 syntax "$" term : owl_type
 
-partial def elabType (L : Lattice) : Syntax → MetaM Expr
+partial def elabType (L : Owl.Lattice) : Syntax → MetaM Expr
   | `(owl_type| ( $e:owl_type)) => elabType L e
   | `(owl_type| $id:ident) =>
         mkAppM ``STy.var_ty #[mkStrLit id.getId.toString]
@@ -193,7 +193,7 @@ syntax "λ" ident "." owl_tm : owl_tm
 syntax "$" term : owl_tm
 syntax "(" owl_tm ":" owl_type ")" : owl_tm
 
-partial def elabTm (L : Lattice) : Syntax → TermElabM Expr
+partial def elabTm (L : Owl.Lattice) : Syntax → TermElabM Expr
   | `(owl_tm| ( $e:owl_tm)) => elabTm L e
   | `(owl_tm| $id:ident) =>
         mkAppM ``SExpr.var_tm #[mkStrLit id.getId.toString]

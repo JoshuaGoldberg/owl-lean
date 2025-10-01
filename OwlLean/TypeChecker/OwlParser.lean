@@ -360,9 +360,10 @@ def elabHelper (s : SExpr L) : tm L 0 0 0 :=
 open Lean Elab Meta
 
 elab "Owl" L:term "{" p:owl_tm "}" : term => do
-  let sexprTerm ← elabTm L p
+  let Lat ← unsafe do Meta.evalExpr Lattice (mkConst ``Lattice) L
+  let sexprTerm ← elabTm Lat p
   let sexprTerm2 ← elabTm_closed p
-  let sVal ← unsafe do Meta.evalExpr (SExpr L) (mkConst ``SExpr) sexprTerm2
+  let sVal ← unsafe do Meta.evalExpr (SExpr Lat) (mkConst ``SExpr Lat) sexprTerm2
     match SExpr.elab sVal [] [] [] with
     | .none   => throwError "owl: ill-formed term"
     | .some _ => mkAppM ``elabHelper #[sexprTerm]
@@ -370,7 +371,7 @@ elab "Owl" L:term "{" p:owl_tm "}" : term => do
 elab "OwlTy" L:term "{" p:owl_type "}" : term => do
   let sexprTerm : Expr <- elabType L p
   let sexprTerm2 ← elabType_closed p
-  let sVal <- (unsafe do Meta.evalExpr (STy L) (mkConst ``STy) sexprTerm2)
+  let sVal : STy L <- (unsafe do Meta.evalExpr (STy L) (mkConst ``STy) sexprTerm2)
     match STy.elab sVal [] [] with
     | .none => throwError "owl: ill-formed term"
     | .some _ => mkAppM ``elabHelperTy #[sexprTerm]
