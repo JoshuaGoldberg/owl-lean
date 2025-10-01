@@ -8,19 +8,6 @@ structure Lattice where
   join   : labels -> labels -> labels
   meet   : labels -> labels -> labels
 
-inductive SecurityLevel where
-  | pub : SecurityLevel
-  | confidential : SecurityLevel
-  | secret : SecurityLevel
-  | topsecret : SecurityLevel
-deriving DecidableEq, Repr
-
-def SecurityLevel.toNat : SecurityLevel → Nat
-  | .pub => 0
-  | .confidential => 1
-  | .secret => 2
-  | .topsecret => 3
-
 axiom L : Lattice
 
 abbrev Lcarrier : Type := L.labels
