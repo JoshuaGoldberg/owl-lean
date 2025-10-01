@@ -789,7 +789,7 @@ theorem lambda_identity_unit (Phi : phi_context l) (Delta : delta_context l d) (
   tc Phi Delta Gamma (.fixlam (.var_tm ⟨1, by omega⟩)) (.arr .Unit .Unit) (try grind)
 
 -- Proof that injection into a larger goal works
-theorem test_inject : (Phi |= constr.condition cond_sym.leq (label.latl L.bot) (label.latl SecurityLevel.secret)) /\ True := by
+theorem test_inject : (Phi |= constr.condition cond_sym.leq (label.latl L.bot) (label.latl l1)) /\ True := by
   apply And.intro
   unfold phi_entails_c
   intro pm vpm
@@ -798,19 +798,20 @@ theorem test_inject : (Phi |= constr.condition cond_sym.leq (label.latl L.bot) (
   unfold valid_constraint
   dsimp
   simp [subst_label, interp_lattice]
-  trivial
+  have lp : forall (l : L.labels), (L.leq L.bot l) = true := L.bot_proof
+  apply (lp l1)
   trivial
 
-theorem test_inject_2 : (Phi |= constr.condition cond_sym.leq (label.latl L.bot) (label.latl SecurityLevel.secret)) := by
-  have ti : (Phi |= constr.condition cond_sym.leq (label.latl L.bot) (label.latl SecurityLevel.secret)) /\ True :=
+theorem test_inject_2 : (Phi |= constr.condition cond_sym.leq (label.latl L.bot) (label.latl l1)) := by
+  have ti : (Phi |= constr.condition cond_sym.leq (label.latl L.bot) (label.latl l1)) /\ True :=
     test_inject
   exact ti.left
 
 -- Proof, that you can pass in a proof (proof of proof)
 theorem bitstring_has_bot_type (Phi : phi_context l) (Delta : delta_context l d)
                                 (Gamma : gamma_context l d m) (b : binary) :
-                                has_type Phi Delta Gamma (.bitstring b) (.Data (.latl SecurityLevel.secret)) := by
-  tc Phi Delta Gamma (.bitstring b) (.Data (.latl SecurityLevel.secret)) (try grind)
+                                has_type Phi Delta Gamma (.bitstring b) (.Data (.latl l1)) := by
+  tc Phi Delta Gamma (.bitstring b) (.Data (.latl l1)) (try simp)
 
 -- Test theorem for inl with skip
 theorem inl_skip_has_sum_type (Phi : phi_context l) (Delta : delta_context l d)

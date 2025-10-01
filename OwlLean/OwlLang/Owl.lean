@@ -4,6 +4,7 @@ structure Lattice where
   labels : Type
   leq    : labels -> labels -> Bool
   bot    : labels
+  bot_proof : forall (l : labels), (leq bot l) = true
   join   : labels -> labels -> labels
   meet   : labels -> labels -> labels
 
@@ -20,17 +21,7 @@ def SecurityLevel.toNat : SecurityLevel → Nat
   | .secret => 2
   | .topsecret => 3
 
-def L : Lattice where
-  labels := SecurityLevel
-  leq := fun a b => a.toNat ≤ b.toNat
-  bot := .pub
-  join := fun a b => if a.toNat ≥ b.toNat then a else b
-  meet := fun a b => if a.toNat ≤ b.toNat then a else b
-
-abbrev pub := SecurityLevel.pub
-abbrev conf := SecurityLevel.confidential
-abbrev sec := SecurityLevel.secret
-abbrev top := SecurityLevel.topsecret
+axiom L : Lattice
 
 abbrev Lcarrier : Type := L.labels
 
