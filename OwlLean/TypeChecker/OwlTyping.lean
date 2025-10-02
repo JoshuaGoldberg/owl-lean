@@ -361,6 +361,29 @@ def check_subtype  (fuel : Nat) (Phi : phi_context l) (Delta : delta_context l d
           | .none => .none
       | .Public, .Data l1 =>
         .some ⟨True, fun _ => subtype.ST_RPublic l1⟩
+      | (.arr t1 t2), (.arr t1' t2') =>
+        match check_subtype n Phi Delta t1' t1, check_subtype n Phi Delta t2 t2' with
+        | .some pf1, .some pf2 =>
+          .some ⟨pf1.side_condition /\ pf2.side_condition,
+                fun sc => subtype.ST_Func t1' t1 t2 t2' (grind pf1) (grind pf2)⟩
+        | _, _ => .none
+      | (.prod t1 t2), (.prod t1' t2') =>
+        match check_subtype n Phi Delta t1 t1', check_subtype n Phi Delta t2 t2' with
+        | .some pf1, .some pf2 =>
+          .some ⟨pf1.side_condition /\ pf2.side_condition,
+                fun sc => subtype.ST_Prod t1 t1' t2 t2' (grind pf1) (grind pf2)⟩
+        | _, _ => .none
+      | (.sum t1 t2), (.sum t1' t2') =>
+        match check_subtype n Phi Delta t1 t1', check_subtype n Phi Delta t2 t2' with
+        | .some pf1, .some pf2 =>
+          .some ⟨pf1.side_condition /\ pf2.side_condition,
+                fun sc => subtype.ST_Sum t1 t1' t2 t2' (grind pf1) (grind pf2)⟩
+        | _, _ => .none
+      | .Ref u, .Ref v =>
+        .some ⟨(u = v), by
+          intro h
+          cases h
+          exact subtype.ST_Ref u⟩
       | _, _ => .none
 
 -- Infer performs the dual roles of synthesis and checking
@@ -454,7 +477,7 @@ def infer (sigma : sigma_context l d) (Phi : phi_context l) (Delta : delta_conte
         match check_subtype 99 Phi Delta .Public t with
         | .some sub =>
           .some ⟨pf.side_condition /\ sub.side_condition,
-                fun sc => has_type.T_Sub (.zero e) .Public t (sub.side_condition_sound (by grind)) (has_type.T_Zero e l (pf.side_condition_sound (by grind)))⟩
+                fun sc => has_type.T_Sub (.zero e) .Public t (grind sub) (has_type.T_Zero e l (grind pf))⟩
         | .none => .none
       | _ => .none
   | .loc n =>
@@ -805,7 +828,7 @@ def infer (sigma : sigma_context l d) (Phi : phi_context l) (Delta : delta_conte
       match infer sigma Phi Delta Gamma e .none with
       | .some ⟨.all_l cs lab t, pf⟩ =>
         let result_ty := subst_ty (cons lab' .var_label) .var_ty t
-        let constraint_obligation := (Phi |= (.condition cs lab' lab))
+        let constraint_obligation := (Phi |= (.condition cs lab lab'))
         .some ⟨result_ty,
               ⟨pf.side_condition /\ constraint_obligation,
                 fun sc =>
@@ -817,7 +840,7 @@ def infer (sigma : sigma_context l d) (Phi : phi_context l) (Delta : delta_conte
         let result_ty := subst_ty (cons lab' .var_label) .var_ty t
         match check_subtype 99 Phi Delta result_ty exp_ty with
         | .some sub_pf =>
-          let constraint_obligation := (Phi |= (.condition cs lab' lab))
+          let constraint_obligation := (Phi |= (.condition cs lab lab'))
           .some ⟨pf.side_condition /\ constraint_obligation /\ sub_pf.side_condition,
                 fun sc =>
                   has_type.T_Sub (.lapp e lab') result_ty exp_ty
@@ -850,12 +873,13 @@ macro_rules
   | `(tactic| tc $sigma $Phi $Delta $Gamma $e $t $k) => `(tactic|
       cases h : infer $sigma $Phi $Delta $Gamma $e (some $t) with
       | some result =>
-          dsimp [infer, cons] at h;
-          try dsimp [check_subtype] at h
           cases result with
           | mk side_condition side_condition_sound =>
             cases h;
+            try dsimp at side_condition_sound
             apply side_condition_sound
+            trace_state
+            try dsimp;
             $k
       | none =>
           dsimp [infer] at h
@@ -888,6 +912,29 @@ def packed_unit : tm l d m := .pack .Unit .skip
 -- for label testing purposes!
 theorem stub_label_flow : Phi |= constr.condition cond_sym.leq (label.latl l1) (label.latl l2) := by
   sorry
+
+#reduce infer empty_sigma empty_phi empty_delta empty_gamma (.tm_pair (.alloc .skip) (.bitstring .bend)) (.some (.prod (.Ref .Unit) .Public))
+
+theorem tc_ref_refl (sigma : sigma_context l d) (Phi : phi_context l)
+                    (Delta : delta_context l d) :
+  has_type sigma Phi Delta (cons (.Ref (.prod .Unit .Unit)) empty_gamma)
+    (tm.var_tm ⟨0, by omega⟩)
+    (.Ref (.prod .Unit .Unit)) := by
+  tc sigma Phi Delta (cons (.Ref (.prod .Unit .Unit)) empty_gamma) (tm.var_tm ⟨0, by omega⟩) (.Ref (.prod .Unit .Unit)) (try split)
+
+theorem tc_ref_refl2 (sigma : sigma_context l d) (Phi : phi_context l)
+                    (Delta : delta_context l d) (l1 l2 : L.labels) :
+  has_type sigma Phi Delta (cons (.Ref (.Data (.latl l1))) empty_gamma)
+    (tm.var_tm ⟨0, by omega⟩)
+    (.Ref (.Data (.latl l1))) := by
+  tc sigma Phi Delta (cons (.Ref (.Data (.latl l1))) empty_gamma) (tm.var_tm ⟨0, by omega⟩) (.Ref (.Data (.latl l1))) (try grind)
+
+theorem tc_prod (sigma : sigma_context l d) (Phi : phi_context l)
+                    (Delta : delta_context l d) (Gamma : gamma_context l d m) :
+  has_type sigma Phi Delta Gamma
+    (.tm_pair (.alloc .skip) (.bitstring .bend))
+    (.prod (.Ref .Unit) (.Data (.latl l1))):= by
+  tc sigma Phi Delta Gamma (.tm_pair (.alloc .skip) (.bitstring .bend)) (.prod (.Ref .Unit) (.Data (.latl l1))) (try grind)
 
 theorem tc_label (sigma : sigma_context l d) (Phi : phi_context l)
                          (Delta : delta_context l d) :
@@ -949,7 +996,7 @@ theorem test_inject_2 : (Phi |= constr.condition cond_sym.leq (label.latl L.bot)
 theorem bitstring_has_bot_type (Phi : phi_context l) (Delta : delta_context l d)
                                 (Gamma : gamma_context l d m) (b : binary) :
                                 has_type sigma Phi Delta Gamma (.bitstring b) (.Data (.latl l1)) := by
-  tc sigma Phi Delta Gamma (.bitstring b) (.Data (.latl l1)) (try simp)
+  tc sigma Phi Delta Gamma (.bitstring b) (.Data (.latl l1)) (try grind)
 
 -- Test theorem for inl with skip
 theorem inl_skip_has_sum_type (Phi : phi_context l) (Delta : delta_context l d)
