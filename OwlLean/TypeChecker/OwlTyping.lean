@@ -1,4 +1,5 @@
 import OwlLean.OwlLang.Owl
+import Lean
 
 open Owl
 
@@ -20,7 +21,7 @@ def empty_delta : delta_context l 0 :=
 def empty_phi : (phi_context 0) :=
   fun (i : Fin 0) => nomatch i
 
-def empty_sigma : (sigma_context 0 0) :=
+def empty_sigma : (sigma_context l d) :=
   fun _ => .none
 
 def lift_delta (Delta : Fin (d + 1) -> ty l d)
@@ -95,6 +96,12 @@ def lift_phi (pm : Fin (l + 1) -> (cond_sym × label l)) : phi_context (l + 1) :
   fun i =>
     let ⟨sym, lab⟩ := (pm i)
     ⟨sym, ren_label shift lab⟩
+
+def pcons (x : cond_sym × label l) (phi : phi_context l) : phi_context (l + 1) :=
+  (lift_phi (cons x phi))
+
+def dcons (x : ty l d) (delta : delta_context l d) : delta_context l (d+1) :=
+  (lift_delta (cons x delta))
 
 inductive valid_phi_map : forall l, phi_map l -> phi_context l -> Prop where
 | phi_empty_valid : valid_phi_map 0 empty_phi_map empty_phi
@@ -867,15 +874,17 @@ def infer (sigma : sigma_context l d) (Phi : phi_context l) (Delta : delta_conte
     | .some _ => .none
     | .none => .none
 
-syntax "tc" term:max term:max term:max term:max term:max term:max tactic:max : tactic
+syntax "tc_full" term:max term:max term:max term:max term:max term:max tactic : tactic
+
+open Lean Meta Elab Tactic
 
 macro_rules
-  | `(tactic| tc $sigma $Phi $Delta $Gamma $e $t $k) => `(tactic|
+  | `(tactic| tc_full $sigma $Phi $Delta $Gamma $e $t $k) => `(tactic|
       cases h : infer $sigma $Phi $Delta $Gamma $e (some $t) with
       | some result =>
           cases result with
           | mk side_condition side_condition_sound =>
-            cases h;
+            cases h
             try dsimp at side_condition_sound
             apply side_condition_sound
             trace_state
@@ -885,6 +894,24 @@ macro_rules
           dsimp [infer] at h
           cases h
     )
+
+syntax "tc" tactic:max : tactic
+elab_rules : tactic
+| `(tactic| tc $k) => do
+  let g <- getMainGoal
+  let ty <- g.getType
+  let args := ty.getAppArgs
+  let n := args.size
+  let elems := args.extract (n-6) n
+  let tac ← `(tactic| tc_full
+                $(<- Term.exprToSyntax elems[0]!)
+                $(<- Term.exprToSyntax elems[1]!)
+                $(<- Term.exprToSyntax elems[2]!)
+                $(<- Term.exprToSyntax elems[3]!)
+                $(<- Term.exprToSyntax elems[4]!)
+                $(<- Term.exprToSyntax elems[5]!)
+                $k)
+  evalTactic tac
 
 #reduce infer empty_sigma empty_phi empty_delta (cons .Unit empty_gamma) (.var_tm ⟨0, by omega⟩) (.some .Unit)
 
@@ -920,42 +947,44 @@ theorem tc_ref_refl (sigma : sigma_context l d) (Phi : phi_context l)
   has_type sigma Phi Delta (cons (.Ref (.prod .Unit .Unit)) empty_gamma)
     (tm.var_tm ⟨0, by omega⟩)
     (.Ref (.prod .Unit .Unit)) := by
-  tc sigma Phi Delta (cons (.Ref (.prod .Unit .Unit)) empty_gamma) (tm.var_tm ⟨0, by omega⟩) (.Ref (.prod .Unit .Unit)) (try split)
+  tc (try grind)
 
 theorem tc_ref_refl2 (sigma : sigma_context l d) (Phi : phi_context l)
                     (Delta : delta_context l d) (l1 l2 : L.labels) :
   has_type sigma Phi Delta (cons (.Ref (.Data (.latl l1))) empty_gamma)
     (tm.var_tm ⟨0, by omega⟩)
     (.Ref (.Data (.latl l1))) := by
-  tc sigma Phi Delta (cons (.Ref (.Data (.latl l1))) empty_gamma) (tm.var_tm ⟨0, by omega⟩) (.Ref (.Data (.latl l1))) (try grind)
+  tc (try grind)
 
 theorem tc_prod (sigma : sigma_context l d) (Phi : phi_context l)
                     (Delta : delta_context l d) (Gamma : gamma_context l d m) :
   has_type sigma Phi Delta Gamma
     (.tm_pair (.alloc .skip) (.bitstring .bend))
     (.prod (.Ref .Unit) (.Data (.latl l1))):= by
-  tc sigma Phi Delta Gamma (.tm_pair (.alloc .skip) (.bitstring .bend)) (.prod (.Ref .Unit) (.Data (.latl l1))) (try grind)
+  tc (try grind)
 
 theorem tc_label (sigma : sigma_context l d) (Phi : phi_context l)
                          (Delta : delta_context l d) :
                          has_type sigma Phi Delta (cons (.Data (.latl l1)) empty_gamma)
                            (tm.var_tm ⟨0, by omega⟩)
                            (.Data (.latl l2)) := by
-  tc sigma Phi Delta (cons (.Data (.latl l1)) empty_gamma)  (tm.var_tm ⟨0, by omega⟩) (.Data (.latl l2)) (exact stub_label_flow)
+  tc (exact stub_label_flow)
 
 theorem packed_unit_tc (sigma : sigma_context l d) (Phi : phi_context l)
                          (Delta : delta_context l d) (Gamma : gamma_context l d m) :
-                         has_type sigma Phi Delta Gamma
+                         has_type sigma Phi Delta (cons (.Data (.latl l1))  Gamma)
                            packed_unit
                            (.ex .Any .Unit) := by
-  tc sigma Phi Delta Gamma packed_unit (.ex .Any .Unit) (try grind)
+  tc (try grind)
 
-theorem unpack_packed_skip (sigma : sigma_context l d) (Phi : phi_context l)
-                           (Delta : delta_context l d) (Gamma : gamma_context l d m) :
-                           has_type sigma Phi Delta Gamma
-                             (.unpack (.annot packed_unit (.ex .Any .Unit)) .skip)
-                             .Unit := by
-  tc sigma Phi Delta Gamma (.unpack (.annot packed_unit (.ex .Any .Unit)) .skip) .Unit (try grind)
+theorem unpack_packed_skip_alt :
+  has_type (@empty_sigma 0 2) empty_phi
+           (dcons (.var_ty ⟨0, by omega⟩) (dcons .Unit empty_delta)) empty_gamma
+           (.tapp
+              (.annot (.tlam .skip) (.all .Any .Unit))
+              (.var_ty ⟨1, by omega⟩))
+           .Unit := by
+  tc (try grind)
 
 
 theorem pack_unit_exists (sigma : sigma_context l d) (Phi : phi_context l)
@@ -963,15 +992,15 @@ theorem pack_unit_exists (sigma : sigma_context l d) (Phi : phi_context l)
                          has_type sigma Phi Delta Gamma
                            (.pack .Unit (.tm_pair .skip .skip))
                            (.ex .Any (.prod (.var_ty 0) (.var_ty 0))) := by
-  tc sigma Phi Delta Gamma (.pack .Unit (.tm_pair .skip .skip)) (.ex .Any (.prod (.var_ty 0) (.var_ty 0))) (try grind)
+  tc (try grind)
 
 theorem lambda_simple (Phi : phi_context l) (Delta : delta_context l d) (Gamma : gamma_context l d m) :
           has_type sigma Phi Delta Gamma (.fixlam (.alloc .skip)) (.arr .Unit (.Ref .Unit)) := by
-  tc sigma Phi Delta Gamma (.fixlam (.alloc .skip)) (.arr .Unit (.Ref .Unit)) (try grind)
+  tc (try grind)
 
 theorem lambda_identity_unit (Phi : phi_context l) (Delta : delta_context l d) (Gamma : gamma_context l d m) :
           has_type sigma Phi Delta Gamma (.fixlam (.var_tm ⟨1, by omega⟩)) (.arr .Unit .Unit) := by
-  tc sigma Phi Delta Gamma (.fixlam (.var_tm ⟨1, by omega⟩)) (.arr .Unit .Unit) (try grind)
+  tc (try grind)
 
 -- Proof that injection into a larger goal works
 theorem test_inject : (Phi |= constr.condition cond_sym.leq (label.latl L.bot) (label.latl l1)) /\ True := by
@@ -996,24 +1025,52 @@ theorem test_inject_2 : (Phi |= constr.condition cond_sym.leq (label.latl L.bot)
 theorem bitstring_has_bot_type (Phi : phi_context l) (Delta : delta_context l d)
                                 (Gamma : gamma_context l d m) (b : binary) :
                                 has_type sigma Phi Delta Gamma (.bitstring b) (.Data (.latl l1)) := by
-  tc sigma Phi Delta Gamma (.bitstring b) (.Data (.latl l1)) (try grind)
+  tc (try grind)
 
 -- Test theorem for inl with skip
 theorem inl_skip_has_sum_type (Phi : phi_context l) (Delta : delta_context l d)
                               (Gamma : gamma_context l d m) (t2 : ty l d) :
                               has_type sigma Phi Delta Gamma (.inl .skip) (.sum .Unit t2) := by
-  tc sigma Phi Delta Gamma (.inl .skip) (.sum .Unit t2) (try grind)
+  tc (try grind)
 
 theorem fixlam_identity (Phi : phi_context l) (Delta : delta_context l d)
                         (Gamma : gamma_context l d m) :
                         has_type sigma Phi Delta Gamma
                           (.fixlam .skip)
                           (.arr .Any .Unit) := by
-  tc sigma Phi Delta Gamma (.fixlam .skip) (.arr .Any .Unit) (try grind)
+  tc (try grind)
 
 theorem pair_easy (Phi : phi_context l) (Delta : delta_context l d)
                         (Gamma : gamma_context l d m) :
                         has_type sigma Phi Delta Gamma
                         (.tm_pair .skip .skip)
                         (.prod .Unit .Unit) := by
-  tc sigma Phi Delta Gamma (.tm_pair .skip .skip) (.prod .Unit .Unit) (try grind)
+  tc (try grind)
+
+
+def simple_test_delta :=
+   (dcons .Unit (@empty_delta 0))
+
+def test_delta_2 :=
+   (dcons (.var_ty ⟨0, by omega⟩) simple_test_delta)
+
+noncomputable def simple_test_phi :=
+  (pcons (.geq, .var_label ⟨0, by omega⟩) (pcons (.geq, .latl L.bot) empty_phi))
+
+noncomputable def simple_test_gamma : gamma_context 0 0 1 :=
+  (cons .Unit empty_gamma)
+
+noncomputable def lemma_phi :=
+  (pcons (.geq, .var_label ⟨0, by omega⟩)
+         (pcons (.geq, .var_label ⟨0, by omega⟩)
+                (pcons (.geq, .latl L.bot) empty_phi)))
+
+theorem test_latt :
+  lemma_phi |= (.condition .geq (.var_label ⟨0, by omega⟩) (.var_label ⟨2, by omega⟩)) := by
+  unfold phi_entails_c
+  intro pm vpm
+  unfold phi_map_holds
+  simp
+  unfold valid_constraint
+  simp
+  cases vpm

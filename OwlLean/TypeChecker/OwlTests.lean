@@ -2,6 +2,7 @@ import OwlLean.OwlLang.Owl
 import Lean
 import Std.Data.HashMap
 import OwlLean.TypeChecker.OwlParser
+import OwlLean.TypeChecker.OwlTyping
 
 -- check that labels works
 #eval label_parse(x ⊓ y)
@@ -36,7 +37,7 @@ def coin_flip : Owl.op :=
     Owl.Dist.ret (Owl.binary.bend)
 
 -- check that terms works
-#eval term_parse(case 5 in x1 => pack x1 | x2 => (Λ t . * [[ t ]]))
+#eval term_parse(case * in x1 => pack (Unit, x1) | x2 => (Λ t . * [[ t ]]))
 #eval term_parse(* [[[ z ⊔ y ]]])
 #eval term_parse(⟨ coin_flip ⟩ ( ["110"] , ["110"]))
 
@@ -96,7 +97,7 @@ def mul_op : Owl.op :=
 }
 
 #eval Owl {
-  unpack (pack 5) as (a, x) in
+  unpack (pack (Unit, *)) as (a, x) in
     case π1 x in
       x => ⟨ ı1 x , π2 x ⟩
     | y => ⟨ ı2 y , π2 x ⟩
@@ -149,7 +150,7 @@ def Enc (betaK betaC : Owl.label 0) :=
   Owl {
     let k = ⟨genKey⟩ (*, *) in
     let enc = if ($ betaK ⊑ $ betaC) then λx . ⟨enc⟩ (π1 x, π2 x) else λx . ⟨rand⟩(zero π2 x, *) in
-    pack ⟨k, enc⟩
+    pack (Unit, ⟨k, enc⟩) -- Unit is temp
   }
 
 def P (l1 l2 l3 adv : Owl.label 0) :=
@@ -159,3 +160,9 @@ def P (l1 l2 l3 adv : Owl.label 0) :=
     let n = sync ((π2 p1) [⟨π1 p1, π1 p2⟩]) in
             sync ((π2 p2) [⟨π1 p2, ["010101"]⟩])
   }
+
+#reduce infer empty_sigma empty_phi empty_delta empty_gamma (.unpack (.annot packed_unit (.ex .Any .Unit)) .skip) (.some .Unit)
+
+theorem lambda_identity_unit_2 (Phi : phi_context l) (Delta : delta_context l d) (Gamma : gamma_context l d m) :
+          has_type sigma Phi Delta Gamma (.fixlam (.var_tm ⟨1, by omega⟩)) (.arr .Unit .Unit) := by
+  tc (try grind)
