@@ -1067,10 +1067,13 @@ noncomputable def lemma_phi :=
 
 theorem test_latt :
   lemma_phi |= (.condition .geq (.var_label ⟨0, by omega⟩) (.var_label ⟨2, by omega⟩)) := by
-  unfold phi_entails_c
   intro pm vpm
+  cases vpm
   unfold phi_map_holds
   simp
   unfold valid_constraint
   simp
-  cases vpm
+  try simp [subst_label]
+  unfold interp_lattice
+  dsimp [valid_phi_map] at vpm
+  dsimp [phi_map] at pm
