@@ -1098,9 +1098,10 @@ theorem ren_label_injective
       cases s2 <;> simp [ren_label] at heq
       rfl
 
-theorem shift_injective : forall (x : Fin l) (y : Fin l), shift x = shift y → x = y := by
+theorem shift_injective : forall (x : Fin l) (y : Fin l), shift x = shift y -> x = y := by
   intro x y h
-  exact Fin.succ_inj.mp h
+  simp [shift] at h
+  exact h
 
 noncomputable def lemma_phi :=
   (pcons (.geq, .var_label ⟨0, by omega⟩)
