@@ -1076,6 +1076,26 @@ theorem cons_surjective {n : Nat} (f : Fin (n + 1) → label 0) :
   · rfl
   · rfl
 
+theorem ren_label_injective
+  (h : forall x y, xi x = xi y → x = y) :
+  forall s1 s2, ren_label xi s1 = ren_label xi s2 → s1 = s2 := by
+  intro s1 s2 heq
+  cases s1 <;> cases s2 <;> simp [ren_label] at heq
+  · congr
+    exact h _ _ heq
+  · congr
+  · congr 1
+    · exact ren_label_injective h _ _ heq.1
+    · exact ren_label_injective h _ _ heq.2
+  · congr
+    · exact ren_label_injective h _ _ heq.1
+    · exact ren_label_injective h _ _ heq.2
+  · rfl
+
+theorem shift_injective : forall (x : Fin l) (y : Fin l), shift x = shift y → x = y := by
+  intro x y h
+  exact Fin.succ_inj.mp h
+
 theorem test_latt :
   lemma_phi |= (.condition .geq (.var_label ⟨0, by omega⟩) (.var_label ⟨2, by omega⟩)) := by
   intro pm vpm
@@ -1103,22 +1123,14 @@ theorem test_latt :
     unfold valid_constraint at h_holds
     try simp [subst_label] at h_holds
     unfold interp_lattice at h_holds
-    have : lab = label.var_label 0 := by
-      sorry
-    rw [this] at h_holds
+    rw [<- lab_eq] at h_holds
     try simp [ren_label, shift, cons, subst_label] at h_holds
     simp [var_zero] at h_holds
     cases h_prev with
     | phi_cons l2 pm_prev2 phictx_prev2 phi_eq2 sym2 lab2 lab_val2 h_prev2 h_holds2 a2 =>
       simp
-      have h0 := congrArg (fun f => f 0) a
-      simp [lift_phi, cons] at h0
-      have : phictx_prev = (lift_phi (cons (cond_sym.geq, label.var_label 0)
-                                           (lift_phi (cons (cond_sym.geq, label.latl L.bot)
-                                                           empty_phi)))) := by
-            sorry
-      subst this
-      have h0 := congrArg (fun f => f 0) a2
+      rw [a2] at a
+      have h0 := congrArg (fun f => f 1) a
       simp [lift_phi, cons] at h0
       obtain ⟨sym_eq, lab_eq⟩ := h0
       subst sym_eq
@@ -1128,20 +1140,18 @@ theorem test_latt :
       unfold valid_constraint at h_holds2
       try simp [subst_label] at h_holds2
       unfold interp_lattice at h_holds2
-      have : lab2 = label.var_label 0 := by
-        sorry
-      rw [this] at h_holds2
+      have h0 : (ren_label shift (label.var_label 0)) = (ren_label shift lab2) := by
+          exact ren_label_injective shift_injective (ren_label shift (label.var_label 0))
+                                                    (ren_label shift lab2)
+                                                    lab_eq
+      rw [<- h0] at h_holds2
       try simp [ren_label, shift, cons, subst_label] at h_holds2
       simp [var_zero] at h_holds2
       simp [cons] at h_holds
       cases h_prev2 with
       | phi_cons l3 pm_prev3 phictx_prev3 phi_eq3 sym3 lab3 lab_val3 h_prev3 h_holds3 a3 =>
-        have h0 := congrArg (fun f => f 0) a2
-        simp [lift_phi, cons] at h0
-        have : phictx_prev2 = (lift_phi (cons (cond_sym.geq, label.latl L.bot) empty_phi)) := by
-              sorry
-        subst this
-        have h0 := congrArg (fun f => f 0) a3
+        rw [a3] at a
+        have h0 := congrArg (fun f => f 2) a
         simp [lift_phi, cons] at h0
         obtain ⟨sym_eq, lab_eq⟩ := h0
         subst sym_eq
@@ -1151,25 +1161,29 @@ theorem test_latt :
         unfold valid_constraint at h_holds3
         try simp [subst_label] at h_holds3
         unfold interp_lattice at h_holds3
-        have : lab3 = (label.latl L.bot) := by
-          sorry
-        rw [this] at h_holds3
+        have lab_eq' : (ren_label shift (ren_label shift (label.latl L.bot))) =
+               (ren_label shift (ren_label shift lab3)) := by
+          exact ren_label_injective shift_injective (ren_label shift (ren_label shift (label.latl L.bot)))
+                                                    (ren_label shift (ren_label shift lab3))
+                                                    lab_eq
+        have lab_eq'' : (ren_label shift (label.latl L.bot)) = (ren_label shift lab3) := by
+          exact ren_label_injective shift_injective (ren_label shift (label.latl L.bot))
+                                                    (ren_label shift lab3)
+                                                    lab_eq'
+        rw [<- lab_eq''] at h_holds3
         try simp [ren_label, cons, subst_label] at h_holds3
         simp [var_zero] at h_holds3
         simp [cons] at h_holds2
         clear a2
         clear a3
-        clear this
         clear h0
         clear lab_eq
         clear h_prev3
+        clear this
         clear lab3
         clear a
-        clear this
-        clear h0
         clear lab_eq
         clear phictx_prev3
-        clear this
         clear lab_eq
         clear lab2
         clear lab
