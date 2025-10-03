@@ -7,6 +7,7 @@ structure Lattice where
   bot_proof : forall (l : labels), (leq bot l) = true
   join   : labels -> labels -> labels
   meet   : labels -> labels -> labels
+  leq_trans : forall l1 l2 l3, leq l1 l2 -> leq l2 l3 -> leq l1 l3
 
 axiom L : Lattice
 

@@ -1104,7 +1104,6 @@ theorem test_latt :
   unfold valid_constraint
   simp
   try simp [subst_label]
-  unfold interp_lattice
   dsimp [valid_phi_map] at vpm
   unfold lemma_phi at vpm
   simp at vpm
@@ -1122,7 +1121,6 @@ theorem test_latt :
     simp at h_holds
     unfold valid_constraint at h_holds
     try simp [subst_label] at h_holds
-    unfold interp_lattice at h_holds
     rw [<- lab_eq] at h_holds
     try simp [ren_label, shift, cons, subst_label] at h_holds
     simp [var_zero] at h_holds
@@ -1139,7 +1137,6 @@ theorem test_latt :
       simp at h_holds2
       unfold valid_constraint at h_holds2
       try simp [subst_label] at h_holds2
-      unfold interp_lattice at h_holds2
       have h0 : (ren_label shift (label.var_label 0)) = (ren_label shift lab2) := by
           exact ren_label_injective shift_injective (ren_label shift (label.var_label 0))
                                                     (ren_label shift lab2)
@@ -1160,7 +1157,6 @@ theorem test_latt :
         simp at h_holds3
         unfold valid_constraint at h_holds3
         try simp [subst_label] at h_holds3
-        unfold interp_lattice at h_holds3
         have lab_eq' : (ren_label shift (ren_label shift (label.latl L.bot))) =
                (ren_label shift (ren_label shift lab3)) := by
           exact ren_label_injective shift_injective (ren_label shift (ren_label shift (label.latl L.bot)))
@@ -1179,12 +1175,24 @@ theorem test_latt :
         clear h0
         clear lab_eq
         clear h_prev3
-        clear this
-        clear lab3
         clear a
         clear lab_eq
         clear phictx_prev3
         clear lab_eq
         clear lab2
         clear lab
+        clear lab_eq'
+        clear lab_eq''
+        clear lab3
         simp [cons]
+        clear pm_prev3
+        clear phictx_prev2
+        clear phictx_prev
+        have tester : forall l1 l2 l3, L.leq l1 l2 -> L.leq l2 l3 -> L.leq l1 l3 := L.leq_trans
+        have tester' : L.leq (interp_lattice lab_val3) (interp_lattice lab_val2) ->
+                       L.leq (interp_lattice lab_val2) (interp_lattice lab_val) ->
+                       L.leq (interp_lattice lab_val3) (interp_lattice lab_val) :=
+                       (tester (interp_lattice lab_val3) (interp_lattice lab_val2) (interp_lattice lab_val))
+        have tester'' : L.leq (interp_lattice lab_val3) (interp_lattice lab_val) :=
+          (tester' h_holds2 h_holds)
+        exact tester''
