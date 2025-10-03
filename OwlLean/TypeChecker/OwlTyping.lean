@@ -1201,10 +1201,4 @@ theorem test_latt :
         clear phictx_prev2
         clear phictx_prev
         have tester : forall l1 l2 l3, L.leq l1 l2 -> L.leq l2 l3 -> L.leq l1 l3 := L.leq_trans
-        have tester' : L.leq (interp_lattice lab_val3) (interp_lattice lab_val2) ->
-                       L.leq (interp_lattice lab_val2) (interp_lattice lab_val) ->
-                       L.leq (interp_lattice lab_val3) (interp_lattice lab_val) :=
-                       (tester (interp_lattice lab_val3) (interp_lattice lab_val2) (interp_lattice lab_val))
-        have tester'' : L.leq (interp_lattice lab_val3) (interp_lattice lab_val) :=
-          (tester' h_holds2 h_holds)
-        exact tester''
+        try grind
