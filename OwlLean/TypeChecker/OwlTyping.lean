@@ -105,10 +105,11 @@ def dcons (x : ty l d) (delta : delta_context l d) : delta_context l (d+1) :=
 
 inductive valid_phi_map : forall l, phi_map l -> phi_context l -> Prop where
 | phi_empty_valid : valid_phi_map 0 empty_phi_map empty_phi
-| phi_cons : forall l pm phictx (sym : cond_sym) (lab : label l) (lab_val : label 0),
+| phi_cons : forall l pm phictx phi (sym : cond_sym) (lab : label l) (lab_val : label 0),
   valid_phi_map l pm phictx ->
   phi_map_holds (l+1) (cons lab_val pm) (.condition sym (.var_label var_zero) (ren_label shift lab)) ->
-  valid_phi_map (l+1) (cons lab_val pm) (lift_phi (cons (sym, lab) phictx))
+  phi = lift_phi (cons (sym, lab) phictx) ->
+  valid_phi_map (l+1) (cons lab_val pm) phi
 
 def phi_entails_c (pctx : phi_context l) (co : constr l) : Prop :=
   (forall pm,
@@ -1065,10 +1066,19 @@ noncomputable def lemma_phi :=
          (pcons (.geq, .var_label ⟨0, by omega⟩)
                 (pcons (.geq, .latl L.bot) empty_phi)))
 
+theorem cons_surjective {n : Nat} (f : Fin (n + 1) → label 0) :
+  ∃ (head : label 0) (tail : Fin n → label 0),
+    f = cons head tail := by
+  exists f 0
+  exists (fun i => f i.succ)
+  funext i
+  cases i using Fin.cases
+  · rfl
+  · rfl
+
 theorem test_latt :
   lemma_phi |= (.condition .geq (.var_label ⟨0, by omega⟩) (.var_label ⟨2, by omega⟩)) := by
   intro pm vpm
-  cases vpm
   unfold phi_map_holds
   simp
   unfold valid_constraint
@@ -1076,4 +1086,17 @@ theorem test_latt :
   try simp [subst_label]
   unfold interp_lattice
   dsimp [valid_phi_map] at vpm
-  dsimp [phi_map] at pm
+  unfold lemma_phi at vpm
+  simp at vpm
+  unfold pcons at vpm
+  cases vpm with
+  | phi_cons l pm_prev phictx_prev phi_eq sym lab lab_val h_prev h_holds a =>
+    simp
+    have h0 := congrArg (fun f => f 0) a
+    simp [lift_phi, cons] at h0
+    obtain ⟨sym_eq, lab_eq⟩ := h0
+    subst sym
+    simp at h_holds
+    rw [lab_eq] at h_holds
+
+    unfold phi_map_holds at h_holds
