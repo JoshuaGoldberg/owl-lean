@@ -1097,6 +1097,12 @@ theorem test_latt :
     obtain ⟨sym_eq, lab_eq⟩ := h0
     subst sym
     simp at h_holds
-    rw [lab_eq] at h_holds
-
     unfold phi_map_holds at h_holds
+    simp at h_holds
+    unfold valid_constraint at h_holds
+    try simp [subst_label] at h_holds
+    unfold interp_lattice at h_holds
+    have : lab = label.var_label 0 := by
+      sorry
+    rw [this] at h_holds
+    try simp [ren_label, shift, cons, subst_label] at h_holds
