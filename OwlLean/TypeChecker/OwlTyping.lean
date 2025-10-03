@@ -1095,6 +1095,7 @@ theorem test_latt :
     have h0 := congrArg (fun f => f 0) a
     simp [lift_phi, cons] at h0
     obtain ⟨sym_eq, lab_eq⟩ := h0
+    simp [cons]
     subst sym
     simp at h_holds
     unfold phi_map_holds at h_holds
@@ -1106,3 +1107,69 @@ theorem test_latt :
       sorry
     rw [this] at h_holds
     try simp [ren_label, shift, cons, subst_label] at h_holds
+    simp [var_zero] at h_holds
+    cases h_prev with
+    | phi_cons l2 pm_prev2 phictx_prev2 phi_eq2 sym2 lab2 lab_val2 h_prev2 h_holds2 a2 =>
+      simp
+      have h0 := congrArg (fun f => f 0) a
+      simp [lift_phi, cons] at h0
+      have : phictx_prev = (lift_phi (cons (cond_sym.geq, label.var_label 0)
+                                           (lift_phi (cons (cond_sym.geq, label.latl L.bot)
+                                                           empty_phi)))) := by
+            sorry
+      subst this
+      have h0 := congrArg (fun f => f 0) a2
+      simp [lift_phi, cons] at h0
+      obtain ⟨sym_eq, lab_eq⟩ := h0
+      subst sym_eq
+      simp at h_holds2
+      unfold phi_map_holds at h_holds2
+      simp at h_holds2
+      unfold valid_constraint at h_holds2
+      try simp [subst_label] at h_holds2
+      unfold interp_lattice at h_holds2
+      have : lab2 = label.var_label 0 := by
+        sorry
+      rw [this] at h_holds2
+      try simp [ren_label, shift, cons, subst_label] at h_holds2
+      simp [var_zero] at h_holds2
+      simp [cons] at h_holds
+      cases h_prev2 with
+      | phi_cons l3 pm_prev3 phictx_prev3 phi_eq3 sym3 lab3 lab_val3 h_prev3 h_holds3 a3 =>
+        have h0 := congrArg (fun f => f 0) a2
+        simp [lift_phi, cons] at h0
+        have : phictx_prev2 = (lift_phi (cons (cond_sym.geq, label.latl L.bot) empty_phi)) := by
+              sorry
+        subst this
+        have h0 := congrArg (fun f => f 0) a3
+        simp [lift_phi, cons] at h0
+        obtain ⟨sym_eq, lab_eq⟩ := h0
+        subst sym_eq
+        simp at h_holds3
+        unfold phi_map_holds at h_holds3
+        simp at h_holds3
+        unfold valid_constraint at h_holds3
+        try simp [subst_label] at h_holds3
+        unfold interp_lattice at h_holds3
+        have : lab3 = (label.latl L.bot) := by
+          sorry
+        rw [this] at h_holds3
+        try simp [ren_label, shift, cons, subst_label] at h_holds3
+        simp [var_zero] at h_holds3
+        simp [cons] at h_holds2
+        clear a2
+        clear a3
+        clear this
+        clear h0
+        clear lab_eq
+        clear h_prev3
+        clear lab3
+        clear a
+        clear this
+        clear h0
+        clear lab_eq
+        clear phictx_prev3
+        clear this
+        clear lab_eq
+        clear lab2
+        clear lab
