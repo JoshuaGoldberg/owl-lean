@@ -1061,11 +1061,6 @@ noncomputable def simple_test_phi :=
 noncomputable def simple_test_gamma : gamma_context 0 0 1 :=
   (cons .Unit empty_gamma)
 
-noncomputable def lemma_phi :=
-  (pcons (.geq, .var_label ⟨0, by omega⟩)
-         (pcons (.geq, .var_label ⟨0, by omega⟩)
-                (pcons (.geq, .latl L.bot) empty_phi)))
-
 theorem cons_surjective {n : Nat} (f : Fin (n + 1) → label 0) :
   ∃ (head : label 0) (tail : Fin n → label 0),
     f = cons head tail := by
@@ -1077,24 +1072,40 @@ theorem cons_surjective {n : Nat} (f : Fin (n + 1) → label 0) :
   · rfl
 
 theorem ren_label_injective
-  (h : forall x y, xi x = xi y → x = y) :
+  (h : forall x y, xi x = xi y -> x = y) :
   forall s1 s2, ren_label xi s1 = ren_label xi s2 → s1 = s2 := by
   intro s1 s2 heq
-  cases s1 <;> cases s2 <;> simp [ren_label] at heq
-  · congr
-    exact h _ _ heq
-  · congr
-  · congr 1
-    · exact ren_label_injective h _ _ heq.1
-    · exact ren_label_injective h _ _ heq.2
-  · congr
-    · exact ren_label_injective h _ _ heq.1
-    · exact ren_label_injective h _ _ heq.2
-  · rfl
+  induction s1 generalizing s2 with
+  | var_label x =>
+      cases s2 <;> simp [ren_label] at heq
+      congr
+      exact h _ _ heq
+  | latl l =>
+      cases s2 <;> simp [ren_label] at heq
+      subst heq
+      rfl
+  | ljoin l1 l2 ih1 ih2 =>
+      cases s2 <;> simp [ren_label] at heq
+      congr
+      · exact ih1 _ heq.1
+      · exact ih2 _ heq.2
+  | lmeet l1 l2 ih1 ih2 =>
+      cases s2 <;> simp [ren_label] at heq
+      congr
+      · exact ih1 _ heq.1
+      · exact ih2 _ heq.2
+  | default =>
+      cases s2 <;> simp [ren_label] at heq
+      rfl
 
 theorem shift_injective : forall (x : Fin l) (y : Fin l), shift x = shift y → x = y := by
   intro x y h
   exact Fin.succ_inj.mp h
+
+noncomputable def lemma_phi :=
+  (pcons (.geq, .var_label ⟨0, by omega⟩)
+         (pcons (.geq, .var_label ⟨0, by omega⟩)
+                (pcons (.geq, .latl L.bot) empty_phi)))
 
 theorem test_latt :
   lemma_phi |= (.condition .geq (.var_label ⟨0, by omega⟩) (.var_label ⟨2, by omega⟩)) := by
