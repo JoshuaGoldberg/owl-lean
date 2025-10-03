@@ -1154,7 +1154,7 @@ theorem test_latt :
         have : lab3 = (label.latl L.bot) := by
           sorry
         rw [this] at h_holds3
-        try simp [ren_label, shift, cons, subst_label] at h_holds3
+        try simp [ren_label, cons, subst_label] at h_holds3
         simp [var_zero] at h_holds3
         simp [cons] at h_holds2
         clear a2
@@ -1173,3 +1173,4 @@ theorem test_latt :
         clear lab_eq
         clear lab2
         clear lab
+        simp [cons]
