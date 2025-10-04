@@ -1112,43 +1112,29 @@ theorem test_latt :
   lemma_phi |= (.condition .geq (.var_label ⟨0, by omega⟩) (.var_label ⟨2, by omega⟩)) := by
   intro pm vpm
   unfold phi_map_holds
-  simp
   unfold valid_constraint
-  simp
   try simp [subst_label]
-  dsimp [valid_phi_map] at vpm
   unfold lemma_phi at vpm
-  simp at vpm
   unfold pcons at vpm
   cases vpm with
   | phi_cons l pm_prev phictx_prev phi_eq sym lab lab_val h_prev h_holds a =>
-    simp
     have h0 := congrArg (fun f => f 0) a
     simp [lift_phi, cons] at h0
     obtain ⟨sym_eq, lab_eq⟩ := h0
-    simp [cons]
-    subst sym
-    simp at h_holds
     unfold phi_map_holds at h_holds
-    simp at h_holds
     unfold valid_constraint at h_holds
-    try simp [subst_label] at h_holds
     rw [<- lab_eq] at h_holds
     try simp [ren_label, shift, cons, subst_label] at h_holds
     simp [var_zero] at h_holds
     cases h_prev with
     | phi_cons l2 pm_prev2 phictx_prev2 phi_eq2 sym2 lab2 lab_val2 h_prev2 h_holds2 a2 =>
-      simp
       rw [a2] at a
       have h0 := congrArg (fun f => f 1) a
       simp [lift_phi, cons] at h0
       obtain ⟨sym_eq, lab_eq⟩ := h0
-      subst sym_eq
       simp at h_holds2
       unfold phi_map_holds at h_holds2
-      simp at h_holds2
       unfold valid_constraint at h_holds2
-      try simp [subst_label] at h_holds2
       have h0 : (ren_label shift (label.var_label 0)) = (ren_label shift lab2) := by
           exact ren_label_injective shift_injective (ren_label shift (label.var_label 0))
                                                     (ren_label shift lab2)
@@ -1163,12 +1149,8 @@ theorem test_latt :
         have h0 := congrArg (fun f => f 2) a
         simp [lift_phi, cons] at h0
         obtain ⟨sym_eq, lab_eq⟩ := h0
-        subst sym_eq
-        simp at h_holds3
         unfold phi_map_holds at h_holds3
-        simp at h_holds3
         unfold valid_constraint at h_holds3
-        try simp [subst_label] at h_holds3
         have lab_eq' : (ren_label shift (ren_label shift (label.latl L.bot))) =
                (ren_label shift (ren_label shift lab3)) := by
           exact ren_label_injective shift_injective (ren_label shift (ren_label shift (label.latl L.bot)))
@@ -1182,23 +1164,7 @@ theorem test_latt :
         try simp [ren_label, cons, subst_label] at h_holds3
         simp [var_zero] at h_holds3
         simp [cons] at h_holds2
-        clear a2
-        clear a3
-        clear h0
-        clear lab_eq
-        clear h_prev3
-        clear a
-        clear lab_eq
-        clear phictx_prev3
-        clear lab_eq
-        clear lab2
-        clear lab
-        clear lab_eq'
-        clear lab_eq''
-        clear lab3
+        -- Finish the proof here!
         simp [cons]
-        clear pm_prev3
-        clear phictx_prev2
-        clear phictx_prev
         have tester : forall l1 l2 l3, L.leq l1 l2 -> L.leq l2 l3 -> L.leq l1 l3 := L.leq_trans
         try grind
