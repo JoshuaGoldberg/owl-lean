@@ -1136,9 +1136,10 @@ theorem test_latt :
       unfold phi_map_holds at h_holds2
       unfold valid_constraint at h_holds2
       have h0 : (ren_label shift (label.var_label 0)) = (ren_label shift lab2) := by
-          exact ren_label_injective shift_injective (ren_label shift (label.var_label 0))
+          have e1 := ren_label_injective shift_injective (ren_label shift (label.var_label 0))
                                                     (ren_label shift lab2)
                                                     lab_eq
+          grind [ren_label_injective]
       rw [<- h0] at h_holds2
       try simp [ren_label, shift, cons, subst_label] at h_holds2
       simp [var_zero] at h_holds2
@@ -1151,16 +1152,13 @@ theorem test_latt :
         obtain ⟨sym_eq, lab_eq⟩ := h0
         unfold phi_map_holds at h_holds3
         unfold valid_constraint at h_holds3
-        have lab_eq' : (ren_label shift (ren_label shift (label.latl L.bot))) =
-               (ren_label shift (ren_label shift lab3)) := by
-          exact ren_label_injective shift_injective (ren_label shift (ren_label shift (label.latl L.bot)))
+        have lab_eq' : (ren_label shift (label.latl L.bot)) =
+               (ren_label shift lab3) := by
+          have e1 := ren_label_injective shift_injective (ren_label shift (ren_label shift (label.latl L.bot)))
                                                     (ren_label shift (ren_label shift lab3))
                                                     lab_eq
-        have lab_eq'' : (ren_label shift (label.latl L.bot)) = (ren_label shift lab3) := by
-          exact ren_label_injective shift_injective (ren_label shift (label.latl L.bot))
-                                                    (ren_label shift lab3)
-                                                    lab_eq'
-        rw [<- lab_eq''] at h_holds3
+          grind [ren_label_injective]
+        rw [<- lab_eq'] at h_holds3
         try simp [ren_label, cons, subst_label] at h_holds3
         simp [var_zero] at h_holds3
         simp [cons] at h_holds2
@@ -1168,3 +1166,28 @@ theorem test_latt :
         simp [cons]
         have tester : forall l1 l2 l3, L.leq l1 l2 -> L.leq l2 l3 -> L.leq l1 l3 := L.leq_trans
         try grind
+
+syntax "solve_phi_validation" : tactic
+
+macro_rules
+  | `(tactic| solve_phi_validation) => `(tactic|
+      intro pm vpm;
+      dsimp [phi_map_holds, valid_constraint] at *;
+      repeat
+        first
+          | cases vpm with
+            | phi_empty_valid =>
+              simp [cons] at *
+            | phi_cons l pm_prev phictx_prev phi_eq sym lab lab_val vpm_tail head_holds a =>
+              have h := congrArg (fun f => f 0) a
+              simp [lift_phi, cons] at h
+              dsimp [phi_map_holds, valid_constraint] at head_holds
+              try simp [ren_label, shift, cons, subst_label, var_zero] at head_holds
+              clear vpm
+              rename vpm_tail => vpm
+          | simp [cons] at *
+    )
+
+theorem test_latt2 :
+  lemma_phi |= (.condition .geq (.var_label ⟨0, by omega⟩) (.var_label ⟨2, by omega⟩)) := by
+    solve_phi_validation
