@@ -1168,25 +1168,57 @@ theorem test_latt :
         try grind
 
 syntax "solve_phi_validation" : tactic
+syntax (name := casePhi) "case_phi " ident num num : tactic
 
 macro_rules
   | `(tactic| solve_phi_validation) => `(tactic|
-      intro pm vpm;
-      dsimp [phi_map_holds, valid_constraint] at *;
-      repeat
-        first
-          | cases vpm with
-            | phi_empty_valid =>
-              simp [cons] at *
-            | phi_cons l pm_prev phictx_prev phi_eq sym lab lab_val vpm_tail head_holds a =>
-              have h := congrArg (fun f => f 0) a
-              simp [lift_phi, cons] at h
-              dsimp [phi_map_holds, valid_constraint] at head_holds
-              try simp [ren_label, shift, cons, subst_label, var_zero] at head_holds
-              clear vpm
-              rename vpm_tail => vpm
-          | simp [cons] at *
+      intros pm vpm;
+      unfold phi_map_holds;
+      unfold valid_constraint;
+      simp [subst_label];
+      unfold lemma_phi at vpm;
+      unfold pcons at vpm;
+      case_phi vpm 1 0
     )
+  | `(tactic| case_phi $H:ident $k:num $iter:num) => do
+      let suf := "_" ++ toString k.getNat
+      let iterVal := (iter.getNat + 1)
+      let newKVal := (k.getNat + 1)
+      let newIterVal := (iter.getNat + 1)
+      let newIterSyntax := Syntax.mkNumLit (toString newIterVal)
+      let newKSyntax := Syntax.mkNumLit (toString newKVal)
+      let mk (s : String) : TSyntax `ident := mkIdent <| Name.str .anonymous (s ++ suf)
+      let lId         := mk "l"
+      let pmPrevId    := mk "pm_prev"
+      let pctxPrevId  := mk "phictx_prev"
+      let phiEqId     := mk "phi_eq"
+      let symId       := mk "sym"
+      let labId       := mk "lab"
+      let labValId    := mk "lab_val"
+      let tailId      := mk "vpm_tail"
+      let headHoldsId := mk "head_holds"
+      let aId       := mk "a"
+      let h0Id        := mk "h0"
+      if iterVal = 0 then
+        `(tactic|
+          cases $H:ident with
+          | phi_cons $(lId):ident $(pmPrevId):ident $(pctxPrevId):ident $(phiEqId):ident
+                    $(symId):ident $(labId):ident $(labValId):ident
+                    $(tailId):ident $(headHoldsId):ident $(aId):ident =>
+              have $(h0Id):ident := congrArg (fun f => f 0) $(aId):ident
+              simp [lift_phi, cons] at $(h0Id):ident
+              obtain ⟨sym_eq, lab_eq⟩ := $(h0Id):ident
+              unfold phi_map_holds at $(headHoldsId):ident
+              unfold valid_constraint at $(headHoldsId):ident
+              rw [<- lab_eq] at $(headHoldsId):ident
+              try simp [ren_label, shift, cons, subst_label] at $(headHoldsId):ident
+              simp [var_zero] at $(headHoldsId):ident
+              case_phi $(tailId):ident $newKSyntax $newIterSyntax
+        )
+      else
+        `(tactic|
+          sorry
+        )
 
 theorem test_latt2 :
   lemma_phi |= (.condition .geq (.var_label ⟨0, by omega⟩) (.var_label ⟨2, by omega⟩)) := by
