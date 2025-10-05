@@ -1103,87 +1103,42 @@ theorem shift_injective : forall (x : Fin l) (y : Fin l), shift x = shift y -> x
   simp [shift] at h
   exact h
 
-noncomputable def lemma_phi :=
-  (pcons (.geq, .var_label ⟨0, by omega⟩)
-         (pcons (.geq, .var_label ⟨0, by omega⟩)
-                (pcons (.geq, .latl L.bot) empty_phi)))
-
-theorem test_latt :
-  lemma_phi |= (.condition .geq (.var_label ⟨0, by omega⟩) (.var_label ⟨2, by omega⟩)) := by
-  intro pm vpm
-  unfold phi_map_holds
-  unfold valid_constraint
-  try simp [subst_label]
-  unfold lemma_phi at vpm
-  unfold pcons at vpm
-  cases vpm with
-  | phi_cons l pm_prev phictx_prev phi_eq sym lab lab_val h_prev h_holds a =>
-    have h0 := congrArg (fun f => f 0) a
-    simp [lift_phi, cons] at h0
-    obtain ⟨sym_eq, lab_eq⟩ := h0
-    unfold phi_map_holds at h_holds
-    unfold valid_constraint at h_holds
-    rw [<- lab_eq] at h_holds
-    try simp [ren_label, shift, cons, subst_label] at h_holds
-    simp [var_zero] at h_holds
-    cases h_prev with
-    | phi_cons l2 pm_prev2 phictx_prev2 phi_eq2 sym2 lab2 lab_val2 h_prev2 h_holds2 a2 =>
-      rw [a2] at a
-      have h0 := congrArg (fun f => f 1) a
-      simp [lift_phi, cons] at h0
-      obtain ⟨sym_eq, lab_eq⟩ := h0
-      simp at h_holds2
-      unfold phi_map_holds at h_holds2
-      unfold valid_constraint at h_holds2
-      have h0 : (ren_label shift (label.var_label 0)) = (ren_label shift lab2) := by
-          have e1 := ren_label_injective shift_injective (ren_label shift (label.var_label 0))
-                                                    (ren_label shift lab2)
-                                                    lab_eq
-          grind [ren_label_injective]
-      rw [<- h0] at h_holds2
-      try simp [ren_label, shift, cons, subst_label] at h_holds2
-      simp [var_zero] at h_holds2
-      simp [cons] at h_holds
-      cases h_prev2 with
-      | phi_cons l3 pm_prev3 phictx_prev3 phi_eq3 sym3 lab3 lab_val3 h_prev3 h_holds3 a3 =>
-        rw [a3] at a
-        have h0 := congrArg (fun f => f 2) a
-        simp [lift_phi, cons] at h0
-        obtain ⟨sym_eq, lab_eq⟩ := h0
-        unfold phi_map_holds at h_holds3
-        unfold valid_constraint at h_holds3
-        have lab_eq' : (ren_label shift (label.latl L.bot)) =
-               (ren_label shift lab3) := by
-          have e1 := ren_label_injective shift_injective (ren_label shift (ren_label shift (label.latl L.bot)))
-                                                    (ren_label shift (ren_label shift lab3))
-                                                    lab_eq
-          grind [ren_label_injective]
-        rw [<- lab_eq'] at h_holds3
-        try simp [ren_label, cons, subst_label] at h_holds3
-        simp [var_zero] at h_holds3
-        simp [cons] at h_holds2
-        -- Finish the proof here!
-        simp [cons]
-        have tester : forall l1 l2 l3, L.leq l1 l2 -> L.leq l2 l3 -> L.leq l1 l3 := L.leq_trans
-        try grind
-
-syntax "solve_phi_validation" : tactic
-syntax (name := casePhi) "case_phi " ident num num : tactic
+syntax "solve_phi_validation" ident : tactic
+syntax "case_phi " ident ident ident num num : tactic
+syntax "all_ren" ident ident num num : tactic
 
 macro_rules
-  | `(tactic| solve_phi_validation) => `(tactic|
+  | `(tactic| all_ren $test:ident $inj:ident $curr:num $goal:num) => do
+      let suf := "_" ++ toString curr.getNat
+      let mk (s : String) : TSyntax `ident := mkIdent <| Name.str .anonymous (s ++ suf)
+      let eId := mk "e"
+      let currVal := (curr.getNat)
+      let currNextVal := (curr.getNat + 1)
+      let currNextValSyntax := Syntax.mkNumLit (toString currNextVal)
+      let goalVal := (goal.getNat)
+      if currVal < goalVal then
+        `(tactic|
+          have $(eId):ident := ren_label_injective shift_injective _ _ $test:ident;
+          all_ren $(eId):ident $inj:ident $currNextValSyntax $goal:num)
+      else
+        `(tactic|
+          try rw [<- $test:ident] at $inj:ident)
+  | `(tactic| solve_phi_validation $lemma_phi:ident) => `(tactic|
       intros pm vpm;
+      have tester : forall l1 l2 l3, L.leq l1 l2 -> L.leq l2 l3 -> L.leq l1 l3 := L.leq_trans;
       unfold phi_map_holds;
       unfold valid_constraint;
       simp [subst_label];
-      unfold lemma_phi at vpm;
+      unfold $lemma_phi:ident at vpm;
       unfold pcons at vpm;
-      case_phi vpm 1 0
+      case_phi vpm vpm vpm 1 0
     )
-  | `(tactic| case_phi $H:ident $k:num $iter:num) => do
+  | `(tactic| case_phi $H:ident $A:ident $prevHold:ident $k:num $iter:num) => do
       let suf := "_" ++ toString k.getNat
-      let iterVal := (iter.getNat + 1)
+      let iterVal := (iter.getNat)
       let newKVal := (k.getNat + 1)
+      let prevKVal := (k.getNat - 1)
+      let prevKValSyntax := Syntax.mkNumLit (toString prevKVal)
       let newIterVal := (iter.getNat + 1)
       let newIterSyntax := Syntax.mkNumLit (toString newIterVal)
       let newKSyntax := Syntax.mkNumLit (toString newKVal)
@@ -1198,28 +1153,121 @@ macro_rules
       let tailId      := mk "vpm_tail"
       let headHoldsId := mk "head_holds"
       let aId       := mk "a"
-      let h0Id        := mk "h0"
+      let hId := mk "h0"
+      let labeqId := mk "lab_eq"
       if iterVal = 0 then
         `(tactic|
           cases $H:ident with
           | phi_cons $(lId):ident $(pmPrevId):ident $(pctxPrevId):ident $(phiEqId):ident
                     $(symId):ident $(labId):ident $(labValId):ident
                     $(tailId):ident $(headHoldsId):ident $(aId):ident =>
-              have $(h0Id):ident := congrArg (fun f => f 0) $(aId):ident
-              simp [lift_phi, cons] at $(h0Id):ident
-              obtain ⟨sym_eq, lab_eq⟩ := $(h0Id):ident
+              have h0 := congrArg (fun f => f 0) $(aId):ident
+              simp [lift_phi, cons] at h0
+              obtain ⟨sym_eq, lab_eq⟩ := h0
               unfold phi_map_holds at $(headHoldsId):ident
               unfold valid_constraint at $(headHoldsId):ident
               rw [<- lab_eq] at $(headHoldsId):ident
               try simp [ren_label, shift, cons, subst_label] at $(headHoldsId):ident
               simp [var_zero] at $(headHoldsId):ident
-              case_phi $(tailId):ident $newKSyntax $newIterSyntax
+              case_phi $(tailId):ident $(aId):ident $(headHoldsId):ident $newKSyntax $newIterSyntax
         )
       else
         `(tactic|
-          sorry
+         cases $H:ident with
+          | phi_cons $(lId):ident $(pmPrevId):ident $(pctxPrevId):ident $(phiEqId):ident
+                    $(symId):ident $(labId):ident $(labValId):ident
+                    $(tailId):ident $(headHoldsId):ident $(aId):ident =>
+            rw [$(aId):ident] at $A:ident
+            have $(hId):ident := congrArg (fun f => f $prevKValSyntax) $A:ident
+            simp [lift_phi, cons] at $(hId):ident
+            try obtain ⟨sym_eq, $(labeqId):ident⟩ := $(hId):ident
+            simp at $(headHoldsId):ident
+            unfold phi_map_holds at $(headHoldsId):ident
+            unfold valid_constraint at $(headHoldsId):ident
+            try all_ren $(labeqId):ident $(headHoldsId):ident 0 $prevKValSyntax:num
+            try all_ren $(hId):ident $(headHoldsId):ident 0 $prevKValSyntax:num
+            try simp [ren_label, shift, cons, subst_label] at $(headHoldsId):ident
+            simp [var_zero] at $(headHoldsId):ident
+            simp [cons] at $(prevHold):ident
+            try simp [cons]
+            try grind
+            try case_phi $(tailId):ident $(A):ident $(headHoldsId):ident $newKSyntax $newIterSyntax
         )
+
+noncomputable def lemma_phi :=
+  (pcons (.geq, .var_label ⟨0, by omega⟩)
+         (pcons (.geq, .var_label ⟨0, by omega⟩)
+         (pcons (.geq, .var_label ⟨0, by omega⟩)
+                (pcons (.geq, .latl L.bot) empty_phi))))
+
+noncomputable def lemma_phi2 :=
+  (pcons (.geq, .var_label ⟨2, by omega⟩)
+         (pcons (.geq, .var_label ⟨0, by omega⟩)
+         (pcons (.geq, .var_label ⟨0, by omega⟩)
+                (pcons (.geq, .latl L.bot) empty_phi))))
+
+-- 0 < 3
+-- 1 < 2 < 3
+
+theorem test_latt :
+  lemma_phi |= (.condition .geq (.var_label ⟨0, by omega⟩) (.var_label ⟨3, by omega⟩)) := by
+    solve_phi_validation lemma_phi
 
 theorem test_latt2 :
   lemma_phi |= (.condition .geq (.var_label ⟨0, by omega⟩) (.var_label ⟨2, by omega⟩)) := by
-    solve_phi_validation
+    solve_phi_validation lemma_phi
+
+theorem test_latt3 :
+  lemma_phi2 |= (.condition .geq (.var_label ⟨0, by omega⟩) (.var_label ⟨3, by omega⟩)) := by
+    solve_phi_validation lemma_phi2
+
+-- Tedious example (non tactic)
+theorem test_latt_manual :
+  lemma_phi |= (.condition .geq (.var_label ⟨0, by omega⟩) (.var_label ⟨3, by omega⟩)) := by
+  intros pm vpm;
+    have tester : forall l1 l2 l3, L.leq l1 l2 -> L.leq l2 l3 -> L.leq l1 l3 := L.leq_trans;
+    unfold phi_map_holds;
+    unfold valid_constraint;
+    simp [subst_label];
+    unfold lemma_phi at vpm;
+    unfold pcons at vpm;
+  cases vpm with
+  | phi_cons l1 pm_prev1 phictx_prev1 phi_eq1 sym1 lab1 lab_val1 h_prev1 h_holds1 a1 =>
+    have h0 := congrArg (fun f => f 0) a1
+    simp [lift_phi, cons] at h0
+    obtain ⟨sym_eq, lab_eq⟩ := h0
+    unfold phi_map_holds at h_holds1
+    unfold valid_constraint at h_holds1
+    rw [<- lab_eq] at h_holds1
+    try simp [ren_label, shift, cons, subst_label] at h_holds1
+    simp [var_zero] at h_holds1
+    cases h_prev1 with
+    | phi_cons l2 pm_prev2 phictx_prev2 phi_eq2 sym2 lab2 lab_val2 h_prev2 h_holds2 a2 =>
+      rw [a2] at a1
+      have h0 := congrArg (fun f => f 1) a1
+      simp [lift_phi, cons] at h0
+      obtain ⟨sym_eq, lab_eq⟩ := h0
+      simp at h_holds2
+      unfold phi_map_holds at h_holds2
+      unfold valid_constraint at h_holds2
+      all_ren lab_eq h_holds2 0 1
+      try simp [ren_label, shift, cons, subst_label] at h_holds2
+      simp [var_zero] at h_holds2
+      simp [cons] at h_holds1
+      try simp [cons]
+      try grind
+      cases h_prev2 with
+      | phi_cons l3 pm_prev3 phictx_prev3 phi_eq3 sym3 lab3 lab_val3 h_prev3 h_holds3 a3 =>
+        rw [a3] at a1
+        have h0 := congrArg (fun f => f 2) a1
+        simp [lift_phi, cons] at h0
+        obtain ⟨sym_eq, lab_eq⟩ := h0
+        simp at h_holds3
+        unfold phi_map_holds at h_holds3
+        unfold valid_constraint at h_holds3
+        all_ren lab_eq h_holds3 0 2
+        try simp [ren_label, shift, cons, subst_label] at h_holds3
+        simp [var_zero] at h_holds3
+        simp [cons] at h_holds2
+        try simp [cons]
+        try grind
