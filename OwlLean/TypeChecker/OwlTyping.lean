@@ -1125,6 +1125,7 @@ macro_rules
           try rw [<- $test:ident] at $inj:ident)
   | `(tactic| solve_phi_validation $lemma_phi:ident) => `(tactic|
       intros pm vpm;
+      trace "hi 1";
       have tester : forall l1 l2 l3, L.leq l1 l2 -> L.leq l2 l3 -> L.leq l1 l3 := L.leq_trans;
       unfold phi_map_holds;
       unfold valid_constraint;
@@ -1161,6 +1162,7 @@ macro_rules
           | phi_cons $(lId):ident $(pmPrevId):ident $(pctxPrevId):ident $(phiEqId):ident
                     $(symId):ident $(labId):ident $(labValId):ident
                     $(tailId):ident $(headHoldsId):ident $(aId):ident =>
+              trace "hi 2";
               have h0 := congrArg (fun f => f 0) $(aId):ident
               simp [lift_phi, cons] at h0
               obtain ⟨sym_eq, lab_eq⟩ := h0
@@ -1177,20 +1179,25 @@ macro_rules
           | phi_cons $(lId):ident $(pmPrevId):ident $(pctxPrevId):ident $(phiEqId):ident
                     $(symId):ident $(labId):ident $(labValId):ident
                     $(tailId):ident $(headHoldsId):ident $(aId):ident =>
+            trace "hi 3";
             rw [$(aId):ident] at $A:ident
             have $(hId):ident := congrArg (fun f => f $prevKValSyntax) $A:ident
             simp [lift_phi, cons] at $(hId):ident
+            trace "hi 4";
             try obtain ⟨sym_eq, $(labeqId):ident⟩ := $(hId):ident
             simp at $(headHoldsId):ident
+            trace "hi 5";
             unfold phi_map_holds at $(headHoldsId):ident
             unfold valid_constraint at $(headHoldsId):ident
             try all_ren $(labeqId):ident $(headHoldsId):ident 0 $prevKValSyntax:num
             try all_ren $(hId):ident $(headHoldsId):ident 0 $prevKValSyntax:num
             try simp [ren_label, shift, cons, subst_label] at $(headHoldsId):ident
             simp [var_zero] at $(headHoldsId):ident
-            simp [cons] at $(prevHold):ident
+            trace "hi 6";
+            try simp [cons] at $(prevHold):ident
+            trace "hi 7";
             try simp [cons]
-            try grind
+            try grind [interp_lattice]
             try case_phi $(tailId):ident $(A):ident $(headHoldsId):ident $newKSyntax $newIterSyntax
         )
 
@@ -1206,8 +1213,15 @@ noncomputable def lemma_phi2 :=
          (pcons (.geq, .var_label ⟨0, by omega⟩)
                 (pcons (.geq, .latl L.bot) empty_phi))))
 
--- 0 < 3
--- 1 < 2 < 3
+axiom l1 : L.labels
+axiom l2 : L.labels
+axiom l3 : L.labels
+
+noncomputable def lemma_phi_mix :=
+  (pcons (.geq, (.latl l1))
+         (pcons (.geq, (.latl l2))
+         (pcons (.geq, (.latl l3))
+                (pcons (.geq, .latl L.bot) empty_phi))))
 
 theorem test_latt :
   lemma_phi |= (.condition .geq (.var_label ⟨0, by omega⟩) (.var_label ⟨3, by omega⟩)) := by
@@ -1221,15 +1235,23 @@ theorem test_latt3 :
   lemma_phi2 |= (.condition .geq (.var_label ⟨0, by omega⟩) (.var_label ⟨3, by omega⟩)) := by
     solve_phi_validation lemma_phi2
 
+theorem test_latt_mix (pf1 : L.leq l1 l2 = true) (pf2 : L.leq l2 l3 = true):
+  lemma_phi_mix |= (.condition .leq (.latl l1) (.latl l3)) := by
+    solve_phi_validation lemma_phi_mix
+
+theorem test_latt_mix2 (pf1 : L.leq l1 l2 = true) (pf2 : L.leq l2 l3 = true):
+  lemma_phi_mix |= (.condition .geq (.var_label ⟨0, by omega⟩) (.latl l1)) := by
+    solve_phi_validation lemma_phi_mix
+
 -- Tedious example (non tactic)
-theorem test_latt_manual :
-  lemma_phi |= (.condition .geq (.var_label ⟨0, by omega⟩) (.var_label ⟨3, by omega⟩)) := by
+theorem test_latt_manual (pf1 : L.leq l1 l2 = true) :
+  lemma_phi_mix |= (.condition .leq (.latl l1) (.latl l2)) := by
   intros pm vpm;
     have tester : forall l1 l2 l3, L.leq l1 l2 -> L.leq l2 l3 -> L.leq l1 l3 := L.leq_trans;
     unfold phi_map_holds;
     unfold valid_constraint;
     simp [subst_label];
-    unfold lemma_phi at vpm;
+    unfold lemma_phi_mix at vpm;
     unfold pcons at vpm;
   cases vpm with
   | phi_cons l1 pm_prev1 phictx_prev1 phi_eq1 sym1 lab1 lab_val1 h_prev1 h_holds1 a1 =>
@@ -1253,7 +1275,7 @@ theorem test_latt_manual :
       all_ren lab_eq h_holds2 0 1
       try simp [ren_label, shift, cons, subst_label] at h_holds2
       simp [var_zero] at h_holds2
-      simp [cons] at h_holds1
+      try simp [cons] at h_holds1
       try simp [cons]
       try grind
       cases h_prev2 with
@@ -1268,6 +1290,6 @@ theorem test_latt_manual :
         all_ren lab_eq h_holds3 0 2
         try simp [ren_label, shift, cons, subst_label] at h_holds3
         simp [var_zero] at h_holds3
-        simp [cons] at h_holds2
+        try simp [cons] at h_holds2
         try simp [cons]
-        try grind
+        grind [interp_lattice]
