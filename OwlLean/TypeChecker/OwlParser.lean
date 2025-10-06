@@ -385,6 +385,12 @@ def elabHelperTy (s : STy) (lvars : List String) (tvars : List String) : ty lvar
   | .none => ty.Any --default value
 
 @[simp]
+def elabHelperConstr (s : SConstr) (lvars : List String) : constr lvars.length :=
+  match SConstr.elab s lvars with
+  | .some e => e
+  | .none => (.condition .leq .default .default)
+
+@[simp]
 def elabHelper (s : SExpr) (lvars : List String) (tvars : List String) (vars : List String) : tm lvars.length tvars.length vars.length :=
   match SExpr.elab s lvars tvars vars with
   | .some e => e
@@ -417,6 +423,30 @@ elab "Ψ:=" p:owl_phi : term => do
 
 #reduce Ψ:= ( (x ⊑ ⟨Owl.L.bot⟩) )
 
+@[simp]
+def PhiEntails (phi : phi_context n) (cond : constr n) : Prop :=
+  phi |= cond
+
+elab "(" phi:owl_phi " ⊨ " cond:owl_constr ")" : term => do
+    let sexprPhi ← elabPhi phi
+    let sexprPhi2 ← elabPhi_closed phi
+
+    let sexprConstr <- elabConstr cond
+    let sexprConstr2 <- elabConstr_closed cond
+
+    let sVal : SPhi ← unsafe do Meta.evalExpr SPhi (mkConst ``SPhi) sexprPhi2
+    let sVal2 : SConstr ← unsafe do Meta.evalExpr SConstr (mkConst ``SConstr) sexprConstr2
+    match SPhi.elab sVal, SConstr.elab sVal2 with
+    | .some ⟨vars, _⟩, _ =>
+      let lenExpr := mkNatLit vars.length
+      let varsExpr ← mkListLit (mkConst ``String) (← vars.mapM (fun s => return mkStrLit s))
+      let condE <- mkAppM ``elabHelperConstr #[sexprConstr, varsExpr]
+      let phiE <- mkAppM ``phiWithLength #[lenExpr, sexprPhi]
+      mkAppM ``PhiEntails #[phiE, condE]
+    | _, _ => throwError "owl phi: ill-formed term"
+
+#reduce ((x, y ⊒ x, z ⊒ y, a ⊒ z) ⊨ (x ⊒ fy))
+
 -- maybe haver this take in context syntax terms?
 -- likw g:owl_gamma or p:owl_phi
 -- then elaborate them and add their arguments?
@@ -433,7 +463,7 @@ elab "Owl" "[" lvars:ident,* "]" "[" tvars:ident,* "]" "[" vars:ident,* "]" "{" 
   let lvarEList ← lvarNames.mapM (fun s => return mkStrLit s)
   let tvarEList ← tvarNames.mapM (fun s => return mkStrLit s)
 
-    let varEListExpr ← mkListLit (mkConst ``String) varEList.toList
+  let varEListExpr ← mkListLit (mkConst ``String) varEList.toList
   let lvarEListExpr ← mkListLit (mkConst ``String) lvarEList.toList
   let tvarEListExpr ← mkListLit (mkConst ``String) tvarEList.toList
 

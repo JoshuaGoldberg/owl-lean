@@ -175,7 +175,7 @@ def towl_ty :=
 
 def towl_tm :=
   Owl [] [x] [y] {
-    fix f (x) x
+    fix f (z) z
   }
 
 theorem lambda_identity_unit_2  :
@@ -185,6 +185,7 @@ theorem lambda_identity_unit_2  :
 noncomputable def lemma_phi_new :=
   Ψ:= (x, y ⊒ x, z ⊒ y, a ⊒ z)
 
+-- cool test
 theorem test_latt_new :
-  lemma_phi_new |= (.condition .geq (.var_label ⟨0, by omega⟩) (.var_label ⟨3, by omega⟩)) := by
-    solve_phi_validation lemma_phi_new
+  ((x, y ⊒ x, z ⊒ y, a ⊒ z) ⊨ (y ⊒ x)) := by
+    solve_phi_validation_anon

@@ -1104,6 +1104,7 @@ theorem shift_injective : forall (x : Fin l) (y : Fin l), shift x = shift y -> x
   exact h
 
 syntax "solve_phi_validation" ident : tactic
+syntax "solve_phi_validation_anon" : tactic
 syntax "case_phi " ident ident ident num num : tactic
 syntax "all_ren" ident ident num num : tactic
 
@@ -1131,6 +1132,17 @@ macro_rules
       unfold valid_constraint;
       simp [subst_label];
       unfold $lemma_phi:ident at vpm;
+      simp at vpm;
+      unfold pcons at vpm;
+      case_phi vpm vpm vpm 1 0
+    )
+  | `(tactic| solve_phi_validation_anon) => `(tactic|
+      intros pm vpm;
+      trace "hi 1";
+      have tester : forall l1 l2 l3, L.leq l1 l2 -> L.leq l2 l3 -> L.leq l1 l3 := L.leq_trans;
+      unfold phi_map_holds;
+      unfold valid_constraint;
+      simp [subst_label];
       simp at vpm;
       unfold pcons at vpm;
       case_phi vpm vpm vpm 1 0
