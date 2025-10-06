@@ -171,5 +171,5 @@ def owl_ty :=
   }
 
 theorem lambda_identity_unit_2  :
-          has_type empty_sigma Wempty_phi empty_delta empty_gamma (.fixlam (.var_tm ⟨1, by omega⟩)) (owl_ty) := by
+          has_type empty_sigma empty_phi empty_delta empty_gamma (.fixlam (.var_tm ⟨1, by omega⟩)) (owl_ty) := by
   tc (try grind)

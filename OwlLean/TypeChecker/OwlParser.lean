@@ -357,6 +357,9 @@ def elabHelper (s : SExpr) : tm 0 0 0 :=
 
 open Lean Elab Meta
 
+-- maybe haver this take in context syntax terms?
+-- likw g:owl_gamma or p:owl_phi
+-- then elaborate them and add their arguments?
 elab "Owl" "{" p:owl_tm "}" : term => do
   let sexprTerm ← elabTm p
   let sexprTerm2 ← elabTm_closed p

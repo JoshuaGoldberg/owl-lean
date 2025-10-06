@@ -1206,12 +1206,15 @@ noncomputable def lemma_phi :=
          (pcons (.geq, .var_label ⟨0, by omega⟩)
          (pcons (.geq, .var_label ⟨0, by omega⟩)
                 (pcons (.geq, .latl L.bot) empty_phi))))
+-- How I'd like to write it : (x, y >= x, z >= y, a >= z)
 
 noncomputable def lemma_phi2 :=
   (pcons (.geq, .var_label ⟨2, by omega⟩)
          (pcons (.geq, .var_label ⟨0, by omega⟩)
          (pcons (.geq, .var_label ⟨0, by omega⟩)
                 (pcons (.geq, .latl L.bot) empty_phi))))
+
+-- How I'd like to write it : (x, y >= x, z >= y, a >= x)
 
 noncomputable def lemma_phi_mix (l1 l2 l3 : L.labels) :=
   (pcons (.geq, (.latl l1))
