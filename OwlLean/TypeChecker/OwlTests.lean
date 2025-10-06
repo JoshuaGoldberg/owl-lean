@@ -161,8 +161,15 @@ def P (l1 l2 l3 adv : Owl.label 0) :=
             sync ((π2 p2) [⟨π1 p2, ["010101"]⟩])
   }
 
+-- TC tests
+
 #reduce infer empty_sigma empty_phi empty_delta empty_gamma (.unpack (.annot packed_unit (.ex .Any .Unit)) .skip) (.some .Unit)
 
-theorem lambda_identity_unit_2 (Phi : phi_context l) (Delta : delta_context l d) (Gamma : gamma_context l d m) :
-          has_type sigma Phi Delta Gamma (.fixlam (.var_tm ⟨1, by omega⟩)) (.arr .Unit .Unit) := by
+def owl_ty :=
+  OwlTy {
+    Unit -> Unit
+  }
+
+theorem lambda_identity_unit_2  :
+          has_type empty_sigma Wempty_phi empty_delta empty_gamma (.fixlam (.var_tm ⟨1, by omega⟩)) (owl_ty) := by
   tc (try grind)

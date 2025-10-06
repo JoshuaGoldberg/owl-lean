@@ -1213,11 +1213,7 @@ noncomputable def lemma_phi2 :=
          (pcons (.geq, .var_label ⟨0, by omega⟩)
                 (pcons (.geq, .latl L.bot) empty_phi))))
 
-axiom l1 : L.labels
-axiom l2 : L.labels
-axiom l3 : L.labels
-
-noncomputable def lemma_phi_mix :=
+noncomputable def lemma_phi_mix (l1 l2 l3 : L.labels) :=
   (pcons (.geq, (.latl l1))
          (pcons (.geq, (.latl l2))
          (pcons (.geq, (.latl l3))
@@ -1235,17 +1231,17 @@ theorem test_latt3 :
   lemma_phi2 |= (.condition .geq (.var_label ⟨0, by omega⟩) (.var_label ⟨3, by omega⟩)) := by
     solve_phi_validation lemma_phi2
 
-theorem test_latt_mix (pf1 : L.leq l1 l2 = true) (pf2 : L.leq l2 l3 = true):
-  lemma_phi_mix |= (.condition .leq (.latl l1) (.latl l3)) := by
+theorem test_latt_mix (l1 l2 l3 : L.labels) (pf1 : L.leq l1 l2 = true) (pf2 : L.leq l2 l3 = true):
+  (lemma_phi_mix l1 l2 l3) |= (.condition .leq (.latl l1) (.latl l3)) := by
     solve_phi_validation lemma_phi_mix
 
-theorem test_latt_mix2 (pf1 : L.leq l1 l2 = true) (pf2 : L.leq l2 l3 = true):
-  lemma_phi_mix |= (.condition .geq (.var_label ⟨0, by omega⟩) (.latl l1)) := by
+theorem test_latt_mix2 (l1 l2 l3 : L.labels) :
+  lemma_phi_mix l1 l2 l3 |= (.condition .geq (.var_label ⟨0, by omega⟩) (.latl l1)) := by
     solve_phi_validation lemma_phi_mix
 
 -- Tedious example (non tactic)
-theorem test_latt_manual (pf1 : L.leq l1 l2 = true) :
-  lemma_phi_mix |= (.condition .leq (.latl l1) (.latl l2)) := by
+theorem test_latt_manual (l1 l2 l3 : L.labels) (pf1 : L.leq l1 l2 = true) :
+  lemma_phi_mix l1 l2 l3 |= (.condition .leq (.latl l1) (.latl l2)) := by
   intros pm vpm;
     have tester : forall l1 l2 l3, L.leq l1 l2 -> L.leq l2 l3 -> L.leq l1 l3 := L.leq_trans;
     unfold phi_map_holds;
@@ -1261,7 +1257,7 @@ theorem test_latt_manual (pf1 : L.leq l1 l2 = true) :
     unfold phi_map_holds at h_holds1
     unfold valid_constraint at h_holds1
     rw [<- lab_eq] at h_holds1
-    try simp [ren_label, shift, cons, subst_label] at h_holds1
+    try simp [ren_label, cons, subst_label] at h_holds1
     simp [var_zero] at h_holds1
     cases h_prev1 with
     | phi_cons l2 pm_prev2 phictx_prev2 phi_eq2 sym2 lab2 lab_val2 h_prev2 h_holds2 a2 =>
@@ -1273,7 +1269,7 @@ theorem test_latt_manual (pf1 : L.leq l1 l2 = true) :
       unfold phi_map_holds at h_holds2
       unfold valid_constraint at h_holds2
       all_ren lab_eq h_holds2 0 1
-      try simp [ren_label, shift, cons, subst_label] at h_holds2
+      try simp [ren_label, cons, subst_label] at h_holds2
       simp [var_zero] at h_holds2
       try simp [cons] at h_holds1
       try simp [cons]
@@ -1288,7 +1284,7 @@ theorem test_latt_manual (pf1 : L.leq l1 l2 = true) :
         unfold phi_map_holds at h_holds3
         unfold valid_constraint at h_holds3
         all_ren lab_eq h_holds3 0 2
-        try simp [ren_label, shift, cons, subst_label] at h_holds3
+        try simp [ren_label, cons, subst_label] at h_holds3
         simp [var_zero] at h_holds3
         try simp [cons] at h_holds2
         try simp [cons]

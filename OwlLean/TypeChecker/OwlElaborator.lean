@@ -10,6 +10,8 @@ declare_syntax_cat owl_type
 declare_syntax_cat owl_binary
 declare_syntax_cat owl_constr
 declare_syntax_cat owl_cond_sym
+declare_syntax_cat owl_phi
+declare_syntax_cat owl_phi_entry
 
 -- syntax for labels
 syntax ident : owl_label
@@ -485,3 +487,10 @@ partial def elabTm_closed : Syntax → TermElabM Expr
     let elab_t <- elabType_closed t
     mkAppM ``SExpr.annot #[elab_e, elab_t]
   | _ => throwUnsupportedSyntax
+
+-- Phi Mappings
+syntax "(" owl_cond_sym "," owl_label ")" : owl_phi_entry
+
+syntax "(" owl_phi ")" : owl_phi
+syntax "(" owl_phi_entry "," owl_phi ")" : owl_phi
+syntax "(" owl_phi_entry ")" : owl_phi

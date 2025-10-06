@@ -85,3 +85,10 @@ inductive SExpr : Type where
 | annot : SExpr -> STy -> SExpr
 | default : SExpr
 deriving Repr
+
+inductive SPhiEntry : Type where
+| PhiEntry : SCondSym -> SLabel -> SPhiEntry
+
+inductive SPhi : Type where
+| Phi_Cons : SPhiEntry -> SPhi -> SPhi
+| Phi_End : SPhi
