@@ -345,33 +345,58 @@ elab "term_parse" "(" p:owl_tm ")" : term =>
 elab "Owl_Parse" "{" p:owl_tm "}" : term => do
     elabTm p
 
-def elabHelperTy (s : STy) : ty 0 0 :=
-  match STy.elab s [] [] with
+def elabHelperTy (s : STy) (lvars : List String) (tvars : List String) : ty lvars.length tvars.length :=
+  match STy.elab s lvars tvars with
   | .some e => e
   | .none => ty.Any --default value
 
-def elabHelper (s : SExpr) : tm 0 0 0 :=
-  match SExpr.elab s [] [] [] with
+def elabHelper (s : SExpr) (lvars : List String) (tvars : List String) (vars : List String) : tm lvars.length tvars.length vars.length :=
+  match SExpr.elab s lvars tvars vars with
   | .some e => e
-  | .none => tm.skip --default value
+  | .none => tm.skip
 
 open Lean Elab Meta
 
 -- maybe haver this take in context syntax terms?
 -- likw g:owl_gamma or p:owl_phi
 -- then elaborate them and add their arguments?
-elab "Owl" "{" p:owl_tm "}" : term => do
+elab "Owl" "[" lvars:ident,* "]" "[" tvars:ident,* "]" "[" vars:ident,* "]" "{" p:owl_tm "}" : term => do
+  let varNames := vars.getElems.map (fun id => id.getId.toString)
+  let lvarNames := lvars.getElems.map (fun id => id.getId.toString)
+  let tvarNames := tvars.getElems.map (fun id => id.getId.toString)
+  let varList := varNames.toList
+  let tvarList := tvarNames.toList
+  let lvarList := lvarNames.toList
+
+  let varEList ← varNames.mapM (fun s => return mkStrLit s)
+  let lvarEList ← lvarNames.mapM (fun s => return mkStrLit s)
+  let tvarEList ← tvarNames.mapM (fun s => return mkStrLit s)
+
+    let varEListExpr ← mkListLit (mkConst ``String) varEList.toList
+  let lvarEListExpr ← mkListLit (mkConst ``String) lvarEList.toList
+  let tvarEListExpr ← mkListLit (mkConst ``String) tvarEList.toList
+
   let sexprTerm ← elabTm p
   let sexprTerm2 ← elabTm_closed p
   let sVal : SExpr ← unsafe do Meta.evalExpr SExpr (mkConst ``SExpr) sexprTerm2
-    match SExpr.elab sVal [] [] [] with
-    | .none   => throwError "owl: ill-formed term"
-    | .some _ => mkAppM ``elabHelper #[sexprTerm]
+  match SExpr.elab sVal lvarList tvarList varList with
+  | .none   => throwError "owl: ill-formed term"
+  | .some _ => mkAppM ``elabHelper #[sexprTerm, lvarEListExpr, tvarEListExpr, varEListExpr]
 
-elab "OwlTy" "{" p:owl_type "}" : term => do
-  let sexprTerm : Expr <- elabType p
+elab "OwlTy" "[" lvars:ident,* "]" "[" tvars:ident,* "]" "{" p:owl_type "}" : term => do
+  let lvarNames := lvars.getElems.map (fun id => id.getId.toString)
+  let tvarNames := tvars.getElems.map (fun id => id.getId.toString)
+  let tvarList := tvarNames.toList
+  let lvarList := lvarNames.toList
+
+  let lvarEList ← lvarNames.mapM (fun s => return mkStrLit s)
+  let tvarEList ← tvarNames.mapM (fun s => return mkStrLit s)
+  let lvarEListExpr ← mkListLit (mkConst ``String) lvarEList.toList
+  let tvarEListExpr ← mkListLit (mkConst ``String) tvarEList.toList
+
+  let sexprTerm ← elabType p
   let sexprTerm2 ← elabType_closed p
-  let sVal : STy <- (unsafe do Meta.evalExpr STy (mkConst ``STy) sexprTerm2)
-    match STy.elab sVal [] [] with
-    | .none => throwError "owl: ill-formed term"
-    | .some _ => mkAppM ``elabHelperTy #[sexprTerm]
+  let sVal : STy ← unsafe do Meta.evalExpr STy (mkConst ``STy) sexprTerm2
+  match STy.elab sVal lvarList tvarList with
+  | .none => throwError "owl: ill-formed term"
+  | .some _ => mkAppM ``elabHelperTy #[sexprTerm, lvarEListExpr, tvarEListExpr]

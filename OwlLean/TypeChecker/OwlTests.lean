@@ -76,11 +76,11 @@ def mul_op : Owl.op :=
 }
 
 -- check that Owl elaborates and translates
-#eval Owl {
+#eval Owl [x, y, z] [] [x, y]{
   *
 }
 
-#eval Owl {
+#eval Owl [] [] [] {
   fix factorial ( n )
     if n then
       ⟨ mul_op ⟩ ( n , factorial [ ⟨ sub_op ⟩ ( n , 1 ) ] )
@@ -88,7 +88,7 @@ def mul_op : Owl.op :=
       1
 }
 
-#eval Owl {
+#eval Owl [] [] [] {
   ( fix loop ( state )
     case (! state) in
       cont => loop [ alloc cont ]
@@ -96,29 +96,29 @@ def mul_op : Owl.op :=
   ) [ alloc ⟨ ı1 * , * ⟩ ]
 }
 
-#eval Owl {
+#eval Owl [] [] [] {
   unpack (pack (Unit, *)) as (a, x) in
     case π1 x in
       x => ⟨ ı1 x , π2 x ⟩
     | y => ⟨ ı2 y , π2 x ⟩
 }
 
-#eval Owl {
+#eval Owl [] [] [] {
   let x = 5 in
     x [x]
 }
 
 def test_embed (e : Owl.tm 0 0 0) : Owl.tm 0 0 0 :=
-  Owl {
+  Owl [] [] [] {
     ⟨$ e , $ e⟩
   }
 
 def test_lam : Owl.tm 0 0 0 :=
-  Owl {
+  Owl [] [] [] {
     Λ x . * [[x]]
   }
 
-#eval Owl {
+#eval Owl [] [] [] {
   ($ (test_embed test_lam)) [error]
 }
 
@@ -140,21 +140,21 @@ def rand : Owl.op :=
     Owl.Dist.ret (Owl.binary.bend)
 
 def ENC (betaK betaM betaC : Owl.label 0) :=
-  OwlTy {
+  OwlTy [] [] {
     ∃ alphaK <: (Data ($ betaK)) . alphaK * (if ($ betaK ⊑ $ betaC)
                                              then (Data ($ betaC) * Data ($ betaC) -> Data ($ betaC))
                                              else (alphaK * Data ($ betaM) -> Data ($ betaC)))
   }
 
 def Enc (betaK betaC : Owl.label 0) :=
-  Owl {
+  Owl [] [] [] {
     let k = ⟨genKey⟩ (*, *) in
     let enc = if ($ betaK ⊑ $ betaC) then λx . ⟨enc⟩ (π1 x, π2 x) else λx . ⟨rand⟩(zero π2 x, *) in
     pack (Unit, ⟨k, enc⟩) -- Unit is temp
   }
 
-def P (l1 l2 l3 adv : Owl.label 0) :=
-  Owl {
+def P (l1 l2 adv : Owl.label 0) :=
+  Owl [] [] [] {
     unpack $ (Enc l1 adv) as (alpha1, p1) in
     unpack $ (Enc l2 adv) as (alpha1, p2) in
     let n = sync ((π2 p1) [⟨π1 p1, π1 p2⟩]) in
@@ -165,11 +165,17 @@ def P (l1 l2 l3 adv : Owl.label 0) :=
 
 #reduce infer empty_sigma empty_phi empty_delta empty_gamma (.unpack (.annot packed_unit (.ex .Any .Unit)) .skip) (.some .Unit)
 
-def owl_ty :=
-  OwlTy {
+-- number of variables must match!
+def towl_ty :=
+  OwlTy [] [x] {
     Unit -> Unit
   }
 
+def towl_tm :=
+  Owl [] [x] [y] {
+    fix f (x) x
+  }
+
 theorem lambda_identity_unit_2  :
-          has_type empty_sigma empty_phi empty_delta empty_gamma (.fixlam (.var_tm ⟨1, by omega⟩)) (owl_ty) := by
+          has_type empty_sigma empty_phi (dcons .Unit empty_delta) (Owl.cons .Any empty_gamma) towl_tm (towl_ty) := by
   tc (try grind)
