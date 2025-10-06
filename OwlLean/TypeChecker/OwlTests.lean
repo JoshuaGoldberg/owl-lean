@@ -14,8 +14,10 @@ axiom low : Owl.Lcarrier
 axiom high : Owl.Lcarrier
 
 -- Then test:
-#check label_parse(⟨ bot ⟩)
+#check label_parse(⟨ Owl.L.bot ⟩)
 #check label_parse(⟨ low ⟩)
+
+#reduce OwlTy [] [] { Data ⟨ Owl.L.bot ⟩ }
 
 -- check that cond_sym works
 #eval cond_sym_parse(⊑)
@@ -38,7 +40,7 @@ def coin_flip : Owl.op :=
 
 -- check that terms works
 #eval term_parse(case * in x1 => pack (Unit, x1) | x2 => (Λ t . * [[ t ]]))
-#eval term_parse(* [[[ z ⊔ y ]]])
+#reduce term_parse(* [[[ z ⊔ ⟨Owl.L.bot⟩ ]]])
 #eval term_parse(⟨ coin_flip ⟩ ( ["110"] , ["110"]))
 
 -- check that terms works (format 2)
@@ -179,3 +181,10 @@ def towl_tm :=
 theorem lambda_identity_unit_2  :
           has_type empty_sigma empty_phi (dcons .Unit empty_delta) (Owl.cons .Any empty_gamma) towl_tm (towl_ty) := by
   tc (try grind)
+
+noncomputable def lemma_phi_new :=
+  Ψ:= (x, y ⊒ x, z ⊒ y, a ⊒ z)
+
+theorem test_latt_new :
+  lemma_phi_new |= (.condition .geq (.var_label ⟨0, by omega⟩) (.var_label ⟨3, by omega⟩)) := by
+    solve_phi_validation lemma_phi_new

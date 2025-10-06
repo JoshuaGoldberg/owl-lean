@@ -489,8 +489,98 @@ partial def elabTm_closed : Syntax → TermElabM Expr
   | _ => throwUnsupportedSyntax
 
 -- Phi Mappings
-syntax "(" owl_cond_sym "," owl_label ")" : owl_phi_entry
+syntax "(" owl_phi_entry ")" : owl_phi_entry
+syntax  ident owl_cond_sym owl_label : owl_phi_entry
+syntax ident : owl_phi_entry
 
-syntax "(" owl_phi ")" : owl_phi
+
+partial def elabPhiEntry : Syntax → MetaM Expr
+  | `(owl_phi_entry| ( $e:owl_phi_entry)) => elabPhiEntry e
+  | `(owl_phi_entry|  $id:ident $co:owl_cond_sym $lab:owl_label) => do
+      let elab_co <- elabCondSym co
+      let elab_lab <- elabLabel lab
+      mkAppM ``SPhiEntry.PhiEntry #[mkStrLit id.getId.toString, elab_co, elab_lab]
+  | `(owl_phi_entry| $id:ident) => do
+      let condSym <- mkAppM ``SCondSym.geq #[]
+      let botExpr := mkApp (mkConst ``Owl.Lattice.bot) (mkConst ``Owl.L)
+      let botLExpr <- mkAppM ``SLabel.latl #[botExpr]
+      mkAppM ``SPhiEntry.PhiEntry #[mkStrLit id.getId.toString, condSym, botLExpr]
+  | _ => throwUnsupportedSyntax
+
+partial def elabPhiEntry_closed : Syntax → MetaM Expr
+  | `(owl_phi_entry| ( $e:owl_phi_entry)) => elabPhiEntry_closed e
+  | `(owl_phi_entry|  $id:ident $co:owl_cond_sym $lab:owl_label) => do
+      let elab_co <- elabCondSym co
+      let elab_lab <- elabLabel_closed lab
+      mkAppM ``SPhiEntry.PhiEntry #[mkStrLit id.getId.toString, elab_co, elab_lab]
+  | `(owl_phi_entry| $id:ident) => do
+      let condSym <- mkAppM ``SCondSym.geq #[]
+      let botExpr <- mkAppM ``SLabel.default #[]
+      mkAppM ``SPhiEntry.PhiEntry #[mkStrLit id.getId.toString, condSym, botExpr]
+  | _ => throwUnsupportedSyntax
+
 syntax "(" owl_phi_entry "," owl_phi ")" : owl_phi
+syntax owl_phi_entry "," owl_phi : owl_phi
+syntax owl_phi_entry : owl_phi
 syntax "(" owl_phi_entry ")" : owl_phi
+
+@[simp]
+def SPhi.reverse (phi : SPhi) : SPhi :=
+  go phi Phi_End
+where
+  @[simp]
+  go : SPhi → SPhi → SPhi
+  | Phi_End, acc => acc
+  | Phi_Cons x xs, acc => go xs (Phi_Cons x acc)
+
+partial def elabPhiHelper : Syntax → MetaM Expr
+  | `(owl_phi| ($e1:owl_phi_entry, $rest:owl_phi)) => do
+    let elab_e1 ← elabPhiEntry e1
+    let elab_rest ← elabPhiHelper rest
+    mkAppM ``SPhi.Phi_Cons #[elab_e1, elab_rest]
+  | `(owl_phi| $e1:owl_phi_entry , $rest:owl_phi) => do
+    let elab_e1 ← elabPhiEntry e1
+    let elab_rest ← elabPhiHelper rest
+    mkAppM ``SPhi.Phi_Cons #[elab_e1, elab_rest]
+  | `(owl_phi| $e:owl_phi_entry) => do
+    let elab_e ← elabPhiEntry e
+    let phiEnd ← mkAppM ``SPhi.Phi_End #[]
+    mkAppM ``SPhi.Phi_Cons #[elab_e, phiEnd]
+  | `(owl_phi| ($e:owl_phi_entry) ) => do
+    let elab_e ← elabPhiEntry e
+    let phiEnd ← mkAppM ``SPhi.Phi_End #[]
+    mkAppM ``SPhi.Phi_Cons #[elab_e, phiEnd]
+  | _ => throwUnsupportedSyntax
+
+partial def elabPhiHelper_closed : Syntax → MetaM Expr
+  | `(owl_phi| ($e1:owl_phi_entry, $rest:owl_phi)) => do
+    let elab_e1 ← elabPhiEntry_closed e1
+    let elab_rest ← elabPhiHelper_closed rest
+    mkAppM ``SPhi.Phi_Cons #[elab_e1, elab_rest]
+  | `(owl_phi| $e1:owl_phi_entry , $rest:owl_phi) => do
+    let elab_e1 ← elabPhiEntry_closed e1
+    let elab_rest ← elabPhiHelper_closed rest
+    mkAppM ``SPhi.Phi_Cons #[elab_e1, elab_rest]
+  | `(owl_phi| $e:owl_phi_entry) => do
+    let elab_e ← elabPhiEntry_closed e
+    let phiEnd ← mkAppM ``SPhi.Phi_End #[]
+    mkAppM ``SPhi.Phi_Cons #[elab_e, phiEnd]
+  | `(owl_phi| ($e:owl_phi_entry) ) => do
+    let elab_e ← elabPhiEntry_closed e
+    let phiEnd ← mkAppM ``SPhi.Phi_End #[]
+    mkAppM ``SPhi.Phi_Cons #[elab_e, phiEnd]
+  | _ => throwUnsupportedSyntax
+
+partial def elabPhi (stx : Syntax) : MetaM Expr := do
+  let phi ← elabPhiHelper stx
+  mkAppM ``SPhi.reverse #[phi]
+
+partial def elabPhi_closed (stx : Syntax) : MetaM Expr := do
+  let phi ← elabPhiHelper_closed stx
+  mkAppM ``SPhi.reverse #[phi]
+
+-- test parser for labels
+elab "phi_parse" "(" p:owl_phi ")" : term =>
+    elabPhi p
+
+#reduce phi_parse ( (x, y, z ⊑ y) )

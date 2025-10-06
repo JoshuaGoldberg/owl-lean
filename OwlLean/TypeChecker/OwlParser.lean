@@ -1,4 +1,5 @@
 import OwlLean.TypeChecker.OwlElaborator
+import OwlLean.TypeChecker.OwlTyping
 import Lean
 import Std.Data.HashMap
 
@@ -10,6 +11,7 @@ open Owl
 
 def TCtx := List String
 
+@[simp]
 def TCtx.lookup (t : TCtx) (s : String) : Option (Fin t.length) :=
   match t with
   | [] => .none
@@ -25,6 +27,7 @@ def TCtx.lookup (t : TCtx) (s : String) : Option (Fin t.length) :=
 elab "label_parse" "(" p:owl_label ")" : term =>
     elabLabel p
 
+@[simp]
 def SLabel.elab (s : SLabel) (P : TCtx) : Option (Owl.label P.length) :=
   match s with
   | .var_label i =>
@@ -51,6 +54,7 @@ def SLabel.elab (s : SLabel) (P : TCtx) : Option (Owl.label P.length) :=
     .some (Eq.symm (Nat.zero_add P.length) ▸ l')
   | .default => .some label.default
 
+@[simp]
 def SCondSym.elab (s : SCondSym) : Option Owl.cond_sym :=
   match s with
   | .leq => .some .leq
@@ -66,6 +70,7 @@ def SCondSym.elab (s : SCondSym) : Option Owl.cond_sym :=
 elab "cond_sym_parse" "(" p:owl_cond_sym ")" : term =>
     elabCondSym p
 
+@[simp]
 def SConstr.elab (s : SConstr) (P : TCtx) : Option (Owl.constr P.length) :=
   match s with
   | .condition cs l1 l2 =>
@@ -83,6 +88,7 @@ def SConstr.elab (s : SConstr) (P : TCtx) : Option (Owl.constr P.length) :=
 elab "constraint_parse" "(" p:owl_constr ")" : term =>
     elabConstr p
 
+@[simp]
 def SBinary.elab (s : SBinary) : Option Owl.binary :=
   match s with
   | .bend => .some .bend
@@ -99,6 +105,7 @@ def SBinary.elab (s : SBinary) : Option Owl.binary :=
 elab "binary_parse" "(" p:owl_binary ")" : term =>
     elabBinary p
 
+@[simp]
 def STy.elab (s : STy) (P : TCtx) (D : TCtx): Option (Owl.ty P.length D.length) :=
   match s with
   | .var_ty i =>
@@ -180,6 +187,7 @@ def STy.elab (s : STy) (P : TCtx) (D : TCtx): Option (Owl.ty P.length D.length) 
 elab "type_parse" "(" p:owl_type ")" : term =>
     elabType p
 
+@[simp]
 def SExpr.elab (s : SExpr) (P : TCtx) (D : TCtx) (G : TCtx): Option (Owl.tm P.length D.length G.length) :=
   match s with
   | .var_tm i =>
@@ -345,11 +353,38 @@ elab "term_parse" "(" p:owl_tm ")" : term =>
 elab "Owl_Parse" "{" p:owl_tm "}" : term => do
     elabTm p
 
+@[simp]
+def SPhiEntry.elab (S : SPhiEntry) (P : TCtx) : Option (String × (cond_sym × label P.length)) :=
+  match S with
+  | .PhiEntry varName condSym lab =>
+    match SLabel.elab lab P with
+    | .none => .none
+    | .some lab' =>
+      match SCondSym.elab condSym with
+      | .none => .none
+      | .some cond' =>
+        .some (varName, (cond', lab'))
+
+@[simp]
+def SPhi.elab (phi : SPhi) : Option ((vars : List String) × phi_context vars.length) :=
+  match phi with
+  | .Phi_End => .some ⟨[], empty_phi⟩
+  | .Phi_Cons entry rest =>
+    match SPhi.elab rest with
+    | .none => .none
+    | .some ⟨varNames, phi'⟩ =>
+      match SPhiEntry.elab entry varNames with
+      | .none => .none
+      | .some (varName, (cond', lab')) =>
+        .some ⟨varName :: varNames, pcons (cond', lab') phi'⟩
+
+@[simp]
 def elabHelperTy (s : STy) (lvars : List String) (tvars : List String) : ty lvars.length tvars.length :=
   match STy.elab s lvars tvars with
   | .some e => e
   | .none => ty.Any --default value
 
+@[simp]
 def elabHelper (s : SExpr) (lvars : List String) (tvars : List String) (vars : List String) : tm lvars.length tvars.length vars.length :=
   match SExpr.elab s lvars tvars vars with
   | .some e => e
@@ -357,9 +392,35 @@ def elabHelper (s : SExpr) (lvars : List String) (tvars : List String) (vars : L
 
 open Lean Elab Meta
 
+@[simp]
+def emptyPhiOfLength : (n : Nat) → phi_context n
+  | 0 => empty_phi
+  | n+1 => pcons (.geq, .default) (emptyPhiOfLength n)
+
+@[simp]
+def phiWithLength (n : Nat) (sphi : SPhi) : phi_context n :=
+  match SPhi.elab sphi with
+  | .some ⟨vars, phi⟩ =>
+    if h : vars.length = n then (h ▸ phi) else emptyPhiOfLength n
+  | .none => emptyPhiOfLength n
+
+@[simp]
+elab "Ψ:=" p:owl_phi : term => do
+  let sexprPhi ← elabPhi p
+  let sexprPhi2 ← elabPhi_closed p
+  let sVal : SPhi ← unsafe do Meta.evalExpr SPhi (mkConst ``SPhi) sexprPhi2
+  match SPhi.elab sVal with
+  | .none   => throwError "owl phi: ill-formed term"
+  | .some ⟨vars, _⟩ =>
+    let lenExpr := mkNatLit vars.length
+    mkAppM ``phiWithLength #[lenExpr, sexprPhi]
+
+#reduce Ψ:= ( (x ⊑ ⟨Owl.L.bot⟩) )
+
 -- maybe haver this take in context syntax terms?
 -- likw g:owl_gamma or p:owl_phi
 -- then elaborate them and add their arguments?
+@[simp]
 elab "Owl" "[" lvars:ident,* "]" "[" tvars:ident,* "]" "[" vars:ident,* "]" "{" p:owl_tm "}" : term => do
   let varNames := vars.getElems.map (fun id => id.getId.toString)
   let lvarNames := lvars.getElems.map (fun id => id.getId.toString)
@@ -383,6 +444,7 @@ elab "Owl" "[" lvars:ident,* "]" "[" tvars:ident,* "]" "[" vars:ident,* "]" "{" 
   | .none   => throwError "owl: ill-formed term"
   | .some _ => mkAppM ``elabHelper #[sexprTerm, lvarEListExpr, tvarEListExpr, varEListExpr]
 
+@[simp]
 elab "OwlTy" "[" lvars:ident,* "]" "[" tvars:ident,* "]" "{" p:owl_type "}" : term => do
   let lvarNames := lvars.getElems.map (fun id => id.getId.toString)
   let tvarNames := tvars.getElems.map (fun id => id.getId.toString)

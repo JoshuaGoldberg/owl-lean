@@ -1131,6 +1131,7 @@ macro_rules
       unfold valid_constraint;
       simp [subst_label];
       unfold $lemma_phi:ident at vpm;
+      simp at vpm;
       unfold pcons at vpm;
       case_phi vpm vpm vpm 1 0
     )

@@ -35,7 +35,7 @@ inductive SConstr : Type where
 deriving Repr
 
 inductive STy : Type where
-| var_ty :String -> STy
+| var_ty : String -> STy
 | Any : STy
 | Unit : STy
 | Data : SLabel -> STy
@@ -87,8 +87,10 @@ inductive SExpr : Type where
 deriving Repr
 
 inductive SPhiEntry : Type where
-| PhiEntry : SCondSym -> SLabel -> SPhiEntry
+| PhiEntry : String -> SCondSym -> SLabel -> SPhiEntry
+deriving Repr
 
 inductive SPhi : Type where
 | Phi_Cons : SPhiEntry -> SPhi -> SPhi
 | Phi_End : SPhi
+deriving Repr
