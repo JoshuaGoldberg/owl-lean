@@ -428,6 +428,7 @@ def PhiEntails (phi : phi_context n) (cond : constr n) : Prop :=
   phi |= cond
 
 elab "(" phi:owl_phi " ⊨ " cond:owl_constr ")" : term => do
+
     let sexprPhi ← elabPhi phi
     let sexprPhi2 ← elabPhi_closed phi
 

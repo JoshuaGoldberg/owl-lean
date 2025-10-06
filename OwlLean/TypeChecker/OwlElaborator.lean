@@ -524,6 +524,7 @@ syntax owl_phi_entry "," owl_phi : owl_phi
 syntax owl_phi_entry : owl_phi
 syntax "(" owl_phi_entry ")" : owl_phi
 
+-- a nice and simple reversal
 @[simp]
 def SPhi.reverse (phi : SPhi) : SPhi :=
   go phi Phi_End
