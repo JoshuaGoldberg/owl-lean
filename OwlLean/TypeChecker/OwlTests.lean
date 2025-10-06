@@ -179,11 +179,11 @@ def towl_tm :=
   }
 
 theorem lambda_identity_unit_2  :
-          has_type empty_sigma (Ψ:= x)
+          has_type empty_sigma (Ψ:= (x, y ⊑ x))
                                (dcons .Unit empty_delta)
                                (Owl.cons .Any empty_gamma)
-                               (Owl [x] [x] [y] { fix f (z) z })
-                               (OwlTy [x] [x] { Unit -> Unit }) :=
+                               (Owl [x, y] [x] [y] { fix f (z) z })
+                               (OwlTy [x, y] [x] { Unit -> Unit }) :=
   by
   tc (try grind)
 

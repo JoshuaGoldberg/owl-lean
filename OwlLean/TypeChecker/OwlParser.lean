@@ -489,6 +489,7 @@ elab "OwlTy" "[" lvars:ident,* "]" "[" tvars:ident,* "]" "{" p:owl_type "}" : te
 
   let sexprTerm ← elabType p
   let sexprTerm2 ← elabType_closed p
+
   let sVal : STy ← unsafe do Meta.evalExpr STy (mkConst ``STy) sexprTerm2
   match STy.elab sVal lvarList tvarList with
   | .none => throwError "owl: ill-formed term"
