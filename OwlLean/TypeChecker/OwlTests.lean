@@ -169,17 +169,17 @@ def P (l1 l2 adv : Owl.label 0) :=
 
 -- number of variables must match!
 def towl_ty :=
-  OwlTy [] [x] {
+  OwlTy [x] [x] {
     Unit -> Unit
   }
 
 def towl_tm :=
-  Owl [] [x] [y] {
+  Owl [x] [x] [y] {
     fix f (z) z
   }
 
 theorem lambda_identity_unit_2  :
-          has_type empty_sigma empty_phi (dcons .Unit empty_delta) (Owl.cons .Any empty_gamma) towl_tm (towl_ty) := by
+          has_type empty_sigma (Ψ:= x) (dcons .Unit empty_delta) (Owl.cons .Any empty_gamma) towl_tm (towl_ty) := by
   tc (try grind)
 
 noncomputable def lemma_phi_new :=
