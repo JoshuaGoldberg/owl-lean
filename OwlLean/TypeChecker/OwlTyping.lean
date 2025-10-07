@@ -333,6 +333,9 @@ structure STType (Phi : phi_context l) (Delta : delta_context l d)
 
 notation:100  "grind" ck => (Conditional.side_condition_sound ck (by grind))
 
+
+-- TODO : Finish up various cases that have not yet been completed (for check_subtype and infer)!
+
 def check_subtype  (fuel : Nat) (Phi : phi_context l) (Delta : delta_context l d)
                            (t1 : ty l d) (t2 : ty l d) : Option (Conditional (subtype Phi Delta t1 t2)) :=
     match fuel with

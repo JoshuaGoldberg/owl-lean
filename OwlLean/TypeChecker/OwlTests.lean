@@ -178,6 +178,10 @@ def towl_tm :=
     fix f (z) z
   }
 
+noncomputable def lemma_phi_new :=
+  Ψ:= (x, y ⊒ x, z ⊒ y, a ⊒ z)
+
+-- OLD WAY (cool, but not *as* cool)
 theorem lambda_identity_unit_2  :
           has_type  (Ψ:= (x, y ⊑ x))
                     (dcons .Unit empty_delta)
@@ -187,11 +191,8 @@ theorem lambda_identity_unit_2  :
   by
   tc (try grind)
 
-noncomputable def lemma_phi_new :=
-  Ψ:= (x, y ⊒ x, z ⊒ y, a ⊒ z)
-
-
-theorem lambda_identity_unit_3  :
+-- NEW WAY (easier to write, cleaner in various ways, but doesn't quite support embedding)
+theorem lambda_identity_unit_3 :
   m_has_type (x, y ⊑ x) (x <: Unit, y <: Data y) (x => Any, y => Data ⟨Owl.L.bot⟩) (fix f (z) z) (Unit -> Any) :=
   by
   tc (try grind)
