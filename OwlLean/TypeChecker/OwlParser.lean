@@ -375,6 +375,15 @@ def SDeltaEntry.elab (S : SDeltaEntry) (P : TCtx) (D : TCtx) : Option (String ×
       .some (varName, t')
 
 @[simp]
+def SGammaEntry.elab (S : SGammaEntry) (P : TCtx) (D : TCtx) : Option (String × ty P.length D.length) :=
+  match S with
+  | .GammaEntry varName t =>
+    match STy.elab t P D with
+    | .none => .none
+    | .some t' =>
+      .some (varName, t')
+
+@[simp]
 def SPhi.elab (phi : SPhi) : Option ((vars : List String) × phi_context vars.length) :=
   match phi with
   | .Phi_End => .some ⟨[], empty_phi⟩
@@ -388,17 +397,48 @@ def SPhi.elab (phi : SPhi) : Option ((vars : List String) × phi_context vars.le
         .some ⟨varName :: varNames, pcons (cond', lab') phi'⟩
 
 @[simp]
-def SDelta.elab (delta : SDelta) : Option ((lvars : List String) × (tvars : List String) × delta_context lvars.length tvars.length) :=
+def SPhi.getVars (phi : SPhi) : (List String) :=
+  match phi with
+  | .Phi_End => []
+  | .Phi_Cons ⟨varName, _, _⟩ rest => varName :: SPhi.getVars rest
+
+@[simp]
+def SDelta.elab (delta : SDelta) (lvars : List String) : Option ((tvars : List String) × delta_context lvars.length tvars.length) :=
   match delta with
-  | .Delta_End => .some ⟨[], [], empty_delta⟩
-  | .Delta_Cons t rest =>
-    match SDelta.elab rest with
+  | .Delta_End => .some ⟨[], empty_delta⟩
+  | .Delta_Cons entry rest =>
+    match SDelta.elab rest lvars with
     | .none => .none
-    | .some ⟨varsl, varst, delta'⟩ =>
-      match SDeltaEntry.elab t varsl varst with
+    | .some ⟨varst, delta'⟩ =>
+      match SDeltaEntry.elab entry lvars varst with
       | .none => .none
       | .some ⟨varName, t'⟩ =>
-        .some ⟨varsl, varName :: varst, dcons t' delta'⟩
+        .some ⟨varName :: varst, dcons t' delta'⟩
+
+@[simp]
+def SDelta.getVars (delta : SDelta) : (List String) :=
+  match delta with
+  | .Delta_End => []
+  | .Delta_Cons ⟨varName, _⟩ rest => varName :: SDelta.getVars rest
+
+@[simp]
+def SGamma.elab (gamma : SGamma) (lvars : List String) (tvars : List String) : Option ((vars : List String) × gamma_context lvars.length tvars.length vars.length) :=
+  match gamma with
+  | .Gamma_End => .some ⟨[], empty_gamma⟩
+  | .Gamma_Cons t rest =>
+    match SGamma.elab rest lvars tvars with
+    | .none => .none
+    | .some ⟨vars, gamma'⟩ =>
+      match SGammaEntry.elab t lvars tvars with
+      | .none => .none
+      | .some ⟨varName, t'⟩ =>
+        .some ⟨varName :: vars, cons t' gamma'⟩
+
+@[simp]
+def SGamma.getVars (gamma : SGamma) : (List String) :=
+  match gamma with
+  | .Gamma_End => []
+  | .Gamma_Cons ⟨varName, _⟩ rest => varName :: SGamma.getVars rest
 
 @[simp]
 def elabHelperTy (s : STy) (lvars : List String) (tvars : List String) : ty lvars.length tvars.length :=
@@ -421,7 +461,7 @@ def elabHelper (s : SExpr) (lvars : List String) (tvars : List String) (vars : L
 open Lean Elab Meta
 
 @[simp]
-def emptyPhiOfLength : (n : Nat) → phi_context n
+def emptyPhiOfLength : (n : Nat) -> phi_context n
   | 0 => empty_phi
   | n+1 => pcons (.geq, .default) (emptyPhiOfLength n)
 
@@ -431,6 +471,43 @@ def phiWithLength (n : Nat) (sphi : SPhi) : phi_context n :=
   | .some ⟨vars, phi⟩ =>
     if h : vars.length = n then (h ▸ phi) else emptyPhiOfLength n
   | .none => emptyPhiOfLength n
+
+@[simp]
+def emptyDeltaOfLength : (l : Nat) -> (t : Nat) -> delta_context l t
+  | 0, 0 => empty_delta
+  | n+1, t => lift_delta_l (emptyDeltaOfLength n t)
+  | n, k+1 => dcons .default (emptyDeltaOfLength n k)
+
+@[simp]
+def deltaWithLength (l : Nat) (t : Nat) (sdelta : SDelta) (lvars : List String) : delta_context l t :=
+  match SDelta.elab sdelta lvars with
+  | .some ⟨tvars, delta⟩ =>
+    if h1 : lvars.length = l then
+      if h2 : tvars.length = t then
+        (h2 ▸ (h1 ▸ delta))
+      else emptyDeltaOfLength l t
+    else emptyDeltaOfLength l t
+  | .none => emptyDeltaOfLength l t
+
+@[simp]
+def emptyGammaOfLength : (l : Nat) -> (t : Nat) -> (m : Nat) -> gamma_context l t m
+  | 0, 0, 0 => empty_gamma
+  | n+1, t, m => lift_gamma_l (emptyGammaOfLength n t m)
+  | l, k+1, m => lift_gamma_d (emptyGammaOfLength l k m)
+  | l, t, j+1 => cons .default (emptyGammaOfLength l t j)
+
+@[simp]
+def gammaWithLength (l : Nat) (t : Nat) (m : Nat) (sgamma : SGamma) (lvars : List String) (tvars : List String) : gamma_context l t m :=
+  match SGamma.elab sgamma lvars tvars with
+  | .some ⟨vars, gamma⟩ =>
+    if h1 : lvars.length = l then
+      if h2 : tvars.length = t then
+        if h3 : vars.length = m then
+          (h3 ▸ (h2 ▸ (h1 ▸ gamma)))
+        else emptyGammaOfLength l t m
+      else emptyGammaOfLength l t m
+    else emptyGammaOfLength l t m
+  | .none => emptyGammaOfLength l t m
 
 @[simp]
 elab "Ψ:=" p:owl_phi : term => do
@@ -516,3 +593,33 @@ elab "OwlTy" "[" lvars:ident,* "]" "[" tvars:ident,* "]" "{" p:owl_type "}" : te
   match STy.elab sVal lvarList tvarList with
   | .none => throwError "owl: ill-formed term"
   | .some _ => mkAppM ``elabHelperTy #[sexprTerm, lvarEListExpr, tvarEListExpr]
+
+elab "m_has_type" p:owl_phi d:owl_delta g:owl_gamma e:owl_tm t:owl_type : term => do
+
+  let sphiExpr2 ← elabPhi_closed p
+  let sphi : SPhi ← unsafe do Meta.evalExpr SPhi (mkConst ``SPhi) sphiExpr2
+
+  let sdeltaExpr2 ← elabDelta_closed d
+  let sdelta : SDelta ← unsafe do Meta.evalExpr SDelta (mkConst ``SDelta) sdeltaExpr2
+
+  let sgammaExpr2 ← elabGamma_closed g
+  let sgamma : SGamma ← unsafe do Meta.evalExpr SGamma (mkConst ``SGamma) sgammaExpr2
+
+  let lvars := SPhi.getVars sphi
+  let tvars := SDelta.getVars sdelta
+  let vars := SGamma.getVars sgamma
+
+  let lvarsExpr ← mkListLit (mkConst ``String) (← lvars.mapM (fun s => return mkStrLit s))
+  let tvarsExpr ← mkListLit (mkConst ``String) (← tvars.mapM (fun s => return mkStrLit s))
+  let varsExpr ← mkListLit (mkConst ``String) (← vars.mapM (fun s => return mkStrLit s))
+
+  let phiExpr ← mkAppM ``phiWithLength #[mkNatLit lvars.length, ← elabPhi p]
+  let deltaExpr ← mkAppM ``deltaWithLength #[mkNatLit lvars.length, mkNatLit tvars.length,
+                                           ← elabDelta d, lvarsExpr]
+  let gammaExpr ← mkAppM ``gammaWithLength #[mkNatLit lvars.length, mkNatLit tvars.length,
+                                            mkNatLit vars.length, ← elabGamma g,
+                                            lvarsExpr, tvarsExpr]
+  let tyExpr ← mkAppM ``elabHelperTy #[← elabType t, lvarsExpr, tvarsExpr]
+  let tmExpr ← mkAppM ``elabHelper #[← elabTm e, lvarsExpr, tvarsExpr, varsExpr]
+
+  mkAppM ``has_type #[phiExpr, deltaExpr, gammaExpr, tmExpr, tyExpr]

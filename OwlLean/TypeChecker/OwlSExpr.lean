@@ -104,7 +104,11 @@ inductive SDelta : Type where
 | Delta_End : SDelta
 deriving Repr
 
+inductive SGammaEntry : Type where
+| GammaEntry : String -> STy -> SGammaEntry
+deriving Repr
+
 inductive SGamma : Type where
-| Gamma_Cons : STy -> SGamma -> SGamma
+| Gamma_Cons : SGammaEntry -> SGamma -> SGamma
 | Gamma_End : SGamma
 deriving Repr

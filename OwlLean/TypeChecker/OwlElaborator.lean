@@ -15,6 +15,7 @@ declare_syntax_cat owl_phi_entry
 declare_syntax_cat owl_delta
 declare_syntax_cat owl_gamma
 declare_syntax_cat owl_delta_entry
+declare_syntax_cat owl_gamma_entry
 
 -- syntax for labels
 syntax ident : owl_label
@@ -538,6 +539,23 @@ partial def elabDeltaEntry_closed : Syntax → MetaM Expr
       mkAppM ``SDeltaEntry.DeltaEntry #[mkStrLit id.getId.toString, elab_t]
   | _ => throwUnsupportedSyntax
 
+syntax "(" owl_gamma_entry ")" : owl_gamma_entry
+syntax  ident "=>" owl_type : owl_gamma_entry
+
+partial def elabGammaEntry : Syntax → MetaM Expr
+  | `(owl_gamma_entry| ( $e:owl_gamma_entry)) => elabGammaEntry e
+  | `(owl_gamma_entry|  $id:ident => $t:owl_type) => do
+      let elab_t <- elabType t
+      mkAppM ``SGammaEntry.GammaEntry #[mkStrLit id.getId.toString, elab_t]
+  | _ => throwUnsupportedSyntax
+
+partial def elabGammaEntry_closed : Syntax → MetaM Expr
+  | `(owl_gamma_entry| ( $e:owl_gamma_entry)) => elabGammaEntry_closed e
+  | `(owl_gamma_entry|  $id:ident => $t:owl_type) => do
+      let elab_t <- elabType_closed t
+      mkAppM ``SGammaEntry.GammaEntry #[mkStrLit id.getId.toString, elab_t]
+  | _ => throwUnsupportedSyntax
+
 syntax "(" owl_phi_entry "," owl_phi ")" : owl_phi
 syntax owl_phi_entry "," owl_phi : owl_phi
 syntax owl_phi_entry : owl_phi
@@ -561,6 +579,15 @@ where
   go : SDelta → SDelta → SDelta
   | Delta_End, acc => acc
   | Delta_Cons x xs, acc => go xs (Delta_Cons x acc)
+
+@[simp]
+def SGamma.reverse (gamma : SGamma) : SGamma :=
+  go gamma Gamma_End
+where
+  @[simp]
+  go : SGamma → SGamma → SGamma
+  | Gamma_End, acc => acc
+  | Gamma_Cons x xs, acc => go xs (Gamma_Cons x acc)
 
 partial def elabPhiHelper : Syntax → MetaM Expr
   | `(owl_phi| ($e1:owl_phi_entry, $rest:owl_phi)) => do
@@ -620,8 +647,8 @@ partial def elabDeltaHelper : Syntax → MetaM Expr
     mkAppM ``SDelta.Delta_Cons #[elab_e, phiEnd]
   | `(owl_delta| ($e:owl_delta_entry) ) => do
     let elab_e ← elabDeltaEntry e
-    let phiEnd ← mkAppM ``SDelta.Delta_End #[]
-    mkAppM ``SDelta.Delta_Cons #[elab_e, phiEnd]
+    let deltaEnd ← mkAppM ``SDelta.Delta_End #[]
+    mkAppM ``SDelta.Delta_Cons #[elab_e, deltaEnd]
   | _ => throwUnsupportedSyntax
 
 partial def elabDeltaHelper_closed : Syntax → MetaM Expr
@@ -639,8 +666,51 @@ partial def elabDeltaHelper_closed : Syntax → MetaM Expr
     mkAppM ``SDelta.Delta_Cons #[elab_e, phiEnd]
   | `(owl_delta| ($e:owl_delta_entry) ) => do
     let elab_e ← elabDeltaEntry_closed e
-    let phiEnd ← mkAppM ``SDelta.Delta_End #[]
-    mkAppM ``SDelta.Delta_Cons #[elab_e, phiEnd]
+    let deltaEnd ← mkAppM ``SDelta.Delta_End #[]
+    mkAppM ``SDelta.Delta_Cons #[elab_e, deltaEnd]
+  | _ => throwUnsupportedSyntax
+
+syntax "(" owl_gamma_entry "," owl_gamma ")" : owl_gamma
+syntax owl_gamma_entry "," owl_gamma : owl_gamma
+syntax owl_gamma_entry : owl_gamma
+syntax "(" owl_gamma_entry ")" : owl_gamma
+
+partial def elabGammaHelper : Syntax → MetaM Expr
+  | `(owl_gamma| ($e1:owl_gamma_entry, $rest:owl_gamma)) => do
+    let elab_e1 ← elabGammaEntry e1
+    let elab_rest ← elabGammaHelper rest
+    mkAppM ``SGamma.Gamma_Cons #[elab_e1, elab_rest]
+  | `(owl_gamma| $e1:owl_gamma_entry , $rest:owl_gamma) => do
+    let elab_e1 ← elabGammaEntry e1
+    let elab_rest ← elabGammaHelper rest
+    mkAppM ``SGamma.Gamma_Cons #[elab_e1, elab_rest]
+  | `(owl_gamma| $e:owl_gamma_entry) => do
+    let elab_e ← elabGammaEntry e
+    let gammaEnd ← mkAppM ``SGamma.Gamma_End #[]
+    mkAppM ``SGamma.Gamma_Cons #[elab_e, gammaEnd]
+  | `(owl_gamma| ($e:owl_gamma_entry) ) => do
+    let elab_e ← elabGammaEntry e
+    let gammaEnd ← mkAppM ``SGamma.Gamma_End #[]
+    mkAppM ``SGamma.Gamma_Cons #[elab_e, gammaEnd]
+  | _ => throwUnsupportedSyntax
+
+partial def elabGammaHelper_closed : Syntax → MetaM Expr
+  | `(owl_gamma| ($e1:owl_gamma_entry, $rest:owl_gamma)) => do
+    let elab_e1 ← elabGammaEntry_closed e1
+    let elab_rest ← elabGammaHelper_closed rest
+    mkAppM ``SGamma.Gamma_Cons #[elab_e1, elab_rest]
+  | `(owl_gamma| $e1:owl_gamma_entry , $rest:owl_gamma) => do
+    let elab_e1 ← elabGammaEntry_closed e1
+    let elab_rest ← elabGammaHelper_closed rest
+    mkAppM ``SGamma.Gamma_Cons #[elab_e1, elab_rest]
+  | `(owl_gamma| $e:owl_gamma_entry) => do
+    let elab_e ← elabGammaEntry_closed e
+    let gammaEnd ← mkAppM ``SGamma.Gamma_End #[]
+    mkAppM ``SGamma.Gamma_Cons #[elab_e, gammaEnd]
+  | `(owl_gamma| ($e:owl_gamma_entry) ) => do
+    let elab_e ← elabGammaEntry_closed e
+    let gammaEnd ← mkAppM ``SGamma.Gamma_End #[]
+    mkAppM ``SGamma.Gamma_Cons #[elab_e, gammaEnd]
   | _ => throwUnsupportedSyntax
 
 partial def elabPhi (stx : Syntax) : MetaM Expr := do
@@ -658,6 +728,14 @@ partial def elabDelta (stx : Syntax) : MetaM Expr := do
 partial def elabDelta_closed (stx : Syntax) : MetaM Expr := do
   let delta ← elabDeltaHelper_closed stx
   mkAppM ``SDelta.reverse #[delta]
+
+partial def elabGamma (stx : Syntax) : MetaM Expr := do
+  let gamma ← elabGammaHelper stx
+  mkAppM ``SGamma.reverse #[gamma]
+
+partial def elabGamma_closed (stx : Syntax) : MetaM Expr := do
+  let gamma ← elabGammaHelper_closed stx
+  mkAppM ``SGamma.reverse #[gamma]
 
 -- test parser for labels
 elab "phi_parse" "(" p:owl_phi ")" : term =>

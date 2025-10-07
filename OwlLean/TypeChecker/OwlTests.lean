@@ -165,7 +165,7 @@ def P (l1 l2 adv : Owl.label 0) :=
 
 -- TC tests
 
-#reduce infer empty_sigma empty_phi empty_delta empty_gamma (.unpack (.annot packed_unit (.ex .Any .Unit)) .skip) (.some .Unit)
+#reduce infer empty_phi empty_delta empty_gamma (.unpack (.annot packed_unit (.ex .Any .Unit)) .skip) (.some .Unit)
 
 -- number of variables must match!
 def towl_ty :=
@@ -179,16 +179,22 @@ def towl_tm :=
   }
 
 theorem lambda_identity_unit_2  :
-          has_type empty_sigma (Ψ:= (x, y ⊑ x))
-                               (dcons .Unit empty_delta)
-                               (Owl.cons .Any empty_gamma)
-                               (Owl [x, y] [x] [y] { fix f (z) z })
-                               (OwlTy [x, y] [x] { Unit -> Unit }) :=
+          has_type  (Ψ:= (x, y ⊑ x))
+                    (dcons .Unit empty_delta)
+                    (Owl.cons .Any empty_gamma)
+                    (Owl [x, y] [x] [y] { fix f (z) z })
+                    (OwlTy [x, y] [x] { Unit -> Unit }) :=
   by
   tc (try grind)
 
 noncomputable def lemma_phi_new :=
   Ψ:= (x, y ⊒ x, z ⊒ y, a ⊒ z)
+
+
+theorem lambda_identity_unit_3  :
+  m_has_type (x, y ⊑ x) (x <: Unit, y <: Data y) (x => Any, y => Data ⟨Owl.L.bot⟩) (fix f (z) z) (Unit -> Any) :=
+  by
+  tc (try grind)
 
 -- cool test
 theorem test_latt_new :
