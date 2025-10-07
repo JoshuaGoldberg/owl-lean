@@ -845,6 +845,189 @@ syntax "tc_full" term:max term:max term:max term:max term:max tactic : tactic
 
 open Lean Meta Elab Tactic
 
+def simple_test_delta :=
+   (dcons .Unit (@empty_delta 0))
+
+def test_delta_2 :=
+   (dcons (.var_ty ⟨0, by omega⟩) simple_test_delta)
+
+noncomputable def simple_test_phi :=
+  (pcons (.geq, .var_label ⟨0, by omega⟩) (pcons (.geq, .latl L.bot) empty_phi))
+
+noncomputable def simple_test_gamma : gamma_context 0 0 1 :=
+  (cons .Unit empty_gamma)
+
+theorem cons_surjective {n : Nat} (f : Fin (n + 1) → label 0) :
+  ∃ (head : label 0) (tail : Fin n → label 0),
+    f = cons head tail := by
+  exists f 0
+  exists (fun i => f i.succ)
+  funext i
+  cases i using Fin.cases
+  · rfl
+  · rfl
+
+theorem ren_label_injective
+  (h : forall x y, xi x = xi y -> x = y) :
+  forall s1 s2, ren_label xi s1 = ren_label xi s2 → s1 = s2 := by
+  intro s1 s2 heq
+  induction s1 generalizing s2 with
+  | var_label x =>
+      cases s2 <;> simp [ren_label] at heq
+      congr
+      exact h _ _ heq
+  | latl l =>
+      cases s2 <;> simp [ren_label] at heq
+      subst heq
+      rfl
+  | ljoin l1 l2 ih1 ih2 =>
+      cases s2 <;> simp [ren_label] at heq
+      congr
+      · exact ih1 _ heq.1
+      · exact ih2 _ heq.2
+  | lmeet l1 l2 ih1 ih2 =>
+      cases s2 <;> simp [ren_label] at heq
+      congr
+      · exact ih1 _ heq.1
+      · exact ih2 _ heq.2
+  | default =>
+      cases s2 <;> simp [ren_label] at heq
+      rfl
+
+theorem shift_injective : forall (x : Fin l) (y : Fin l), shift x = shift y -> x = y := by
+  intro x y h
+  simp [shift] at h
+  exact h
+
+syntax "solve_phi_validation" ident : tactic
+syntax "solve_phi_validation_anon" : tactic
+syntax "solve_phi_validation_anon_no_simp" : tactic
+syntax "case_phi " ident ident ident num num : tactic
+syntax "all_ren" ident ident num num : tactic
+
+macro_rules
+  | `(tactic| all_ren $test:ident $inj:ident $curr:num $goal:num) => do
+      let suf := "_" ++ toString curr.getNat
+      let mk (s : String) : TSyntax `ident := mkIdent <| Name.str .anonymous (s ++ suf)
+      let eId := mk "e"
+      let currVal := (curr.getNat)
+      let currNextVal := (curr.getNat + 1)
+      let currNextValSyntax := Syntax.mkNumLit (toString currNextVal)
+      let goalVal := (goal.getNat)
+      if currVal < goalVal then
+        `(tactic|
+          have $(eId):ident := ren_label_injective shift_injective _ _ $test:ident;
+          all_ren $(eId):ident $inj:ident $currNextValSyntax $goal:num)
+      else
+        `(tactic|
+          try rw [<- $test:ident] at $inj:ident)
+  | `(tactic| solve_phi_validation $lemma_phi:ident) => `(tactic|
+      intros pm vpm;
+      trace "hi 1";
+      have tester : forall l1 l2 l3, L.leq l1 l2 -> L.leq l2 l3 -> L.leq l1 l3 := L.leq_trans;
+      have tester' : forall l, L.leq L.bot l = true := L.bot_all;
+      unfold phi_map_holds;
+      unfold valid_constraint;
+      simp [subst_label];
+      unfold $lemma_phi:ident at vpm;
+      simp at vpm;
+      unfold pcons at vpm;
+      case_phi vpm vpm vpm 1 0
+    )
+  | `(tactic| solve_phi_validation_anon) => `(tactic|
+      intros pm vpm;
+      trace "hi 1";
+      have tester : forall l1 l2 l3, L.leq l1 l2 -> L.leq l2 l3 -> L.leq l1 l3 := L.leq_trans;
+      have tester' : forall l, L.leq L.bot l = true := L.bot_all;
+      unfold phi_map_holds;
+      unfold valid_constraint;
+      trace "hi 1.2";
+      simp [subst_label];
+      simp at vpm;
+      trace "hi 1.5";
+      unfold pcons at vpm;
+      case_phi vpm vpm vpm 1 0
+    )
+  | `(tactic| solve_phi_validation_anon_no_simp) => `(tactic|
+      intros pm vpm;
+      trace "hi 1";
+      have tester : forall l1 l2 l3, L.leq l1 l2 -> L.leq l2 l3 -> L.leq l1 l3 := L.leq_trans;
+      have tester' : forall l, L.leq L.bot l = true := L.bot_all;
+      unfold phi_map_holds;
+      unfold valid_constraint;
+      trace "hi 1.2";
+      simp [subst_label];
+      trace "hi 1.5";
+      unfold pcons at vpm;
+      case_phi vpm vpm vpm 1 0
+    )
+  | `(tactic| case_phi $H:ident $A:ident $prevHold:ident $k:num $iter:num) => do
+      let suf := "_" ++ toString k.getNat
+      let iterVal := (iter.getNat)
+      let newKVal := (k.getNat + 1)
+      let prevKVal := (k.getNat - 1)
+      let prevKValSyntax := Syntax.mkNumLit (toString prevKVal)
+      let newIterVal := (iter.getNat + 1)
+      let newIterSyntax := Syntax.mkNumLit (toString newIterVal)
+      let newKSyntax := Syntax.mkNumLit (toString newKVal)
+      let mk (s : String) : TSyntax `ident := mkIdent <| Name.str .anonymous (s ++ suf)
+      let lId         := mk "l"
+      let pmPrevId    := mk "pm_prev"
+      let pctxPrevId  := mk "phictx_prev"
+      let phiEqId     := mk "phi_eq"
+      let symId       := mk "sym"
+      let labId       := mk "lab"
+      let labValId    := mk "lab_val"
+      let tailId      := mk "vpm_tail"
+      let headHoldsId := mk "head_holds"
+      let aId       := mk "a"
+      let hId := mk "h0"
+      let labeqId := mk "lab_eq"
+      if iterVal = 0 then
+        `(tactic|
+          cases $H:ident with
+          | phi_cons $(lId):ident $(pmPrevId):ident $(pctxPrevId):ident $(phiEqId):ident
+                    $(symId):ident $(labId):ident $(labValId):ident
+                    $(tailId):ident $(headHoldsId):ident $(aId):ident =>
+              trace "hi 2";
+              have h0 := congrArg (fun f => f 0) $(aId):ident
+              simp [lift_phi, cons] at h0
+              obtain ⟨sym_eq, lab_eq⟩ := h0
+              unfold phi_map_holds at $(headHoldsId):ident
+              unfold valid_constraint at $(headHoldsId):ident
+              rw [<- lab_eq] at $(headHoldsId):ident
+              try simp [ren_label, shift, cons, subst_label] at $(headHoldsId):ident
+              simp [var_zero] at $(headHoldsId):ident
+              case_phi $(tailId):ident $(aId):ident $(headHoldsId):ident $newKSyntax $newIterSyntax
+        )
+      else
+        `(tactic|
+         cases $H:ident with
+          | phi_cons $(lId):ident $(pmPrevId):ident $(pctxPrevId):ident $(phiEqId):ident
+                    $(symId):ident $(labId):ident $(labValId):ident
+                    $(tailId):ident $(headHoldsId):ident $(aId):ident =>
+            trace "hi 3";
+            rw [$(aId):ident] at $A:ident
+            have $(hId):ident := congrArg (fun f => f $prevKValSyntax) $A:ident
+            simp [lift_phi, cons] at $(hId):ident
+            trace "hi 4";
+            try obtain ⟨sym_eq, $(labeqId):ident⟩ := $(hId):ident
+            simp at $(headHoldsId):ident
+            trace "hi 5";
+            unfold phi_map_holds at $(headHoldsId):ident
+            unfold valid_constraint at $(headHoldsId):ident
+            try all_ren $(labeqId):ident $(headHoldsId):ident 0 $prevKValSyntax:num
+            try all_ren $(hId):ident $(headHoldsId):ident 0 $prevKValSyntax:num
+            try simp [ren_label, shift, cons, subst_label] at $(headHoldsId):ident
+            simp [var_zero] at $(headHoldsId):ident
+            trace "hi 6";
+            try simp [cons] at $(prevHold):ident
+            trace "hi 7";
+            try simp [cons]
+            try grind [interp_lattice]
+            try case_phi $(tailId):ident $(A):ident $(headHoldsId):ident $newKSyntax $newIterSyntax
+        )
+
 macro_rules
   | `(tactic| tc_full $Phi $Delta $Gamma $e $t $k) => `(tactic|
       cases h : infer $Phi $Delta $Gamma $e (some $t) with
@@ -854,8 +1037,7 @@ macro_rules
             cases h
             try dsimp at side_condition_sound
             apply side_condition_sound
-            trace_state
-            try dsimp;
+            trace_state;
             $k
       | none =>
           dsimp [infer] at h
@@ -1013,173 +1195,6 @@ theorem pair_easy (Phi : phi_context l) (Delta : delta_context l d)
                         (.prod .Unit .Unit) := by
   tc (try grind)
 
-
-def simple_test_delta :=
-   (dcons .Unit (@empty_delta 0))
-
-def test_delta_2 :=
-   (dcons (.var_ty ⟨0, by omega⟩) simple_test_delta)
-
-noncomputable def simple_test_phi :=
-  (pcons (.geq, .var_label ⟨0, by omega⟩) (pcons (.geq, .latl L.bot) empty_phi))
-
-noncomputable def simple_test_gamma : gamma_context 0 0 1 :=
-  (cons .Unit empty_gamma)
-
-theorem cons_surjective {n : Nat} (f : Fin (n + 1) → label 0) :
-  ∃ (head : label 0) (tail : Fin n → label 0),
-    f = cons head tail := by
-  exists f 0
-  exists (fun i => f i.succ)
-  funext i
-  cases i using Fin.cases
-  · rfl
-  · rfl
-
-theorem ren_label_injective
-  (h : forall x y, xi x = xi y -> x = y) :
-  forall s1 s2, ren_label xi s1 = ren_label xi s2 → s1 = s2 := by
-  intro s1 s2 heq
-  induction s1 generalizing s2 with
-  | var_label x =>
-      cases s2 <;> simp [ren_label] at heq
-      congr
-      exact h _ _ heq
-  | latl l =>
-      cases s2 <;> simp [ren_label] at heq
-      subst heq
-      rfl
-  | ljoin l1 l2 ih1 ih2 =>
-      cases s2 <;> simp [ren_label] at heq
-      congr
-      · exact ih1 _ heq.1
-      · exact ih2 _ heq.2
-  | lmeet l1 l2 ih1 ih2 =>
-      cases s2 <;> simp [ren_label] at heq
-      congr
-      · exact ih1 _ heq.1
-      · exact ih2 _ heq.2
-  | default =>
-      cases s2 <;> simp [ren_label] at heq
-      rfl
-
-theorem shift_injective : forall (x : Fin l) (y : Fin l), shift x = shift y -> x = y := by
-  intro x y h
-  simp [shift] at h
-  exact h
-
-syntax "solve_phi_validation" ident : tactic
-syntax "solve_phi_validation_anon" : tactic
-syntax "case_phi " ident ident ident num num : tactic
-syntax "all_ren" ident ident num num : tactic
-
-macro_rules
-  | `(tactic| all_ren $test:ident $inj:ident $curr:num $goal:num) => do
-      let suf := "_" ++ toString curr.getNat
-      let mk (s : String) : TSyntax `ident := mkIdent <| Name.str .anonymous (s ++ suf)
-      let eId := mk "e"
-      let currVal := (curr.getNat)
-      let currNextVal := (curr.getNat + 1)
-      let currNextValSyntax := Syntax.mkNumLit (toString currNextVal)
-      let goalVal := (goal.getNat)
-      if currVal < goalVal then
-        `(tactic|
-          have $(eId):ident := ren_label_injective shift_injective _ _ $test:ident;
-          all_ren $(eId):ident $inj:ident $currNextValSyntax $goal:num)
-      else
-        `(tactic|
-          try rw [<- $test:ident] at $inj:ident)
-  | `(tactic| solve_phi_validation $lemma_phi:ident) => `(tactic|
-      intros pm vpm;
-      trace "hi 1";
-      have tester : forall l1 l2 l3, L.leq l1 l2 -> L.leq l2 l3 -> L.leq l1 l3 := L.leq_trans;
-      have tester' : forall l, L.leq L.bot l = true := L.bot_all;
-      unfold phi_map_holds;
-      unfold valid_constraint;
-      simp [subst_label];
-      unfold $lemma_phi:ident at vpm;
-      simp at vpm;
-      unfold pcons at vpm;
-      case_phi vpm vpm vpm 1 0
-    )
-  | `(tactic| solve_phi_validation_anon) => `(tactic|
-      intros pm vpm;
-      trace "hi 1";
-      have tester : forall l1 l2 l3, L.leq l1 l2 -> L.leq l2 l3 -> L.leq l1 l3 := L.leq_trans;
-      have tester' : forall l, L.leq L.bot l = true := L.bot_all;
-      unfold phi_map_holds;
-      unfold valid_constraint;
-      simp [subst_label];
-      simp at vpm;
-      unfold pcons at vpm;
-      case_phi vpm vpm vpm 1 0
-    )
-  | `(tactic| case_phi $H:ident $A:ident $prevHold:ident $k:num $iter:num) => do
-      let suf := "_" ++ toString k.getNat
-      let iterVal := (iter.getNat)
-      let newKVal := (k.getNat + 1)
-      let prevKVal := (k.getNat - 1)
-      let prevKValSyntax := Syntax.mkNumLit (toString prevKVal)
-      let newIterVal := (iter.getNat + 1)
-      let newIterSyntax := Syntax.mkNumLit (toString newIterVal)
-      let newKSyntax := Syntax.mkNumLit (toString newKVal)
-      let mk (s : String) : TSyntax `ident := mkIdent <| Name.str .anonymous (s ++ suf)
-      let lId         := mk "l"
-      let pmPrevId    := mk "pm_prev"
-      let pctxPrevId  := mk "phictx_prev"
-      let phiEqId     := mk "phi_eq"
-      let symId       := mk "sym"
-      let labId       := mk "lab"
-      let labValId    := mk "lab_val"
-      let tailId      := mk "vpm_tail"
-      let headHoldsId := mk "head_holds"
-      let aId       := mk "a"
-      let hId := mk "h0"
-      let labeqId := mk "lab_eq"
-      if iterVal = 0 then
-        `(tactic|
-          cases $H:ident with
-          | phi_cons $(lId):ident $(pmPrevId):ident $(pctxPrevId):ident $(phiEqId):ident
-                    $(symId):ident $(labId):ident $(labValId):ident
-                    $(tailId):ident $(headHoldsId):ident $(aId):ident =>
-              trace "hi 2";
-              have h0 := congrArg (fun f => f 0) $(aId):ident
-              simp [lift_phi, cons] at h0
-              obtain ⟨sym_eq, lab_eq⟩ := h0
-              unfold phi_map_holds at $(headHoldsId):ident
-              unfold valid_constraint at $(headHoldsId):ident
-              rw [<- lab_eq] at $(headHoldsId):ident
-              try simp [ren_label, shift, cons, subst_label] at $(headHoldsId):ident
-              simp [var_zero] at $(headHoldsId):ident
-              case_phi $(tailId):ident $(aId):ident $(headHoldsId):ident $newKSyntax $newIterSyntax
-        )
-      else
-        `(tactic|
-         cases $H:ident with
-          | phi_cons $(lId):ident $(pmPrevId):ident $(pctxPrevId):ident $(phiEqId):ident
-                    $(symId):ident $(labId):ident $(labValId):ident
-                    $(tailId):ident $(headHoldsId):ident $(aId):ident =>
-            trace "hi 3";
-            rw [$(aId):ident] at $A:ident
-            have $(hId):ident := congrArg (fun f => f $prevKValSyntax) $A:ident
-            simp [lift_phi, cons] at $(hId):ident
-            trace "hi 4";
-            try obtain ⟨sym_eq, $(labeqId):ident⟩ := $(hId):ident
-            simp at $(headHoldsId):ident
-            trace "hi 5";
-            unfold phi_map_holds at $(headHoldsId):ident
-            unfold valid_constraint at $(headHoldsId):ident
-            try all_ren $(labeqId):ident $(headHoldsId):ident 0 $prevKValSyntax:num
-            try all_ren $(hId):ident $(headHoldsId):ident 0 $prevKValSyntax:num
-            try simp [ren_label, shift, cons, subst_label] at $(headHoldsId):ident
-            simp [var_zero] at $(headHoldsId):ident
-            trace "hi 6";
-            try simp [cons] at $(prevHold):ident
-            trace "hi 7";
-            try simp [cons]
-            try grind [interp_lattice]
-            try case_phi $(tailId):ident $(A):ident $(headHoldsId):ident $newKSyntax $newIterSyntax
-        )
 
 noncomputable def lemma_phi :=
   (pcons (.geq, .var_label ⟨0, by omega⟩)

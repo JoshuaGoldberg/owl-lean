@@ -204,8 +204,8 @@ theorem lambda_identity_unit_3 :
 
 -- cool test for embdedding
 theorem phi_tc_sc (l1 : Owl.L.labels) :
-  ((x, y ⊑ x) ⊨ (⟨Owl.L.bot⟩ ⊑ ⟨l1⟩)) := by
-    solve_phi_validation_anon
+  ((pcons (.leq, .var_label 0) (pcons (.geq, .latl Owl.L.bot) empty_phi)) |= (.condition .leq (.latl Owl.L.bot) (.latl l1))) := by
+    try solve_phi_validation_anon
 
 -- labels example
 theorem phi_tc_test (l1 : Owl.L.labels):
@@ -216,7 +216,7 @@ theorem phi_tc_test (l1 : Owl.L.labels):
              (Unit -> (Data ⟨l1⟩)) -- Ty
              :=
   by
-  tc (have h := (phi_tc_sc l1); simp at h; apply h)
+  tc (solve_phi_validation_anon_no_simp)
 
 -- cool test for embdedding
 theorem test_latt_new :
