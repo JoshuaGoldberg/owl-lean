@@ -209,8 +209,8 @@ theorem phi_tc_sc (l1 : Owl.L.labels) :
 
 -- labels example
 theorem phi_tc_test (l1 : Owl.L.labels):
-  m_has_type (x, y ⊑ x) -- Phi
-             (x <: Unit, y <: Data y) -- Delta
+  m_has_type (x, z ⊑ x) -- Phi
+             (x <: Unit, y <: Data z) -- Delta
              (x => Any, y => Data ⟨Owl.L.bot⟩) -- Gamma
              (fix f (z) y) -- Tm
              (Unit -> (Data ⟨l1⟩)) -- Ty
