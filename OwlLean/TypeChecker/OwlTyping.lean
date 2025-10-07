@@ -1093,6 +1093,7 @@ macro_rules
       intros pm vpm;
       trace "hi 1";
       have tester : forall l1 l2 l3, L.leq l1 l2 -> L.leq l2 l3 -> L.leq l1 l3 := L.leq_trans;
+      have tester' : forall l, L.leq L.bot l = true := L.bot_all;
       unfold phi_map_holds;
       unfold valid_constraint;
       simp [subst_label];
@@ -1105,6 +1106,7 @@ macro_rules
       intros pm vpm;
       trace "hi 1";
       have tester : forall l1 l2 l3, L.leq l1 l2 -> L.leq l2 l3 -> L.leq l1 l3 := L.leq_trans;
+      have tester' : forall l, L.leq L.bot l = true := L.bot_all;
       unfold phi_map_holds;
       unfold valid_constraint;
       simp [subst_label];

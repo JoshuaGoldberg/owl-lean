@@ -193,11 +193,32 @@ theorem lambda_identity_unit_2  :
 
 -- NEW WAY (easier to write, cleaner in various ways, but doesn't quite support embedding)
 theorem lambda_identity_unit_3 :
-  m_has_type (x, y ⊑ x) (x <: Unit, y <: Data y) (x => Any, y => Data ⟨Owl.L.bot⟩) (fix f (z) z) (Unit -> Any) :=
+  m_has_type (x, y ⊑ x) -- Phi
+             (x <: Unit, y <: Data y) -- Delta
+             (x => Any, y => Data ⟨Owl.L.bot⟩) -- Gamma
+             (fix f (z) z) -- Tm
+             (Unit -> Unit) -- Ty
+             :=
   by
   tc (try grind)
 
--- cool test
+-- cool test for embdedding
+theorem phi_tc_sc (l1 : Owl.L.labels) :
+  ((x, y ⊑ x) ⊨ (⟨Owl.L.bot⟩ ⊑ ⟨l1⟩)) := by
+    solve_phi_validation_anon
+
+-- labels example
+theorem phi_tc_test (l1 : Owl.L.labels):
+  m_has_type (x, y ⊑ x) -- Phi
+             (x <: Unit, y <: Data y) -- Delta
+             (x => Any, y => Data ⟨Owl.L.bot⟩) -- Gamma
+             (fix f (z) y) -- Tm
+             (Unit -> (Data ⟨l1⟩)) -- Ty
+             :=
+  by
+  tc (have h := (phi_tc_sc l1); simp at h; apply h)
+
+-- cool test for embdedding
 theorem test_latt_new :
   ((x, y ⊒ x, z ⊒ y, a ⊒ z) ⊨ (y ⊒ x)) := by
     solve_phi_validation_anon
