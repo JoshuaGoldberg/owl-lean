@@ -212,8 +212,8 @@ theorem phi_tc_test (l1 : Owl.L.labels):
   m_has_type (x, z ⊑ x) -- Phi
              (x <: Unit, y <: Data z) -- Delta
              (x => Any, y => Data ⟨Owl.L.bot⟩) -- Gamma
-             (fix f (z) y) -- Tm
-             (Unit -> (Data ⟨l1⟩)) -- Ty
+             ⟨ * ,(fix f (z) y)⟩  -- Tm
+             (Unit * (Unit -> (Data ⟨l1⟩))) -- Ty
              :=
   by
   tc (try grind)

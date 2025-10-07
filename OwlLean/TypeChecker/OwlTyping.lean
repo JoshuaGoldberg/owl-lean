@@ -1028,6 +1028,14 @@ macro_rules
             try case_phi $(tailId):ident $(A):ident $(headHoldsId):ident $newKSyntax $newIterSyntax
         )
 
+macro "solve_all_constraints" : tactic => `(tactic|
+  repeat (first
+    | constructor <;> (first
+        | trivial
+        | simp
+        | solve_phi_validation_anon
+        | solve_phi_validation_anon_no_simp)))
+
 macro_rules
   | `(tactic| tc_full $Phi $Delta $Gamma $e $t $k) => `(tactic|
       cases h : infer $Phi $Delta $Gamma $e (some $t) with
@@ -1038,8 +1046,7 @@ macro_rules
             try dsimp at side_condition_sound
             apply side_condition_sound
             trace_state;
-            try solve_phi_validation_anon;
-            try solve_phi_validation_anon_no_simp;
+            solve_all_constraints;
             $k
       | none =>
           dsimp [infer] at h
