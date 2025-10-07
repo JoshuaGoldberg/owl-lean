@@ -509,6 +509,7 @@ def gammaWithLength (l : Nat) (t : Nat) (m : Nat) (sgamma : SGamma) (lvars : Lis
     else emptyGammaOfLength l t m
   | .none => emptyGammaOfLength l t m
 
+-- easier parsing/definitions for phi contexts
 @[simp]
 elab "Ψ:=" p:owl_phi : term => do
   let sexprPhi ← elabPhi p
@@ -526,6 +527,7 @@ elab "Ψ:=" p:owl_phi : term => do
 def PhiEntails (phi : phi_context n) (cond : constr n) : Prop :=
   phi |= cond
 
+-- define/parse the relation of Phi |= c
 elab "(" phi:owl_phi " ⊨ " cond:owl_constr ")" : term => do
 
     let sexprPhi ← elabPhi phi
@@ -547,9 +549,7 @@ elab "(" phi:owl_phi " ⊨ " cond:owl_constr ")" : term => do
 
 #reduce ((x, y ⊒ x, z ⊒ y, a ⊒ z) ⊨ (x ⊒ fy))
 
--- maybe haver this take in context syntax terms?
--- likw g:owl_gamma or p:owl_phi
--- then elaborate them and add their arguments?
+-- define/parse terms easier
 @[simp]
 elab "Owl" "[" lvars:ident,* "]" "[" tvars:ident,* "]" "[" vars:ident,* "]" "{" p:owl_tm "}" : term => do
   let varNames := vars.getElems.map (fun id => id.getId.toString)
@@ -574,6 +574,7 @@ elab "Owl" "[" lvars:ident,* "]" "[" tvars:ident,* "]" "[" vars:ident,* "]" "{" 
   | .none   => throwError "owl: ill-formed term"
   | .some _ => mkAppM ``elabHelper #[sexprTerm, lvarEListExpr, tvarEListExpr, varEListExpr]
 
+-- define/parse types easier
 @[simp]
 elab "OwlTy" "[" lvars:ident,* "]" "[" tvars:ident,* "]" "{" p:owl_type "}" : term => do
   let lvarNames := lvars.getElems.map (fun id => id.getId.toString)
@@ -594,6 +595,8 @@ elab "OwlTy" "[" lvars:ident,* "]" "[" tvars:ident,* "]" "{" p:owl_type "}" : te
   | .none => throwError "owl: ill-formed term"
   | .some _ => mkAppM ``elabHelperTy #[sexprTerm, lvarEListExpr, tvarEListExpr]
 
+-- For easier usage of the has_type inductive
+@[simp]
 elab "m_has_type" p:owl_phi d:owl_delta g:owl_gamma e:owl_tm t:owl_type : term => do
 
   let sphiExpr2 ← elabPhi_closed p
@@ -609,6 +612,34 @@ elab "m_has_type" p:owl_phi d:owl_delta g:owl_gamma e:owl_tm t:owl_type : term =
   let tvars := SDelta.getVars sdelta
   let vars := SGamma.getVars sgamma
 
+  -- ensure all things are properly typed
+  match SPhi.elab sphi with
+  | .none => throwError "owl: ill-formed phi context {p}"
+  | .some _ => pure ()
+
+  match SDelta.elab sdelta lvars with
+  | .none => throwError "owl: ill-formed delta context {d}"
+  | .some _ => pure ()
+
+  match SGamma.elab sgamma lvars tvars with
+  | .none => throwError "owl: ill-formed gamma context {g}"
+  | .some _ => pure ()
+
+  let stmExpr2 ← elabTm_closed e
+  let stm : SExpr ← unsafe do Meta.evalExpr SExpr (mkConst ``SExpr) stmExpr2
+
+  let styExpr2 ← elabType_closed t
+  let sty : STy ← unsafe do Meta.evalExpr STy (mkConst ``STy) styExpr2
+
+  match SExpr.elab stm lvars tvars vars with
+  | .none => throwError "owl: ill-formed term {e}"
+  | .some _ => pure ()
+
+  match STy.elab sty lvars tvars with
+  | .none => throwError "owl: ill-formed type {t}"
+  | .some _ => pure ()
+
+  -- prepare to do full evaluation
   let lvarsExpr ← mkListLit (mkConst ``String) (← lvars.mapM (fun s => return mkStrLit s))
   let tvarsExpr ← mkListLit (mkConst ``String) (← tvars.mapM (fun s => return mkStrLit s))
   let varsExpr ← mkListLit (mkConst ``String) (← vars.mapM (fun s => return mkStrLit s))

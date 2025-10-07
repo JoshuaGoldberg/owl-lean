@@ -1038,6 +1038,8 @@ macro_rules
             try dsimp at side_condition_sound
             apply side_condition_sound
             trace_state;
+            try solve_phi_validation_anon;
+            try solve_phi_validation_anon_no_simp;
             $k
       | none =>
           dsimp [infer] at h

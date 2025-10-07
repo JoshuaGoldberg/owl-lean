@@ -216,7 +216,7 @@ theorem phi_tc_test (l1 : Owl.L.labels):
              (Unit -> (Data ⟨l1⟩)) -- Ty
              :=
   by
-  tc (solve_phi_validation_anon_no_simp)
+  tc (try grind)
 
 -- cool test for embdedding
 theorem test_latt_new :
