@@ -94,3 +94,17 @@ inductive SPhi : Type where
 | Phi_Cons : SPhiEntry -> SPhi -> SPhi
 | Phi_End : SPhi
 deriving Repr
+
+inductive SDeltaEntry : Type where
+| DeltaEntry : String -> STy -> SDeltaEntry
+deriving Repr
+
+inductive SDelta : Type where
+| Delta_Cons : SDeltaEntry -> SDelta -> SDelta
+| Delta_End : SDelta
+deriving Repr
+
+inductive SGamma : Type where
+| Gamma_Cons : STy -> SGamma -> SGamma
+| Gamma_End : SGamma
+deriving Repr

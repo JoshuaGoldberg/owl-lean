@@ -12,6 +12,9 @@ declare_syntax_cat owl_constr
 declare_syntax_cat owl_cond_sym
 declare_syntax_cat owl_phi
 declare_syntax_cat owl_phi_entry
+declare_syntax_cat owl_delta
+declare_syntax_cat owl_gamma
+declare_syntax_cat owl_delta_entry
 
 -- syntax for labels
 syntax ident : owl_label
@@ -493,7 +496,6 @@ syntax "(" owl_phi_entry ")" : owl_phi_entry
 syntax  ident owl_cond_sym owl_label : owl_phi_entry
 syntax ident : owl_phi_entry
 
-
 partial def elabPhiEntry : Syntax → MetaM Expr
   | `(owl_phi_entry| ( $e:owl_phi_entry)) => elabPhiEntry e
   | `(owl_phi_entry|  $id:ident $co:owl_cond_sym $lab:owl_label) => do
@@ -519,6 +521,23 @@ partial def elabPhiEntry_closed : Syntax → MetaM Expr
       mkAppM ``SPhiEntry.PhiEntry #[mkStrLit id.getId.toString, condSym, botExpr]
   | _ => throwUnsupportedSyntax
 
+syntax "(" owl_delta_entry ")" : owl_delta_entry
+syntax  ident "<:" owl_type : owl_delta_entry
+
+partial def elabDeltaEntry : Syntax → MetaM Expr
+  | `(owl_delta_entry| ( $e:owl_delta_entry)) => elabDeltaEntry e
+  | `(owl_delta_entry|  $id:ident <: $t:owl_type) => do
+      let elab_t <- elabType t
+      mkAppM ``SDeltaEntry.DeltaEntry #[mkStrLit id.getId.toString, elab_t]
+  | _ => throwUnsupportedSyntax
+
+partial def elabDeltaEntry_closed : Syntax → MetaM Expr
+  | `(owl_delta_entry| ( $e:owl_delta_entry)) => elabDeltaEntry_closed e
+  | `(owl_delta_entry|  $id:ident <: $t:owl_type) => do
+      let elab_t <- elabType_closed t
+      mkAppM ``SDeltaEntry.DeltaEntry #[mkStrLit id.getId.toString, elab_t]
+  | _ => throwUnsupportedSyntax
+
 syntax "(" owl_phi_entry "," owl_phi ")" : owl_phi
 syntax owl_phi_entry "," owl_phi : owl_phi
 syntax owl_phi_entry : owl_phi
@@ -533,6 +552,15 @@ where
   go : SPhi → SPhi → SPhi
   | Phi_End, acc => acc
   | Phi_Cons x xs, acc => go xs (Phi_Cons x acc)
+
+@[simp]
+def SDelta.reverse (delta : SDelta) : SDelta :=
+  go delta Delta_End
+where
+  @[simp]
+  go : SDelta → SDelta → SDelta
+  | Delta_End, acc => acc
+  | Delta_Cons x xs, acc => go xs (Delta_Cons x acc)
 
 partial def elabPhiHelper : Syntax → MetaM Expr
   | `(owl_phi| ($e1:owl_phi_entry, $rest:owl_phi)) => do
@@ -572,6 +600,49 @@ partial def elabPhiHelper_closed : Syntax → MetaM Expr
     mkAppM ``SPhi.Phi_Cons #[elab_e, phiEnd]
   | _ => throwUnsupportedSyntax
 
+syntax "(" owl_delta_entry "," owl_delta ")" : owl_delta
+syntax owl_delta_entry "," owl_delta : owl_delta
+syntax owl_delta_entry : owl_delta
+syntax "(" owl_delta_entry ")" : owl_delta
+
+partial def elabDeltaHelper : Syntax → MetaM Expr
+  | `(owl_delta| ($e1:owl_delta_entry, $rest:owl_delta)) => do
+    let elab_e1 ← elabDeltaEntry e1
+    let elab_rest ← elabDeltaHelper rest
+    mkAppM ``SDelta.Delta_Cons #[elab_e1, elab_rest]
+  | `(owl_delta| $e1:owl_delta_entry , $rest:owl_delta) => do
+    let elab_e1 ← elabDeltaEntry e1
+    let elab_rest ← elabDeltaHelper rest
+    mkAppM ``SDelta.Delta_Cons #[elab_e1, elab_rest]
+  | `(owl_delta| $e:owl_delta_entry) => do
+    let elab_e ← elabDeltaEntry e
+    let phiEnd ← mkAppM ``SDelta.Delta_End #[]
+    mkAppM ``SDelta.Delta_Cons #[elab_e, phiEnd]
+  | `(owl_delta| ($e:owl_delta_entry) ) => do
+    let elab_e ← elabDeltaEntry e
+    let phiEnd ← mkAppM ``SDelta.Delta_End #[]
+    mkAppM ``SDelta.Delta_Cons #[elab_e, phiEnd]
+  | _ => throwUnsupportedSyntax
+
+partial def elabDeltaHelper_closed : Syntax → MetaM Expr
+  | `(owl_delta| ($e1:owl_delta_entry, $rest:owl_delta)) => do
+    let elab_e1 ← elabDeltaEntry_closed e1
+    let elab_rest ← elabDeltaHelper_closed rest
+    mkAppM ``SDelta.Delta_Cons #[elab_e1, elab_rest]
+  | `(owl_delta| $e1:owl_delta_entry , $rest:owl_delta) => do
+    let elab_e1 ← elabDeltaEntry_closed e1
+    let elab_rest ← elabDeltaHelper_closed rest
+    mkAppM ``SDelta.Delta_Cons #[elab_e1, elab_rest]
+  | `(owl_delta| $e:owl_delta_entry) => do
+    let elab_e ← elabDeltaEntry_closed e
+    let phiEnd ← mkAppM ``SDelta.Delta_End #[]
+    mkAppM ``SDelta.Delta_Cons #[elab_e, phiEnd]
+  | `(owl_delta| ($e:owl_delta_entry) ) => do
+    let elab_e ← elabDeltaEntry_closed e
+    let phiEnd ← mkAppM ``SDelta.Delta_End #[]
+    mkAppM ``SDelta.Delta_Cons #[elab_e, phiEnd]
+  | _ => throwUnsupportedSyntax
+
 partial def elabPhi (stx : Syntax) : MetaM Expr := do
   let phi ← elabPhiHelper stx
   mkAppM ``SPhi.reverse #[phi]
@@ -579,6 +650,14 @@ partial def elabPhi (stx : Syntax) : MetaM Expr := do
 partial def elabPhi_closed (stx : Syntax) : MetaM Expr := do
   let phi ← elabPhiHelper_closed stx
   mkAppM ``SPhi.reverse #[phi]
+
+partial def elabDelta (stx : Syntax) : MetaM Expr := do
+  let delta ← elabDeltaHelper stx
+  mkAppM ``SDelta.reverse #[delta]
+
+partial def elabDelta_closed (stx : Syntax) : MetaM Expr := do
+  let delta ← elabDeltaHelper_closed stx
+  mkAppM ``SDelta.reverse #[delta]
 
 -- test parser for labels
 elab "phi_parse" "(" p:owl_phi ")" : term =>

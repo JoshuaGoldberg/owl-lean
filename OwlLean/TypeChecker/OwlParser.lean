@@ -366,6 +366,15 @@ def SPhiEntry.elab (S : SPhiEntry) (P : TCtx) : Option (String × (cond_sym × l
         .some (varName, (cond', lab'))
 
 @[simp]
+def SDeltaEntry.elab (S : SDeltaEntry) (P : TCtx) (D : TCtx) : Option (String × ty P.length D.length) :=
+  match S with
+  | .DeltaEntry varName t =>
+    match STy.elab t P D with
+    | .none => .none
+    | .some t' =>
+      .some (varName, t')
+
+@[simp]
 def SPhi.elab (phi : SPhi) : Option ((vars : List String) × phi_context vars.length) :=
   match phi with
   | .Phi_End => .some ⟨[], empty_phi⟩
@@ -377,6 +386,19 @@ def SPhi.elab (phi : SPhi) : Option ((vars : List String) × phi_context vars.le
       | .none => .none
       | .some (varName, (cond', lab')) =>
         .some ⟨varName :: varNames, pcons (cond', lab') phi'⟩
+
+@[simp]
+def SDelta.elab (delta : SDelta) : Option ((lvars : List String) × (tvars : List String) × delta_context lvars.length tvars.length) :=
+  match delta with
+  | .Delta_End => .some ⟨[], [], empty_delta⟩
+  | .Delta_Cons t rest =>
+    match SDelta.elab rest with
+    | .none => .none
+    | .some ⟨varsl, varst, delta'⟩ =>
+      match SDeltaEntry.elab t varsl varst with
+      | .none => .none
+      | .some ⟨varName, t'⟩ =>
+        .some ⟨varsl, varName :: varst, dcons t' delta'⟩
 
 @[simp]
 def elabHelperTy (s : STy) (lvars : List String) (tvars : List String) : ty lvars.length tvars.length :=
