@@ -189,6 +189,8 @@ inductive is_value : tm l d m -> Prop where
     (Phi |= (negate_cond co)) ->
     subtype Phi Delta t2 t2' ->
     subtype Phi Delta t2 (.t_if co t1' t2')
+  | ST_Public :
+    subtype Phi Delta .Public .Public
 
 -- Typing rules for Owl
 inductive has_type : (Phi : phi_context l) -> (Delta : delta_context l d) -> (Gamma : gamma_context l d m) ->
@@ -345,6 +347,7 @@ def check_subtype  (fuel : Nat) (Phi : phi_context l) (Delta : delta_context l d
       | x, .Any => .some ⟨True, fun _ => subtype.ST_Any x⟩
       | .Unit, .Unit => .some ⟨True, fun _ => subtype.ST_Unit⟩
       | .Data l1, .Data l2 => .some ⟨(Phi |= (.condition .leq l1 l2)), fun sc => subtype.ST_Data l1 l2 sc⟩
+      | .Public, .Public => .some ⟨True, fun _ => subtype.ST_Public⟩
       | .var_ty x, t' =>
           match check_subtype n Phi Delta (Delta x) t' with
           | .some pf =>

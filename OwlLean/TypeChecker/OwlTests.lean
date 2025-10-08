@@ -269,3 +269,31 @@ theorem ht_empty :
   by
   intro t
   tc (try grind)
+
+-- non functional
+def eq : Owl.op :=
+  fun (_ _ : Owl.binary) =>
+    Owl.Dist.ret (Owl.binary.bend)
+
+def insert_tm := --TEMP
+  Owl [] [] [] {
+    λmap . λx . λv . λy .
+      if ["10101"] then (ı1 *) else (ı1 *)
+  }
+
+def insert_ty (t : Owl.ty 0 0) :=
+  OwlTy [] [] {
+    (Public -> (Unit + ($ t))) -> Public -> ($ t) -> Public -> (Unit + ($ t))
+  }
+
+theorem ht_insert :
+  forall (t : Owl.ty 0 0),
+  ( · ; -- Phi
+    · ; -- Delta
+    · ; -- Gamma
+   ($ insert_tm) ⊢  -- Tm
+   ($ (insert_ty t))) -- Ty
+   :=
+  by
+  intro t
+  tc (try grind)
