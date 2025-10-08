@@ -597,7 +597,7 @@ elab "OwlTy" "[" lvars:ident,* "]" "[" tvars:ident,* "]" "{" p:owl_type "}" : te
 
 -- For easier usage of the has_type inductive
 @[simp]
-elab "m_has_type" p:owl_phi d:owl_delta g:owl_gamma e:owl_tm t:owl_type : term => do
+elab p:owl_phi ";" d:owl_delta ";" g:owl_gamma ";" e:owl_tm "⊢" t:owl_type : term => do
 
   let sphiExpr2 ← elabPhi_closed p
   let sphi : SPhi ← unsafe do Meta.evalExpr SPhi (mkConst ``SPhi) sphiExpr2
