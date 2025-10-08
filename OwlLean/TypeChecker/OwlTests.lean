@@ -17,7 +17,7 @@ axiom high : Owl.Lcarrier
 #check label_parse(⟨ Owl.L.bot ⟩)
 #check label_parse(⟨ low ⟩)
 
-#reduce OwlTy [] [] { Data ⟨ Owl.L.bot ⟩ }
+#reduce OwlTy [] [] { Public }
 
 -- check that cond_sym works
 #eval cond_sym_parse(⊑)
@@ -143,17 +143,32 @@ def rand : Owl.op :=
 
 def ENC (betaK betaM betaC : Owl.label 0) :=
   OwlTy [] [] {
-    ∃ alphaK <: (Data ($ betaK)) . alphaK * (if ($ betaK ⊑ $ betaC)
+    ∃ alphaK <: (Data ($ betaK)) . (alphaK * (if ($ betaK ⊑ $ betaC)
                                              then (Data ($ betaC) * Data ($ betaC) -> Data ($ betaC))
-                                             else (alphaK * Data ($ betaM) -> Data ($ betaC)))
+                                             else (alphaK * Data ($ betaM) -> Data ($ betaC))))
   }
 
 def Enc (betaK betaC : Owl.label 0) :=
   Owl [] [] [] {
-    let k = ⟨genKey⟩ (*, *) in
-    let enc = if ($ betaK ⊑ $ betaC) then λx . ⟨enc⟩ (π1 x, π2 x) else λx . ⟨rand⟩(zero π2 x, *) in
-    pack (Unit, ⟨k, enc⟩) -- Unit is temp
+    let k = ⟨genKey⟩ (["000"], ["000"]) in
+    let enc' = if ($ betaK ⊑ $ betaC) then λx . ⟨enc⟩ (π1 x, π2 x) else λx . ⟨rand⟩(zero π2 x, *) in
+    pack (Public, ⟨k, enc'⟩) -- Unit is temp
   }
+
+theorem gen_key_ht (l1 : Owl.L.labels):
+  (· ; · ; · ; (⟨genKey⟩ (["000"], ["000"])) ⊢ (Data ⟨l1⟩)) :=
+    by
+    tc (try grind)
+
+theorem gen_key_pack_ht (l1 l2 : Owl.L.labels) (pf : Owl.L.leq l1 l2 = true):
+  (· ; · ; · ; (pack ((Data ⟨l1⟩), ⟨genKey⟩ (["000"], ["000"]))) ⊢ (∃ alphaK <: (Data ⟨l2⟩) . alphaK)) :=
+    by
+    tc (try grind)
+
+ theorem enc_ty (l1 l2 l3 : Owl.label 0):
+  (· ; · ; · ; ($ (Enc l1 l3)) ⊢ ($ (ENC l1 l2 l3))) :=
+    by
+    tc (try grind)
 
 def P (l1 l2 adv : Owl.label 0) :=
   Owl [] [] [] {
@@ -193,12 +208,12 @@ theorem lambda_identity_unit_2  :
 
 -- NEW WAY (easier to write, cleaner in various ways, but doesn't quite support embedding)
 theorem lambda_identity_unit_3 :
-  m_has_type (x, y ⊑ x); -- Phi
-             (x <: Unit, y <: Data y); -- Delta
-             (x => Any, y => Data ⟨Owl.L.bot⟩); -- Gamma
-             (fix f (z) z) ⊢ -- Tm
-             (Unit -> Unit) -- Ty
-             :=
+   ((x, y ⊑ x); -- Phi
+   (x <: Unit, y <: Data y); -- Delta
+   (x => Any, y => Data ⟨Owl.L.bot⟩); -- Gamma
+   (fix f (z) z) ⊢ -- Tm
+   (Unit -> Unit)) -- Ty
+    :=
   by
   tc (try grind)
 
@@ -209,11 +224,11 @@ theorem phi_tc_sc (l1 : Owl.L.labels) :
 
 -- labels example
 theorem phi_tc_test (l1 : Owl.L.labels):
-  (x, z ⊑ x); -- Phi
+  ((x, z ⊑ x); -- Phi
   (x <: Unit, y <: Data x); -- Delta
   (x => Any, y => Data ⟨Owl.L.bot⟩); -- Gamma
   ⟨ * ,(fix f (z) y)⟩ ⊢  -- Tm
-  (Unit * (Unit -> (Data ⟨l1⟩))) -- Ty
+  (Unit * (Unit -> (Data ⟨l1⟩)))) -- Ty
   :=
   by
   tc (try grind)
@@ -222,3 +237,21 @@ theorem phi_tc_test (l1 : Owl.L.labels):
 theorem test_latt_new :
   ((x, y ⊒ x, z ⊒ y, a ⊒ z) ⊨ (y ⊒ x)) := by
     solve_phi_validation_anon
+
+
+def MapOf (t : Owl.ty 0 0) := OwlTy [] [] { Public -> (Unit + $ t) }
+
+def empty :=
+  Owl [] [] []{
+    fix f (x) (ı1 *)
+  }
+
+theorem ht_empty (t : Owl.ty 0 0) :
+  ( · ; -- Phi
+    · ; -- Delta
+    · ; -- Gamma
+   ($ empty) ⊢  -- Tm
+   ($ (MapOf t))) -- Ty
+   :=
+  by
+  tc (try grind)

@@ -48,6 +48,7 @@ inductive STy : Type where
 | all_l : String -> SCondSym -> SLabel -> STy -> STy
 | t_if : SConstr -> STy -> STy -> STy
 | embedty : Owl.ty 0 0 -> STy
+| Public : STy
 | default : STy
 deriving Repr
 

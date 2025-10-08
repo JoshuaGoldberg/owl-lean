@@ -900,6 +900,7 @@ theorem shift_injective : forall (x : Fin l) (y : Fin l), shift x = shift y -> x
   exact h
 
 syntax "solve_phi_validation" ident : tactic
+syntax "attempt_solve" : tactic
 syntax "solve_phi_validation_anon" : tactic
 syntax "solve_phi_validation_anon_no_simp" : tactic
 syntax "case_phi " ident ident ident num num : tactic
@@ -933,6 +934,15 @@ macro_rules
       simp at vpm;
       unfold pcons at vpm;
       case_phi vpm vpm vpm 1 0
+    )
+  | `(tactic| attempt_solve) => `(tactic|
+      intros pm vpm;
+      have tester : forall l1 l2 l3, L.leq l1 l2 -> L.leq l2 l3 -> L.leq l1 l3 := L.leq_trans;
+      have tester' : forall l, L.leq L.bot l = true := L.bot_all;
+      unfold phi_map_holds;
+      unfold valid_constraint;
+      simp [subst_label, interp_lattice];
+      try grind
     )
   | `(tactic| solve_phi_validation_anon) => `(tactic|
       intros pm vpm;
@@ -1033,6 +1043,7 @@ macro "solve_all_constraints" : tactic => `(tactic|
     | constructor <;> (first
         | trivial
         | simp
+        | attempt_solve
         | solve_phi_validation_anon
         | solve_phi_validation_anon_no_simp)))
 
@@ -1239,8 +1250,8 @@ theorem test_latt3 :
     solve_phi_validation lemma_phi2
 
 theorem test_latt_mix (l1 l2 l3 : L.labels) (pf1 : L.leq l1 l2 = true) (pf2 : L.leq l2 l3 = true):
-  (lemma_phi_mix l1 l2 l3) |= (.condition .leq (.latl l1) (.latl l3)) := by
-    solve_phi_validation lemma_phi_mix
+  empty_phi |= (.condition .leq (.latl l1) (.latl l3)) := by
+    attempt_solve
 
 theorem test_latt_mix2 (l1 l2 l3 : L.labels) :
   lemma_phi_mix l1 l2 l3 |= (.condition .geq (.var_label ⟨0, by omega⟩) (.latl l1)) := by

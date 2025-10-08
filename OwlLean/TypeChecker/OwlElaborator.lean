@@ -113,6 +113,7 @@ syntax "∀" owl_type "<:" owl_type "." owl_type : owl_type
 syntax "∃" owl_type "<:" owl_type "." owl_type : owl_type
 syntax "∀" owl_label owl_cond_sym owl_label "." owl_type : owl_type
 syntax "if" owl_constr "then" owl_type "else" owl_type : owl_type
+syntax "Public" : owl_type
 syntax "$" term : owl_type
 
 partial def elabType : Syntax → MetaM Expr
@@ -121,6 +122,7 @@ partial def elabType : Syntax → MetaM Expr
         mkAppM ``STy.var_ty #[mkStrLit id.getId.toString]
   | `(owl_type| Any) => mkAppM ``STy.Any #[]
   | `(owl_type| Unit) => mkAppM ``STy.Unit #[]
+  | `(owl_type| Public) => mkAppM ``STy.Public #[]
   | `(owl_type| Data $l:owl_label) => do
     let elab_l <- elabLabel l
     mkAppM ``STy.Data #[elab_l]
@@ -343,6 +345,7 @@ partial def elabType_closed : Syntax → MetaM Expr
         mkAppM ``STy.var_ty #[mkStrLit id.getId.toString]
   | `(owl_type| Any) => mkAppM ``STy.Any #[]
   | `(owl_type| Unit) => mkAppM ``STy.Unit #[]
+  | `(owl_type| Public) => mkAppM ``STy.Public #[]
   | `(owl_type| Data $l:owl_label) => do
     let elab_l <- elabLabel_closed l
     mkAppM ``STy.Data #[elab_l]
@@ -560,6 +563,8 @@ syntax "(" owl_phi_entry "," owl_phi ")" : owl_phi
 syntax owl_phi_entry "," owl_phi : owl_phi
 syntax owl_phi_entry : owl_phi
 syntax "(" owl_phi_entry ")" : owl_phi
+syntax "·" : owl_phi
+
 
 -- a nice and simple reversal
 @[simp]
@@ -606,6 +611,8 @@ partial def elabPhiHelper : Syntax → MetaM Expr
     let elab_e ← elabPhiEntry e
     let phiEnd ← mkAppM ``SPhi.Phi_End #[]
     mkAppM ``SPhi.Phi_Cons #[elab_e, phiEnd]
+  | `(owl_phi| · ) => do
+     mkAppM ``SPhi.Phi_End #[]
   | _ => throwUnsupportedSyntax
 
 partial def elabPhiHelper_closed : Syntax → MetaM Expr
@@ -625,12 +632,15 @@ partial def elabPhiHelper_closed : Syntax → MetaM Expr
     let elab_e ← elabPhiEntry_closed e
     let phiEnd ← mkAppM ``SPhi.Phi_End #[]
     mkAppM ``SPhi.Phi_Cons #[elab_e, phiEnd]
+  | `(owl_phi| · ) => do
+     mkAppM ``SPhi.Phi_End #[]
   | _ => throwUnsupportedSyntax
 
 syntax "(" owl_delta_entry "," owl_delta ")" : owl_delta
 syntax owl_delta_entry "," owl_delta : owl_delta
 syntax owl_delta_entry : owl_delta
 syntax "(" owl_delta_entry ")" : owl_delta
+syntax "·" : owl_delta
 
 partial def elabDeltaHelper : Syntax → MetaM Expr
   | `(owl_delta| ($e1:owl_delta_entry, $rest:owl_delta)) => do
@@ -649,6 +659,8 @@ partial def elabDeltaHelper : Syntax → MetaM Expr
     let elab_e ← elabDeltaEntry e
     let deltaEnd ← mkAppM ``SDelta.Delta_End #[]
     mkAppM ``SDelta.Delta_Cons #[elab_e, deltaEnd]
+  | `(owl_delta| · ) => do
+     mkAppM ``SDelta.Delta_End #[]
   | _ => throwUnsupportedSyntax
 
 partial def elabDeltaHelper_closed : Syntax → MetaM Expr
@@ -668,12 +680,15 @@ partial def elabDeltaHelper_closed : Syntax → MetaM Expr
     let elab_e ← elabDeltaEntry_closed e
     let deltaEnd ← mkAppM ``SDelta.Delta_End #[]
     mkAppM ``SDelta.Delta_Cons #[elab_e, deltaEnd]
+  | `(owl_delta| · ) => do
+     mkAppM ``SDelta.Delta_End #[]
   | _ => throwUnsupportedSyntax
 
 syntax "(" owl_gamma_entry "," owl_gamma ")" : owl_gamma
 syntax owl_gamma_entry "," owl_gamma : owl_gamma
 syntax owl_gamma_entry : owl_gamma
 syntax "(" owl_gamma_entry ")" : owl_gamma
+syntax "·" : owl_gamma
 
 partial def elabGammaHelper : Syntax → MetaM Expr
   | `(owl_gamma| ($e1:owl_gamma_entry, $rest:owl_gamma)) => do
@@ -692,6 +707,8 @@ partial def elabGammaHelper : Syntax → MetaM Expr
     let elab_e ← elabGammaEntry e
     let gammaEnd ← mkAppM ``SGamma.Gamma_End #[]
     mkAppM ``SGamma.Gamma_Cons #[elab_e, gammaEnd]
+  | `(owl_gamma| · ) => do
+     mkAppM ``SGamma.Gamma_End #[]
   | _ => throwUnsupportedSyntax
 
 partial def elabGammaHelper_closed : Syntax → MetaM Expr
@@ -711,6 +728,8 @@ partial def elabGammaHelper_closed : Syntax → MetaM Expr
     let elab_e ← elabGammaEntry_closed e
     let gammaEnd ← mkAppM ``SGamma.Gamma_End #[]
     mkAppM ``SGamma.Gamma_Cons #[elab_e, gammaEnd]
+  | `(owl_gamma| · ) => do
+     mkAppM ``SGamma.Gamma_End #[]
   | _ => throwUnsupportedSyntax
 
 partial def elabPhi (stx : Syntax) : MetaM Expr := do

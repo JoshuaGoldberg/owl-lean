@@ -114,6 +114,7 @@ def STy.elab (s : STy) (P : TCtx) (D : TCtx): Option (Owl.ty P.length D.length) 
     | .some j => .some (ty.var_ty j)
   | .Any => .some ty.Any
   | .Unit => .some ty.Unit
+  | .Public => .some ty.Public
   | .Data l =>
       match (SLabel.elab l P) with
       | .none => .none
@@ -597,7 +598,7 @@ elab "OwlTy" "[" lvars:ident,* "]" "[" tvars:ident,* "]" "{" p:owl_type "}" : te
 
 -- For easier usage of the has_type inductive
 @[simp]
-elab p:owl_phi ";" d:owl_delta ";" g:owl_gamma ";" e:owl_tm "⊢" t:owl_type : term => do
+elab "(" p:owl_phi ";" d:owl_delta ";" g:owl_gamma ";" e:owl_tm "⊢" t:owl_type ")" : term => do
 
   let sphiExpr2 ← elabPhi_closed p
   let sphi : SPhi ← unsafe do Meta.evalExpr SPhi (mkConst ``SPhi) sphiExpr2
