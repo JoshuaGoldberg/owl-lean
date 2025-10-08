@@ -259,12 +259,13 @@ def empty :=
     fix f (x) (ı1 *)
   }
 
-theorem ht_empty (t : Owl.ty 0 0) :
-  ( · ; -- Phi
+theorem ht_empty :
+  forall (t : Owl.ty 0 0), ( · ; -- Phi
     · ; -- Delta
     · ; -- Gamma
    ($ empty) ⊢  -- Tm
    ($ (MapOf t))) -- Ty
    :=
   by
+  intro t
   tc (try grind)
