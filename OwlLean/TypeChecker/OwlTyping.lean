@@ -205,11 +205,11 @@ inductive has_type : (Phi : phi_context l) -> (Delta : delta_context l d) -> (Ga
 | T_Zero : forall e l,
   has_type  Phi Delta Gamma e (.Data l) ->
   has_type  Phi Delta Gamma (.zero e) .Public
-| T_If : forall e e1 e2 l t,
-  has_type  Phi Delta Gamma e (.Data l) ->
-  has_type  Phi Delta Gamma e1 t ->
-  has_type  Phi Delta Gamma e2 t ->
-  has_type  Phi Delta Gamma (.if_tm e e1 e2) t
+| T_If : forall e e1 e2 t,
+  has_type Phi Delta Gamma e .Public ->
+  has_type Phi Delta Gamma e1 t ->
+  has_type Phi Delta Gamma e2 t ->
+  has_type Phi Delta Gamma (.if_tm e e1 e2) t
 | T_IRef : forall e t,
   has_type  Phi Delta Gamma e t ->
   has_type  Phi Delta Gamma (.alloc e) (.Ref t)
@@ -476,34 +476,34 @@ def infer (Phi : phi_context l) (Delta : delta_context l d)
     match exp with
     | .none =>
       match infer  Phi Delta Gamma e .none with
-      | .some ⟨.Data l, cond_pf⟩ =>
+      | .some ⟨.Public, cond_pf⟩ =>
         match infer  Phi Delta Gamma e1 .none with
         | .some ⟨t1, pf1⟩ =>
           match infer  Phi Delta Gamma e2 (.some t1) with
           | .some pf2 =>
             .some ⟨t1,
                   ⟨cond_pf.side_condition /\ pf1.side_condition /\ pf2.side_condition,
-                   fun sc => has_type.T_If e e1 e2 l t1 (grind cond_pf) (grind pf1) (grind pf2)⟩⟩
+                   fun sc => has_type.T_If e e1 e2 t1 (grind cond_pf) (grind pf1) (grind pf2)⟩⟩
           | .none =>
             match infer  Phi Delta Gamma e2 .none with
             | .some ⟨t2, pf2⟩ =>
               match infer  Phi Delta Gamma e1 (.some t2) with
               | .some pf1 =>
                 .some ⟨t2, ⟨cond_pf.side_condition /\ pf1.side_condition /\ pf2.side_condition,
-                       fun sc => has_type.T_If e e1 e2 l t2 (grind cond_pf) (grind pf1) (grind pf2)⟩⟩
+                       fun sc => has_type.T_If e e1 e2 t2 (grind cond_pf) (grind pf1) (grind pf2)⟩⟩
               | .none => .none
             | .none => .none
         | .none => .none
       | _ => .none
     | .some t =>
       match infer  Phi Delta Gamma e .none with
-      | .some ⟨.Data l, cond_pf⟩ =>
+      | .some ⟨.Public, cond_pf⟩ =>
         match infer  Phi Delta Gamma e1 (.some t) with
         | .some pf1 =>
            match infer  Phi Delta Gamma e2 (.some t) with
            | .some pf2 =>
              .some ⟨cond_pf.side_condition /\ pf1.side_condition /\ pf2.side_condition ,
-                    fun sc => has_type.T_If e e1 e2 l t (grind cond_pf) (grind pf1) (grind pf2)⟩
+                    fun sc => has_type.T_If e e1 e2 t (grind cond_pf) (grind pf1) (grind pf2)⟩
            | .none => .none
         | .none => .none
       | _ => .none

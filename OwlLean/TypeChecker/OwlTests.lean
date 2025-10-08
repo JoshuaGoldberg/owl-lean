@@ -165,6 +165,19 @@ theorem gen_key_pack_ht (l1 l2 : Owl.L.labels) (pf : Owl.L.leq l1 l2 = true):
     by
     tc (try grind)
 
+theorem gen_key_pack_pair_ht (l1 l2 : Owl.L.labels) (pf : Owl.L.leq l1 l2 = true):
+  (· ; · ; · ; (pack ((Data ⟨l1⟩), ⟨⟨genKey⟩ (["000"], ["000"]), *⟩ )) ⊢ (∃ alphaK <: (Data ⟨l2⟩) . (alphaK * Unit))) :=
+    by
+    tc (try grind)
+
+theorem gen_key_pack_pair_if_ht (l1 l2 : Owl.L.labels) (pf : Owl.L.leq l1 l2 = true):
+  (· ; · ; · ;
+    (pack ((Data ⟨l1⟩), ⟨⟨genKey⟩ (["000"], ["000"]),
+                        if ["10001"] then * else *⟩)) ⊢
+    (∃ alphaK <: (Data ⟨l2⟩) . (alphaK * Unit))) :=
+    by
+    tc (try grind)
+
  theorem enc_ty (l1 l2 l3 : Owl.label 0):
   (· ; · ; · ; ($ (Enc l1 l3)) ⊢ ($ (ENC l1 l2 l3))) :=
     by
