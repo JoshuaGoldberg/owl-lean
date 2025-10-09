@@ -16,6 +16,8 @@ declare_syntax_cat owl_delta
 declare_syntax_cat owl_gamma
 declare_syntax_cat owl_delta_entry
 declare_syntax_cat owl_gamma_entry
+declare_syntax_cat owl_psi_entry
+declare_syntax_cat owl_psi
 
 -- syntax for labels
 syntax ident : owl_label
@@ -559,12 +561,35 @@ partial def elabGammaEntry_closed : Syntax → MetaM Expr
       mkAppM ``SGammaEntry.GammaEntry #[mkStrLit id.getId.toString, elab_t]
   | _ => throwUnsupportedSyntax
 
+syntax "(" owl_psi_entry ")" : owl_psi_entry
+syntax  "corr(" owl_label ")" : owl_psi_entry
+syntax  "¬corr(" owl_label ")" : owl_psi_entry
+
+partial def elabPsiEntry : Syntax → MetaM Expr
+  | `(owl_psi_entry| ( $e:owl_psi_entry)) => elabPsiEntry e
+  | `(owl_psi_entry| corr($l1:owl_label)) => do
+      let elab_l1 <- elabLabel l1
+      mkAppM ``SPsiEntry.PsiCorr #[elab_l1]
+      | `(owl_psi_entry| ¬corr($l1:owl_label)) => do
+      let elab_l1 <- elabLabel l1
+      mkAppM ``SPsiEntry.PsiNotCorr #[elab_l1]
+  | _ => throwUnsupportedSyntax
+
+partial def elabPsiEntry_closed : Syntax → MetaM Expr
+  | `(owl_psi_entry| ( $e:owl_psi_entry)) => elabPsiEntry_closed e
+  | `(owl_psi_entry| corr($l1:owl_label)) => do
+      let elab_l1 <- elabLabel_closed l1
+      mkAppM ``SPsiEntry.PsiCorr #[elab_l1]
+      | `(owl_psi_entry| ¬corr($l1:owl_label)) => do
+      let elab_l1 <- elabLabel_closed l1
+      mkAppM ``SPsiEntry.PsiNotCorr #[elab_l1]
+  | _ => throwUnsupportedSyntax
+
 syntax "(" owl_phi_entry "," owl_phi ")" : owl_phi
 syntax owl_phi_entry "," owl_phi : owl_phi
 syntax owl_phi_entry : owl_phi
 syntax "(" owl_phi_entry ")" : owl_phi
 syntax "·" : owl_phi
-
 
 -- a nice and simple reversal
 @[simp]
@@ -730,6 +755,54 @@ partial def elabGammaHelper_closed : Syntax → MetaM Expr
     mkAppM ``SGamma.Gamma_Cons #[elab_e, gammaEnd]
   | `(owl_gamma| · ) => do
      mkAppM ``SGamma.Gamma_End #[]
+  | _ => throwUnsupportedSyntax
+
+syntax "(" owl_psi_entry "," owl_psi ")" : owl_psi
+syntax owl_psi_entry "," owl_psi : owl_psi
+syntax owl_psi_entry : owl_psi
+syntax "(" owl_psi_entry ")" : owl_psi
+syntax "·" : owl_psi
+
+partial def elabPsi : Syntax → MetaM Expr
+  | `(owl_psi| ($e1:owl_psi_entry, $rest:owl_psi)) => do
+    let elab_e1 ← elabPsiEntry e1
+    let elab_rest ← elabPsi rest
+    mkAppM ``SPsi.Psi_Cons #[elab_e1, elab_rest]
+  | `(owl_psi| $e1:owl_psi_entry , $rest:owl_psi) => do
+    let elab_e1 ← elabPsiEntry e1
+    let elab_rest ← elabPsi rest
+    mkAppM ``SPsi.Psi_Cons #[elab_e1, elab_rest]
+  | `(owl_psi| $e:owl_psi_entry) => do
+    let elab_e ← elabPsiEntry e
+    let psiEnd ← mkAppM ``SPsi.Psi_End #[]
+    mkAppM ``SPsi.Psi_Cons #[elab_e, psiEnd]
+  | `(owl_psi| ($e:owl_psi_entry) ) => do
+    let elab_e ← elabPsiEntry e
+    let psiEnd ← mkAppM ``SPsi.Psi_End #[]
+    mkAppM ``SPsi.Psi_Cons #[elab_e, psiEnd]
+  | `(owl_psi| · ) => do
+     mkAppM ``SPsi.Psi_End #[]
+  | _ => throwUnsupportedSyntax
+
+partial def elabPsi_closed : Syntax → MetaM Expr
+  | `(owl_psi| ($e1:owl_psi_entry, $rest:owl_psi)) => do
+    let elab_e1 ← elabPsiEntry_closed e1
+    let elab_rest ← elabPsi_closed rest
+    mkAppM ``SPsi.Psi_Cons #[elab_e1, elab_rest]
+  | `(owl_psi| $e1:owl_psi_entry , $rest:owl_psi) => do
+    let elab_e1 ← elabPsiEntry_closed e1
+    let elab_rest ← elabPsi_closed rest
+    mkAppM ``SPsi.Psi_Cons #[elab_e1, elab_rest]
+  | `(owl_psi| $e:owl_psi_entry) => do
+    let elab_e ← elabPsiEntry_closed e
+    let psiEnd ← mkAppM ``SPsi.Psi_End #[]
+    mkAppM ``SPsi.Psi_Cons #[elab_e, psiEnd]
+  | `(owl_psi| ($e:owl_psi_entry) ) => do
+    let elab_e ← elabPsiEntry_closed e
+    let psiEnd ← mkAppM ``SPsi.Psi_End #[]
+    mkAppM ``SPsi.Psi_Cons #[elab_e, psiEnd]
+  | `(owl_psi| · ) => do
+     mkAppM ``SPsi.Psi_End #[]
   | _ => throwUnsupportedSyntax
 
 partial def elabPhi (stx : Syntax) : MetaM Expr := do

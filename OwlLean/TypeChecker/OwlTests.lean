@@ -156,22 +156,22 @@ def Enc (betaK betaC : Owl.label 0) :=
   }
 
 theorem gen_key_ht (l1 : Owl.L.labels):
-  (· ; · ; · ; (⟨genKey⟩ (["000"], ["000"])) ⊢ (Data ⟨l1⟩)) :=
+  (· ; · ; · ; · ; (⟨genKey⟩ (["000"], ["000"])) ⊢ (Data ⟨l1⟩)) :=
     by
     tc (try grind)
 
 theorem gen_key_pack_ht (l1 l2 : Owl.L.labels) (pf : Owl.L.leq l1 l2 = true):
-  (· ; · ; · ; (pack ((Data ⟨l1⟩), ⟨genKey⟩ (["000"], ["000"]))) ⊢ (∃ alphaK <: (Data ⟨l2⟩) . alphaK)) :=
+  (· ; · ; · ; · ; (pack ((Data ⟨l1⟩), ⟨genKey⟩ (["000"], ["000"]))) ⊢ (∃ alphaK <: (Data ⟨l2⟩) . alphaK)) :=
     by
     tc (try grind)
 
 theorem gen_key_pack_pair_ht (l1 l2 : Owl.L.labels) (pf : Owl.L.leq l1 l2 = true):
-  (· ; · ; · ; (pack ((Data ⟨l1⟩), ⟨⟨genKey⟩ (["000"], ["000"]), *⟩ )) ⊢ (∃ alphaK <: (Data ⟨l2⟩) . (alphaK * Unit))) :=
+  (· ; · ; · ; · ; (pack ((Data ⟨l1⟩), ⟨⟨genKey⟩ (["000"], ["000"]), *⟩ )) ⊢ (∃ alphaK <: (Data ⟨l2⟩) . (alphaK * Unit))) :=
     by
     tc (try grind)
 
 theorem gen_key_pack_pair_if_ht (l1 l2 : Owl.L.labels) (pf : Owl.L.leq l1 l2 = true):
-  (· ; · ; · ;
+  (· ; · ; · ; · ;
     (pack ((Data ⟨l1⟩), ⟨⟨genKey⟩ (["000"], ["000"]),
                         if ["10001"] then * else *⟩)) ⊢
     (∃ alphaK <: (Data ⟨l2⟩) . (alphaK * Unit))) :=
@@ -179,7 +179,7 @@ theorem gen_key_pack_pair_if_ht (l1 l2 : Owl.L.labels) (pf : Owl.L.leq l1 l2 = t
     tc (try grind)
 
  theorem enc_ty (l1 l2 l3 : Owl.label 0):
-  (· ; · ; · ; ($ (Enc l1 l3)) ⊢ ($ (ENC l1 l2 l3))) :=
+  (· ; · ; · ; · ; ($ (Enc l1 l3)) ⊢ ($ (ENC l1 l2 l3))) :=
     by
     tc (try grind)
 
@@ -193,7 +193,7 @@ def P (l1 l2 adv : Owl.label 0) :=
 
 -- TC tests
 
-#reduce infer empty_phi empty_delta empty_gamma (.unpack (.annot packed_unit (.ex .Any .Unit)) .skip) (.some .Unit)
+#reduce infer empty_phi (empty_psi 0) empty_delta empty_gamma (.unpack (.annot packed_unit (.ex .Any .Unit)) .skip) (.some .Unit)
 
 -- number of variables must match!
 def towl_ty :=
@@ -212,6 +212,7 @@ noncomputable def lemma_phi_new :=
 -- OLD WAY (cool, but not *as* cool)
 theorem lambda_identity_unit_2  :
           has_type  (Ψ:= (x, y ⊑ x))
+                    []
                     (dcons .Unit empty_delta)
                     (Owl.cons .Any empty_gamma)
                     (Owl [x, y] [x] [y] { fix f (z) z })
@@ -222,6 +223,7 @@ theorem lambda_identity_unit_2  :
 -- NEW WAY (easier to write, cleaner in various ways, but doesn't quite support embedding)
 theorem lambda_identity_unit_3 :
    ((x, y ⊑ x); -- Phi
+   · ;
    (x <: Unit, y <: Data y); -- Delta
    (x => Any, y => Data ⟨Owl.L.bot⟩); -- Gamma
    (fix f (z) z) ⊢ -- Tm
@@ -238,6 +240,7 @@ theorem phi_tc_sc (l1 : Owl.L.labels) :
 -- labels example
 theorem phi_tc_test (l1 : Owl.L.labels):
   ((x, z ⊑ x); -- Phi
+  · ;
   (x <: Unit, y <: Data x); -- Delta
   (x => Any, y => Data ⟨Owl.L.bot⟩); -- Gamma
   ⟨ * ,(fix f (z) y)⟩ ⊢  -- Tm
@@ -260,9 +263,11 @@ def empty :=
   }
 
 theorem ht_empty :
-  forall (t : Owl.ty 0 0), ( · ; -- Phi
+  forall (t : Owl.ty 0 0),
+  ( · ; -- Phi
     · ; -- Delta
     · ; -- Gamma
+    · ;
    ($ empty) ⊢  -- Tm
    ($ (MapOf t))) -- Ty
    :=
@@ -291,6 +296,7 @@ theorem ht_insert :
   ( · ; -- Phi
     · ; -- Delta
     · ; -- Gamma
+    · ;
    ($ insert_tm) ⊢  -- Tm
    ($ (insert_ty t))) -- Ty
    :=

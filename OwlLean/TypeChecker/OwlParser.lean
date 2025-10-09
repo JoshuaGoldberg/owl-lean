@@ -385,6 +385,33 @@ def SGammaEntry.elab (S : SGammaEntry) (P : TCtx) (D : TCtx) : Option (String ×
       .some (varName, t')
 
 @[simp]
+def SPsiEntry.elab (S : SPsiEntry) (P : TCtx) : Option (corruption P.length) :=
+  match S with
+  | .PsiCorr l1 =>
+    match SLabel.elab l1 P with
+    | .none => .none
+    | .some l1' =>
+      .some (.corr l1')
+  | .PsiNotCorr l1 =>
+    match SLabel.elab l1 P with
+    | .none => .none
+    | .some l1' =>
+      .some (.not_corr l1')
+
+@[simp]
+def SPsi.elab (psi : SPsi) (lvars : List String) : Option (psi_context lvars.length) :=
+  match psi with
+  | .Psi_End => .some (empty_psi lvars.length)
+  | .Psi_Cons entry rest =>
+    match SPsi.elab rest lvars with
+    | .none => .none
+    | .some psi' =>
+      match SPsiEntry.elab entry lvars with
+      | .none => .none
+      | .some corr' =>
+        .some (corr' :: psi')
+
+@[simp]
 def SPhi.elab (phi : SPhi) : Option ((vars : List String) × phi_context vars.length) :=
   match phi with
   | .Phi_End => .some ⟨[], empty_phi⟩
@@ -510,6 +537,20 @@ def gammaWithLength (l : Nat) (t : Nat) (m : Nat) (sgamma : SGamma) (lvars : Lis
     else emptyGammaOfLength l t m
   | .none => emptyGammaOfLength l t m
 
+@[simp]
+def emptyPsiOfLength : (n : Nat) → psi_context n
+  | _ => []
+
+@[simp]
+def psiWithLength (l : Nat) (spsi : SPsi) (lvars : List String) : psi_context l :=
+  match SPsi.elab spsi lvars with
+  | .some psi =>
+    if h : lvars.length = l then
+      h ▸ psi
+    else
+      emptyPsiOfLength l
+  | .none => emptyPsiOfLength l
+
 -- easier parsing/definitions for phi contexts
 @[simp]
 elab "Ψ:=" p:owl_phi : term => do
@@ -598,10 +639,13 @@ elab "OwlTy" "[" lvars:ident,* "]" "[" tvars:ident,* "]" "{" p:owl_type "}" : te
 
 -- For easier usage of the has_type inductive
 @[simp]
-elab "(" p:owl_phi ";" d:owl_delta ";" g:owl_gamma ";" e:owl_tm "⊢" t:owl_type ")" : term => do
+elab "(" p:owl_phi ";" ps:owl_psi ";" d:owl_delta ";" g:owl_gamma ";" e:owl_tm "⊢" t:owl_type ")" : term => do
 
   let sphiExpr2 ← elabPhi_closed p
   let sphi : SPhi ← unsafe do Meta.evalExpr SPhi (mkConst ``SPhi) sphiExpr2
+
+  let spsiExpr2 ← elabPsi_closed ps
+  let spsi : SPsi ← unsafe do Meta.evalExpr SPsi (mkConst ``SPsi) spsiExpr2
 
   let sdeltaExpr2 ← elabDelta_closed d
   let sdelta : SDelta ← unsafe do Meta.evalExpr SDelta (mkConst ``SDelta) sdeltaExpr2
@@ -616,6 +660,10 @@ elab "(" p:owl_phi ";" d:owl_delta ";" g:owl_gamma ";" e:owl_tm "⊢" t:owl_type
   -- ensure all things are properly typed
   match SPhi.elab sphi with
   | .none => throwError "owl: ill-formed phi context {p}"
+  | .some _ => pure ()
+
+  match SPsi.elab spsi lvars with
+  | .none => throwError "owl: ill-formed phi context {ps}"
   | .some _ => pure ()
 
   match SDelta.elab sdelta lvars with
@@ -646,6 +694,7 @@ elab "(" p:owl_phi ";" d:owl_delta ";" g:owl_gamma ";" e:owl_tm "⊢" t:owl_type
   let varsExpr ← mkListLit (mkConst ``String) (← vars.mapM (fun s => return mkStrLit s))
 
   let phiExpr ← mkAppM ``phiWithLength #[mkNatLit lvars.length, ← elabPhi p]
+  let psiExpr ← mkAppM ``psiWithLength #[mkNatLit lvars.length, ← elabPsi ps, lvarsExpr]
   let deltaExpr ← mkAppM ``deltaWithLength #[mkNatLit lvars.length, mkNatLit tvars.length,
                                            ← elabDelta d, lvarsExpr]
   let gammaExpr ← mkAppM ``gammaWithLength #[mkNatLit lvars.length, mkNatLit tvars.length,
@@ -654,4 +703,4 @@ elab "(" p:owl_phi ";" d:owl_delta ";" g:owl_gamma ";" e:owl_tm "⊢" t:owl_type
   let tyExpr ← mkAppM ``elabHelperTy #[← elabType t, lvarsExpr, tvarsExpr]
   let tmExpr ← mkAppM ``elabHelper #[← elabTm e, lvarsExpr, tvarsExpr, varsExpr]
 
-  mkAppM ``has_type #[phiExpr, deltaExpr, gammaExpr, tmExpr, tyExpr]
+  mkAppM ``has_type #[phiExpr, psiExpr, deltaExpr, gammaExpr, tmExpr, tyExpr]

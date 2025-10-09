@@ -113,3 +113,12 @@ inductive SGamma : Type where
 | Gamma_Cons : SGammaEntry -> SGamma -> SGamma
 | Gamma_End : SGamma
 deriving Repr
+
+inductive SPsiEntry : Type where
+| PsiCorr : SLabel -> SPsiEntry
+| PsiNotCorr : SLabel -> SPsiEntry
+deriving Repr
+
+inductive SPsi : Type where
+| Psi_Cons : SPsiEntry -> SPsi -> SPsi
+| Psi_End : SPsi
