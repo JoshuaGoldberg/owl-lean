@@ -508,7 +508,7 @@ noncomputable def infer (Phi : phi_context l) (Psi : psi_context l) (Delta : del
                    fun sc => has_type.T_Op op e1 e2 l (grind pf1) (grind pf2)⟩
           | .none => .none
         | .none => .none
-      | .Public =>
+      | .Public => -- Maybe synthesize type of e1/e2, and then check if they are Public or Data l?
         match infer Phi Psi Delta Gamma e1 (.some (.Data (.latl L.bot))) with
         | .some pf1 =>
           match infer Phi Psi Delta Gamma e2 (.some (.Data (.latl L.bot))) with
