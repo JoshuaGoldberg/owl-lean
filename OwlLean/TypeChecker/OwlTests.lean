@@ -283,7 +283,7 @@ def eq : Owl.op :=
 def insert_tm := --TEMP
   Owl [] [] [] {
     λmap . λx . λv . λy .
-      if ["10101"] then (ı1 *) else (ı1 *)
+      if ["10101"] then (ı1 *) else (ı1 *) -- change to EQ!!!
   }
 
 def insert_ty (t : Owl.ty 0 0) :=
