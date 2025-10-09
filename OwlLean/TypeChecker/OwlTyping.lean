@@ -100,6 +100,34 @@ def phi_entails_c (pctx : phi_context l) (co : constr l) : Prop :=
     valid_phi_map l pm pctx ->
     phi_map_holds l pm co)
 
+inductive corruption : Nat -> Type where
+| corr : label n -> corruption n
+| not_corr : label n -> corruption n
+
+structure CorruptionSet where
+  is_corrupt : label 0 -> Prop
+  has_bot : is_corrupt (label.latl L.bot)
+  downward_closed : forall l l',
+                    is_corrupt l' ->
+                    L.leq (interp_lattice l) (interp_lattice l') = true ->
+                    is_corrupt l
+
+def psi_context (l : Nat) := (List (corruption l))
+
+def empty_psi (l : Nat) : psi_context l := []
+
+inductive C_satisfies_psi : CorruptionSet -> psi_context 0 -> Prop where
+| psi_empty : forall C,
+  C_satisfies_psi C []
+| psi_corr : forall psi C l,
+  C_satisfies_psi C psi ->
+  C.is_corrupt l ->
+  C_satisfies_psi C ((.corr l) :: psi)
+| psi_not_corr : forall psi C l,
+  C_satisfies_psi C psi ->
+  ¬(C.is_corrupt l) ->
+  C_satisfies_psi C ((.not_corr l) :: psi)
+
 notation:100 pctx " |= " co => phi_entails_c pctx co
 
 notation:100 "! " e => tm.dealloc e
