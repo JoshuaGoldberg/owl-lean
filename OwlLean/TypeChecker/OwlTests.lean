@@ -283,13 +283,46 @@ def eq : Owl.op :=
 def insert_tm := --TEMP
   Owl [] [] [] {
     λmap . λx . λv . λy .
-      if ["10101"] then (ı1 *) else (ı1 *) -- change to EQ!!!
+      if (⟨eq⟩(["111"], ["111"])) then (ı1 *) else (ı1 *) -- change to EQ!!!
   }
 
 def insert_ty (t : Owl.ty 0 0) :=
   OwlTy [] [] {
     (Public -> (Unit + ($ t))) -> Public -> ($ t) -> Public -> (Unit + ($ t))
   }
+
+theorem ht_zero :
+  ( · ; -- Phi
+    · ; -- Delta
+    · ; -- Gamma
+    · ;
+   (zero (["111"] : (Data ⟨Owl.L.bot⟩))) ⊢  -- Tm
+   (Public)) -- Ty
+   :=
+  by
+  tc (try grind)
+
+theorem ht_eq :
+  ( · ; -- Phi
+    · ; -- Delta
+    · ; -- Gamma
+    · ;
+   (⟨eq⟩(["111"], ["111"])) ⊢  -- Tm
+   (Public)) -- Ty
+   :=
+  by
+  tc (try grind)
+
+theorem ht_if_eq :
+  ( · ; -- Phi
+    · ; -- Delta
+    · ; -- Gamma
+    · ;
+   (if ⟨eq⟩(["111"], ["111"]) then ["111"] else ["111"]) ⊢  -- Tm
+   (Public)) -- Ty
+   :=
+  by
+  tc (try grind)
 
 theorem ht_insert :
   forall (t : Owl.ty 0 0),

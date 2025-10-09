@@ -254,100 +254,100 @@ inductive is_value : tm l d m -> Prop where
 inductive has_type : (Phi : phi_context l) -> (Psi : psi_context l) -> (Delta : delta_context l d) -> (Gamma : gamma_context l d m) ->
   tm l d m -> ty l d -> Prop where
 | T_Var : forall x,
-  has_type  Phi Psi Delta Gamma (.var_tm x) (Gamma x)
-| T_IUnit : has_type  Phi Psi Delta Gamma .skip .Unit
+  has_type Phi Psi Delta Gamma (.var_tm x) (Gamma x)
+| T_IUnit : has_type Phi Psi Delta Gamma .skip .Unit
 | T_Const : forall b,
-  has_type  Phi Psi Delta Gamma (.bitstring b) .Public
+  has_type Phi Psi Delta Gamma (.bitstring b) .Public
 | T_Op : forall op e1 e2 l,
-  has_type  Phi Psi Delta Gamma e1 (.Data l) ->
-  has_type  Phi Psi Delta Gamma e2 (.Data l) ->
-  has_type  Phi Psi Delta Gamma (.Op op e1 e2) (.Data l)
+  has_type Phi Psi Delta Gamma e1 (.Data l) ->
+  has_type Phi Psi Delta Gamma e2 (.Data l) ->
+  has_type Phi Psi Delta Gamma (.Op op e1 e2) (.Data l)
 | T_Zero : forall e l,
-  has_type  Phi Psi Delta Gamma e (.Data l) ->
-  has_type  Phi Psi Delta Gamma (.zero e) .Public
+  has_type Phi Psi Delta Gamma e (.Data l) ->
+  has_type Phi Psi Delta Gamma (.zero e) .Public
 | T_If : forall e e1 e2 t,
   has_type Phi Psi Delta Gamma e .Public ->
   has_type Phi Psi Delta Gamma e1 t ->
   has_type Phi Psi Delta Gamma e2 t ->
   has_type Phi Psi Delta Gamma (.if_tm e e1 e2) t
 | T_IRef : forall e t,
-  has_type  Phi Psi Delta Gamma e t ->
-  has_type  Phi Psi Delta Gamma (.alloc e) (.Ref t)
+  has_type Phi Psi Delta Gamma e t ->
+  has_type Phi Psi Delta Gamma (.alloc e) (.Ref t)
 | T_ERef : forall e t,
-  has_type  Phi Psi Delta Gamma e (.Ref t) ->
-  has_type  Phi Psi Delta Gamma (! e) t
+  has_type Phi Psi Delta Gamma e (.Ref t) ->
+  has_type Phi Psi Delta Gamma (! e) t
 | T_Assign : forall e1 e2 t,
-  has_type  Phi Psi Delta Gamma e1 (.Ref t) ->
-  has_type  Phi Psi Delta Gamma e2 t ->
-  has_type  Phi Psi Delta Gamma (.assign e1 e2) .Unit
+  has_type Phi Psi Delta Gamma e1 (.Ref t) ->
+  has_type Phi Psi Delta Gamma e2 t ->
+  has_type Phi Psi Delta Gamma (.assign e1 e2) .Unit
 | T_IFun : forall e t t',
-  has_type  Phi Psi Delta (cons (.arr t t') (cons t Gamma)) e t' ->
-  has_type  Phi Psi Delta Gamma (.fixlam e) (.arr t t')
+  has_type Phi Psi Delta (cons (.arr t t') (cons t Gamma)) e t' ->
+  has_type Phi Psi Delta Gamma (.fixlam e) (.arr t t')
 | T_EFun : forall e1 e2 t t',
-  has_type  Phi Psi Delta Gamma e1 (.arr t t') ->
-  has_type  Phi Psi Delta Gamma e2 t ->
-  has_type  Phi Psi Delta Gamma (.app e1 e2) t'
+  has_type Phi Psi Delta Gamma e1 (.arr t t') ->
+  has_type Phi Psi Delta Gamma e2 t ->
+  has_type Phi Psi Delta Gamma (.app e1 e2) t'
 | T_IProd : forall e1 e2 t1 t2,
-  has_type  Phi Psi Delta Gamma e1 t1 ->
-  has_type  Phi Psi Delta Gamma e2 t2 ->
-  has_type  Phi Psi Delta Gamma (.tm_pair e1 e2) (.prod t1 t2)
+  has_type Phi Psi Delta Gamma e1 t1 ->
+  has_type Phi Psi Delta Gamma e2 t2 ->
+  has_type Phi Psi Delta Gamma (.tm_pair e1 e2) (.prod t1 t2)
 | T_EProdL : forall e t1 t2,
-  has_type  Phi Psi Delta Gamma e (.prod t1 t2) ->
-  has_type  Phi Psi Delta Gamma (.left_tm e) t1
+  has_type Phi Psi Delta Gamma e (.prod t1 t2) ->
+  has_type Phi Psi Delta Gamma (.left_tm e) t1
 | T_EProdR : forall e t1 t2,
-  has_type  Phi Psi Delta Gamma e (.prod t1 t2) ->
-  has_type  Phi Psi Delta Gamma (.right_tm e) t2
+  has_type Phi Psi Delta Gamma e (.prod t1 t2) ->
+  has_type Phi Psi Delta Gamma (.right_tm e) t2
 | T_ISumL : forall e t1 t2,
-  has_type  Phi Psi Delta Gamma e t1 ->
-  has_type  Phi Psi Delta Gamma (.inl e) (.sum t1 t2)
+  has_type Phi Psi Delta Gamma e t1 ->
+  has_type Phi Psi Delta Gamma (.inl e) (.sum t1 t2)
 | T_ISumR : forall e t1 t2,
-  has_type  Phi Psi Delta Gamma e t2 ->
-  has_type  Phi Psi Delta Gamma (.inr e) (.sum t1 t2)
+  has_type Phi Psi Delta Gamma e t2 ->
+  has_type Phi Psi Delta Gamma (.inr e) (.sum t1 t2)
 | T_ESum : forall e t1 t2 t e1 e2,
-  has_type  Phi Psi Delta Gamma e (.sum t1 t2) ->
-  has_type  Phi Psi Delta (cons t1 Gamma) e1 t ->
-  has_type  Phi Psi Delta (cons t2 Gamma) e2 t ->
-  has_type  Phi Psi Delta Gamma (.case e e1 e2) t
+  has_type Phi Psi Delta Gamma e (.sum t1 t2) ->
+  has_type Phi Psi Delta (cons t1 Gamma) e1 t ->
+  has_type Phi Psi Delta (cons t2 Gamma) e2 t ->
+  has_type Phi Psi Delta Gamma (.case e e1 e2) t
 | T_IUniv : forall t0 t e,
-  has_type  Phi Psi (lift_delta (cons t0 Delta)) (lift_gamma_d Gamma) e t ->
-  has_type  Phi Psi Delta Gamma (.tlam e) (.all t0 t)
+  has_type Phi Psi (lift_delta (cons t0 Delta)) (lift_gamma_d Gamma) e t ->
+  has_type Phi Psi Delta Gamma (.tlam e) (.all t0 t)
 | T_EUniv : forall t t' t0 e,
   subtype Phi Psi Delta t' t0 ->
-  has_type  Phi Psi Delta Gamma e (.all t0 t) ->
-  has_type  Phi Psi Delta Gamma (.tapp e t') (subst_ty .var_label (cons t' .var_ty) t)
+  has_type Phi Psi Delta Gamma e (.all t0 t) ->
+  has_type Phi Psi Delta Gamma (.tapp e t') (subst_ty .var_label (cons t' .var_ty) t)
 | T_IExist : forall e t t' t0,
-  has_type  Phi Psi Delta Gamma e (subst_ty .var_label (cons t' .var_ty) t) ->
-  subtype  Phi Psi Delta t' t0 ->
-  has_type  Phi Psi Delta Gamma (.pack t' e) (.ex t0 t)
+  has_type Phi Psi Delta Gamma e (subst_ty .var_label (cons t' .var_ty) t) ->
+  subtype Phi Psi Delta t' t0 ->
+  has_type Phi Psi Delta Gamma (.pack t' e) (.ex t0 t)
 | T_EExist : forall e e' t0 t t',
-  has_type  Phi Psi Delta Gamma e (.ex t0 t) ->
+  has_type Phi Psi Delta Gamma e (.ex t0 t) ->
   has_type Phi Psi (lift_delta (cons t0 Delta)) (cons t (lift_gamma_d Gamma)) e' (ren_ty id shift t') ->
-  has_type  Phi Psi Delta Gamma (.unpack e e') t'
+  has_type Phi Psi Delta Gamma (.unpack e e') t'
 | T_ILUniv : forall cs lab e t,
   has_type (lift_phi ((cons (cs, lab)) Phi))
            (lift_psi Psi) (lift_delta_l Delta) (lift_gamma_l Gamma) e t ->
-  has_type  Phi Psi Delta Gamma (.l_lam e) (.all_l cs lab t)
+  has_type Phi Psi Delta Gamma (.l_lam e) (.all_l cs lab t)
 | T_ELUniv : forall cs lab lab' e t,
   (Phi |= (.condition cs lab lab')) ->
-  has_type  Phi Psi Delta Gamma e (.all_l cs lab t) ->
-  has_type  Phi Psi Delta Gamma (.lapp e lab') (subst_ty (cons lab' .var_label) .var_ty t)
+  has_type Phi Psi Delta Gamma e (.all_l cs lab t) ->
+  has_type Phi Psi Delta Gamma (.lapp e lab') (subst_ty (cons lab' .var_label) .var_ty t)
 | T_Sync : forall e,
-  has_type  Phi Psi Delta Gamma e .Public ->
-  has_type  Phi Psi Delta Gamma (.sync e) .Public
+  has_type Phi Psi Delta Gamma e .Public ->
+  has_type Phi Psi Delta Gamma (.sync e) .Public
 | T_Sub : forall e t t',
   subtype Phi Psi Delta t t' ->
-  has_type  Phi Psi Delta Gamma e t ->
-  has_type  Phi Psi Delta Gamma e t'
+  has_type Phi Psi Delta Gamma e t ->
+  has_type Phi Psi Delta Gamma e t'
 | T_Annot : forall e t,
-  has_type  Phi Psi Delta Gamma e t ->
-  has_type  Phi Psi Delta Gamma (.annot e t) t
+  has_type Phi Psi Delta Gamma e t ->
+  has_type Phi Psi Delta Gamma (.annot e t) t
 
 -- NEED TO ADD IF STATEMENTS BACK (RELFLECTING NEW CORR DEFS)
 
 theorem simple_var_typing :
   forall x Phi Psi Delta (Gamma : gamma_context l d m),
-     has_type  Phi Psi Delta Gamma (.var_tm x) (Gamma x) := by
-  intro x  Phi Psi Delta Gamma
+     has_type Phi Psi Delta Gamma (.var_tm x) (Gamma x) := by
+  intro x Phi Psi Delta Gamma
   exact has_type.T_Var x
 
 theorem concrete_typing : @has_type 0 0 0  empty_phi (empty_psi 0) empty_delta empty_gamma .skip .Unit :=
@@ -377,7 +377,7 @@ structure Conditional (p : Prop) where
 
 structure CheckType (Phi : phi_context l) (Delta : delta_context l d)
                      (Gamma : gamma_context l d m) (e : tm l d m) (exp : ty l d) : Type where
-  check : has_type  Phi Psi Delta Gamma e exp
+  check : has_type Phi Psi Delta Gamma e exp
 
 structure STType (Phi : phi_context l) (Delta : delta_context l d)
                      (t1 : ty l d) (t2 : ty l d) : Type where
@@ -397,7 +397,7 @@ def check_subtype  (fuel : Nat) (Phi : phi_context l) (Psi : psi_context l) (Del
       | x, .Any => .some ⟨True, fun _ => subtype.ST_Any x⟩
       | .Unit, .Unit => .some ⟨True, fun _ => subtype.ST_Unit⟩
       | .Data l1, .Data l2 => .some ⟨(Phi |= (.condition .leq l1 l2)), fun sc => subtype.ST_Data l1 l2 sc⟩
-      | .Data l1, .Public => sorry
+      | .Data l1, .Public => .some ⟨(psi_phi_entail_corr Phi Psi (.corr l1)), fun sc => subtype.ST_LPublic l1 sc⟩
       | .Public, .Public => .some ⟨True, fun _ => subtype.ST_Public⟩
       | .var_ty x, t' =>
           match check_subtype n Phi Psi Delta (Delta x) t' with
@@ -438,11 +438,11 @@ def check_subtype  (fuel : Nat) (Phi : phi_context l) (Psi : psi_context l) (Del
 -- If it typechecks, a proof that the input term has type "exp"
 -- If no type is provided, infer will attempt to synthesize the type of the input term
 -- If successful, it will return the synthesized type, and a proof that the input term has that type
-def infer (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_context l d)
+noncomputable def infer (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_context l d)
           (Gamma : gamma_context l d m) (e : tm l d m) (exp : Option (ty l d)) :
           Option (match exp with
-                  | .none => ((t : ty l d) × Conditional (has_type  Phi Psi Delta Gamma e t))
-                  | .some exp' => Conditional (has_type  Phi Psi Delta Gamma e exp')) :=
+                  | .none => ((t : ty l d) × Conditional (has_type Phi Psi Delta Gamma e t))
+                  | .some exp' => Conditional (has_type Phi Psi Delta Gamma e exp')) :=
   match e with
   | .var_tm x =>
     match exp with
@@ -479,69 +479,100 @@ def infer (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_context l d
   | .Op op e1 e2 =>
     match exp with
     | .none => -- try to synthesize
-      match infer  Phi Psi Delta Gamma e1 .none with -- find type of e1
+      match infer Phi Psi Delta Gamma e1 .none with -- find type of e1
       | .some ⟨.Data l1, pf1⟩ =>
-        match infer  Phi Psi Delta Gamma e2 (.some (.Data l1)) with
+        match infer Phi Psi Delta Gamma e2 (.some (.Data l1)) with
         | .some e2pf =>
           .some ⟨.Data l1,
                  ⟨pf1.side_condition /\ e2pf.side_condition,
                   fun sc => has_type.T_Op op e1 e2 l1 (pf1.side_condition_sound (by grind)) (e2pf.side_condition_sound (by grind))⟩⟩
         | .none =>
-          match infer  Phi Psi Delta Gamma e2 .none with  -- find type of e2
+          match infer Phi Psi Delta Gamma e2 .none with  -- find type of e2
           | .some ⟨.Data l2, pf2⟩ =>
-            match infer  Phi Psi Delta Gamma e1 (.some (.Data l2)) with
+            match infer Phi Psi Delta Gamma e1 (.some (.Data l2)) with
             | .some e1pf =>
               .some ⟨.Data l2,
                      ⟨e1pf.side_condition /\ pf2.side_condition,
                       fun sc => has_type.T_Op op e1 e2 l2 (e1pf.side_condition_sound (by grind)) (pf2.side_condition_sound (by grind))⟩⟩
             | .none => .none
           | _ => .none
-      | _ => .none
+      | _ => .none -- ADD AN EXTRA CASE FOR PUBLIC!
     | .some t =>
       match t with
       | .Data l =>
-        match infer  Phi Psi Delta Gamma e1 (.some (.Data l)) with
+        match infer Phi Psi Delta Gamma e1 (.some (.Data l)) with
         | .some pf1 =>
-          match infer  Phi Psi Delta Gamma e2 (.some (.Data l)) with
+          match infer Phi Psi Delta Gamma e2 (.some (.Data l)) with
           | .some pf2 =>
             .some ⟨pf1.side_condition /\ pf2.side_condition,
                    fun sc => has_type.T_Op op e1 e2 l (grind pf1) (grind pf2)⟩
+          | .none => .none
+        | .none => .none
+      | .Public =>
+        match infer Phi Psi Delta Gamma e1 (.some (.Data (.latl L.bot))) with
+        | .some pf1 =>
+          match infer Phi Psi Delta Gamma e2 (.some (.Data (.latl L.bot))) with
+          | .some pf2 =>
+            match check_subtype 99 Phi Psi Delta (.Data (.latl L.bot)) .Public with
+            |.some sub =>
+              .some ⟨sub.side_condition /\ pf1.side_condition /\ pf2.side_condition,
+                    fun sc => has_type.T_Sub (.Op op e1 e2) (.Data (.latl L.bot)) .Public (grind sub)
+                                             (has_type.T_Op op e1 e2 (.latl L.bot) (grind pf1) (grind pf2))⟩
+            | .none => .none
           | .none => .none
         | .none => .none
       | _ => .none
   | .zero e =>
     match exp with
     | .none =>
-      match infer  Phi Psi Delta Gamma e .none with
+      match infer Phi Psi Delta Gamma e .none with
       | .some ⟨.Data l, pf⟩ =>
             .some ⟨.Public,
                    ⟨pf.side_condition, fun sc => has_type.T_Zero e l (pf.side_condition_sound (by grind))⟩⟩
+      | .some ⟨.Public, pf⟩ =>
+        match check_subtype 99 Phi Psi Delta .Public (.Data (.latl L.bot)) with
+        | .some sub =>
+            .some ⟨.Public,
+                   ⟨sub.side_condition /\ pf.side_condition,
+                   fun sc => has_type.T_Zero e (.latl L.bot) (has_type.T_Sub e .Public (.Data (.latl L.bot)) (grind sub)
+                   (pf.side_condition_sound (by grind)))⟩⟩
+        | .none => .none
       | _ => .none
     | .some t =>
-      match infer  Phi Psi Delta Gamma e .none with
+      match infer Phi Psi Delta Gamma e .none with
       | .some ⟨.Data l, pf⟩ =>
         match check_subtype 99 Phi Psi Delta .Public t with
         | .some sub =>
           .some ⟨pf.side_condition /\ sub.side_condition,
                 fun sc => has_type.T_Sub (.zero e) .Public t (grind sub) (has_type.T_Zero e l (grind pf))⟩
         | .none => .none
+      | .some ⟨.Public, pf⟩ =>
+        match check_subtype 99 Phi Psi Delta .Public t with
+        | .some sub =>
+          match check_subtype 99 Phi Psi Delta .Public (.Data (.latl L.bot)) with
+          | .some sub' =>
+            .some ⟨pf.side_condition /\ sub.side_condition /\ sub'.side_condition,
+                  fun sc => has_type.T_Sub (.zero e) .Public t (grind sub) (has_type.T_Zero e (.latl L.bot)
+                  (has_type.T_Sub e .Public (.Data (.latl L.bot)) (grind sub') (grind pf)))⟩
+          | .none => .none
+        | .none => .none
       | _ => .none
   | .if_tm e e1 e2 =>
     match exp with
     | .none =>
-      match infer  Phi Psi Delta Gamma e .none with
-      | .some ⟨.Public, cond_pf⟩ =>
-        match infer  Phi Psi Delta Gamma e1 .none with
+      match infer Phi Psi Delta Gamma e (.some .Public) with
+      | .some cond_pf =>
+        match infer Phi Psi Delta Gamma e1 .none with
         | .some ⟨t1, pf1⟩ =>
-          match infer  Phi Psi Delta Gamma e2 (.some t1) with
+          match infer Phi Psi Delta Gamma e2 (.some t1) with
           | .some pf2 =>
             .some ⟨t1,
                   ⟨cond_pf.side_condition /\ pf1.side_condition /\ pf2.side_condition,
                    fun sc => has_type.T_If e e1 e2 t1 (grind cond_pf) (grind pf1) (grind pf2)⟩⟩
           | .none =>
-            match infer  Phi Psi Delta Gamma e2 .none with
+            match infer Phi Psi Delta Gamma e2 .none with
             | .some ⟨t2, pf2⟩ =>
-              match infer  Phi Psi Delta Gamma e1 (.some t2) with
+              match infer Phi Psi Delta Gamma e1 (.some t2) with
               | .some pf1 =>
                 .some ⟨t2, ⟨cond_pf.side_condition /\ pf1.side_condition /\ pf2.side_condition,
                        fun sc => has_type.T_If e e1 e2 t2 (grind cond_pf) (grind pf1) (grind pf2)⟩⟩
@@ -550,48 +581,48 @@ def infer (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_context l d
         | .none => .none
       | _ => .none
     | .some t =>
-      match infer  Phi Psi Delta Gamma e .none with
-      | .some ⟨.Public, cond_pf⟩ =>
-        match infer  Phi Psi Delta Gamma e1 (.some t) with
+      match infer Phi Psi Delta Gamma e (.some .Public) with
+      | .some cond_pf =>
+        match infer Phi Psi Delta Gamma e1 (.some t) with
         | .some pf1 =>
-           match infer  Phi Psi Delta Gamma e2 (.some t) with
-           | .some pf2 =>
-             .some ⟨cond_pf.side_condition /\ pf1.side_condition /\ pf2.side_condition ,
+          match infer Phi Psi Delta Gamma e2 (.some t) with
+          | .some pf2 =>
+            .some ⟨cond_pf.side_condition /\ pf1.side_condition /\ pf2.side_condition ,
                     fun sc => has_type.T_If e e1 e2 t (grind cond_pf) (grind pf1) (grind pf2)⟩
-           | .none => .none
+          | .none => .none
         | .none => .none
       | _ => .none
   | .alloc e =>
     match exp with
     | .none =>
-      match infer  Phi Psi Delta Gamma e .none with
+      match infer Phi Psi Delta Gamma e .none with
       | .some ⟨t, pf⟩ =>
         .some ⟨.Ref t, ⟨pf.side_condition, fun sc =>has_type.T_IRef e t (grind pf)⟩⟩
       | .none => .none
     | .some exp_ty =>
       match exp_ty with
       | .Ref t =>
-        match infer  Phi Psi Delta Gamma e (.some t) with
+        match infer Phi Psi Delta Gamma e (.some t) with
         | .some pf => .some ⟨pf.side_condition, fun sc => has_type.T_IRef e t (grind pf)⟩
         | .none => .none
       | _ => .none
   | .dealloc e =>
     match exp with
     | .none =>
-      match infer  Phi Psi Delta Gamma e .none with
+      match infer Phi Psi Delta Gamma e .none with
       | .some ⟨.Ref t, pf⟩ =>
         .some ⟨t, ⟨pf.side_condition, fun sc => has_type.T_ERef e t (grind pf)⟩⟩
       | _ => .none
     | .some exp_ty =>
-      match infer  Phi Psi Delta Gamma e (.some (.Ref exp_ty)) with
+      match infer Phi Psi Delta Gamma e (.some (.Ref exp_ty)) with
       | .some pf => .some ⟨pf.side_condition , fun sc => has_type.T_ERef e exp_ty (grind pf)⟩
       | .none => .none
   | .assign e1 e2 =>
     match exp with
     | .none =>
-      match infer  Phi Psi Delta Gamma e1 .none with
+      match infer Phi Psi Delta Gamma e1 .none with
       | .some ⟨.Ref t, pf1⟩ =>
-        match infer  Phi Psi Delta Gamma e2 (.some t) with
+        match infer Phi Psi Delta Gamma e2 (.some t) with
         | .some pf2 =>
           .some ⟨.Unit, ⟨pf1.side_condition /\ pf2.side_condition, fun sc => has_type.T_Assign e1 e2 t (grind pf1) (grind pf2)⟩⟩
         | .none => .none
@@ -599,9 +630,9 @@ def infer (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_context l d
     | .some exp_ty =>
       match exp_ty with
       | .Unit =>
-        match infer  Phi Psi Delta Gamma e1 .none with
+        match infer Phi Psi Delta Gamma e1 .none with
         | .some ⟨.Ref t, pf1⟩ =>
-          match infer  Phi Psi Delta Gamma e2 (.some t) with
+          match infer Phi Psi Delta Gamma e2 (.some t) with
           | .some pf2 =>
             .some ⟨pf1.side_condition /\ pf2.side_condition, fun sc => has_type.T_Assign e1 e2 t (grind pf1) (grind pf2)⟩
           | .none => .none
@@ -613,7 +644,7 @@ def infer (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_context l d
     | .some t =>
       match t with
       | .sum t1 t2 =>
-        match infer  Phi Psi Delta Gamma e (.some t1) with
+        match infer Phi Psi Delta Gamma e (.some t1) with
         | .some pr => .some ⟨pr.side_condition, fun sc => has_type.T_ISumL e t1 t2 (grind pr)⟩
         | .none => .none
       | _ => .none
@@ -623,7 +654,7 @@ def infer (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_context l d
     | .some t =>
       match t with
       | .sum t1 t2 =>
-        match infer  Phi Psi Delta Gamma e (.some t2) with
+        match infer Phi Psi Delta Gamma e (.some t2) with
         | .some pr => .some ⟨pr.side_condition, fun sc => has_type.T_ISumR e t1 t2 (grind pr)⟩
         | .none => .none
       | _ => .none
@@ -634,28 +665,28 @@ def infer (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_context l d
       match t with
       | .arr t t' =>
         let extended_gamma := cons (.arr t t') (cons t Gamma)
-        match infer  Phi Psi Delta extended_gamma e (.some t') with
+        match infer Phi Psi Delta extended_gamma e (.some t') with
         | .some pe => .some ⟨pe.side_condition, fun sc => has_type.T_IFun e t t' (grind pe)⟩
         | .none => .none
       | _ => .none
   | .app e1 e2 =>
     match exp with
     | .none => -- synthesize
-      match infer  Phi Psi Delta Gamma e1 .none with
+      match infer Phi Psi Delta Gamma e1 .none with
       | .some ⟨ty1, pf1⟩ =>
         match ty1 with
         | .arr t t' =>
-          match infer  Phi Psi Delta Gamma e2 (.some t) with
+          match infer Phi Psi Delta Gamma e2 (.some t) with
           | .some pf2 => .some ⟨t', ⟨pf1.side_condition /\ pf2.side_condition, fun sc => has_type.T_EFun e1 e2 t t' (grind pf1) (grind pf2)⟩⟩
           | .none => .none
         | _ => .none
       | .none => .none
     | .some exp_ty =>
-      match infer  Phi Psi Delta Gamma e1 .none with -- synthesize a type for e1
+      match infer Phi Psi Delta Gamma e1 .none with -- synthesize a type for e1
       | .some ⟨ty1, pf1⟩ =>
         match ty1 with
             | .arr t t' => -- correct type synthesized
-              match infer  Phi Psi Delta Gamma e2 (some t) with -- check type of e2
+              match infer Phi Psi Delta Gamma e2 (some t) with -- check type of e2
               | .some pf2 =>
                 let sub := check_subtype 99 Phi Psi Delta t' exp_ty -- check that t' is a subtype of exp_ty
                 match sub with
@@ -669,9 +700,9 @@ def infer (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_context l d
   | .tm_pair e1 e2 =>
     match exp with
     | .none =>
-      match infer  Phi Psi Delta Gamma e1 .none with
+      match infer Phi Psi Delta Gamma e1 .none with
       | .some ⟨t1, pf1⟩ =>
-        match infer  Phi Psi Delta Gamma e2 .none with
+        match infer Phi Psi Delta Gamma e2 .none with
         | .some ⟨t2, pf2⟩ =>
           .some ⟨.prod t1 t2, ⟨pf1.side_condition /\ pf2.side_condition, fun sc => has_type.T_IProd e1 e2 t1 t2 (grind pf1) (grind pf2)⟩⟩
         | .none => .none
@@ -679,9 +710,9 @@ def infer (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_context l d
     | .some exp_ty =>
       match exp_ty with
       | .prod t1 t2 =>
-        match infer  Phi Psi Delta Gamma e1 (.some t1) with
+        match infer Phi Psi Delta Gamma e1 (.some t1) with
         | .some pf1 =>
-          match infer  Phi Psi Delta Gamma e2 (.some t2) with
+          match infer Phi Psi Delta Gamma e2 (.some t2) with
           | .some pf2 =>
             .some ⟨pf1.side_condition /\ pf2.side_condition, fun sc => has_type.T_IProd e1 e2 t1 t2 (grind pf1) (grind pf2)⟩
           | .none => .none
@@ -690,12 +721,12 @@ def infer (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_context l d
   | .left_tm e =>
     match exp with
     | .none => -- synthesize
-      match infer  Phi Psi Delta Gamma e .none with
+      match infer Phi Psi Delta Gamma e .none with
       | .some ⟨.prod t1 t2, pf⟩ =>
         .some ⟨t1, ⟨pf.side_condition, fun sc => has_type.T_EProdL e t1 t2 (grind pf)⟩⟩
       | _ => .none
     | .some exp_ty =>
-      match infer  Phi Psi Delta Gamma e .none with
+      match infer Phi Psi Delta Gamma e .none with
       | .some ⟨.prod t1 t2, pf⟩ =>
         match check_subtype 99 Phi Psi Delta t1 exp_ty with
         | .some sub_pf =>
@@ -707,12 +738,12 @@ def infer (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_context l d
   | .right_tm e =>
     match exp with
     | .none => -- synthesize
-      match infer  Phi Psi Delta Gamma e .none with
+      match infer Phi Psi Delta Gamma e .none with
       | .some ⟨.prod t1 t2, pf⟩ =>
         .some ⟨t2, ⟨pf.side_condition, fun sc => has_type.T_EProdR e t1 t2 (grind pf)⟩⟩
       | _ => .none
     | .some exp_ty =>
-      match infer  Phi Psi Delta Gamma e .none with
+      match infer Phi Psi Delta Gamma e .none with
       | .some ⟨.prod t1 t2, pf⟩ =>
         match check_subtype 99 Phi Psi Delta t2 exp_ty with
         | .some sub_pf =>
@@ -724,9 +755,9 @@ def infer (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_context l d
   | .case e e1 e2 =>
     match exp with
     | .none =>
-      match infer  Phi Psi Delta Gamma e .none with
+      match infer Phi Psi Delta Gamma e .none with
       | .some ⟨.sum t1 t2, pf1⟩ =>
-        match infer  Phi Psi Delta (cons t1 Gamma) e1 .none with
+        match infer Phi Psi Delta (cons t1 Gamma) e1 .none with
         | .some ⟨t, pf2⟩ =>
           match infer Phi Psi Delta (cons t2 Gamma) e2 (.some t) with
           | .some pf3 =>
@@ -736,7 +767,7 @@ def infer (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_context l d
           | .none =>
             match infer Phi Psi Delta (cons t2 Gamma) e2 .none with
             | .some ⟨t', pf2⟩ =>
-              match infer  Phi Psi Delta (cons t1 Gamma) e1 (.some t') with
+              match infer Phi Psi Delta (cons t1 Gamma) e1 (.some t') with
               | .some pf3 =>
                 .some ⟨t', ⟨pf1.side_condition /\ pf2.side_condition /\ pf3.side_condition,
                             fun sc =>
@@ -746,11 +777,11 @@ def infer (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_context l d
         | .none => .none
       | _ => .none
     | .some exp_ty =>
-      match infer  Phi Psi Delta Gamma e .none with
+      match infer Phi Psi Delta Gamma e .none with
       | .some ⟨.sum t1 t2, pf1⟩ =>
-        match infer  Phi Psi Delta (cons t1 Gamma) e1 (.some exp_ty) with
+        match infer Phi Psi Delta (cons t1 Gamma) e1 (.some exp_ty) with
         | .some pf2 =>
-          match infer  Phi Psi Delta (cons t2 Gamma) e2 (.some exp_ty) with
+          match infer Phi Psi Delta (cons t2 Gamma) e2 (.some exp_ty) with
           | .some pf3 =>
             .some ⟨pf1.side_condition /\ pf2.side_condition /\ pf3.side_condition,
                   fun sc => has_type.T_ESum e t1 t2 exp_ty e1 e2 (grind pf1) (grind pf2) (grind pf3)⟩
@@ -782,7 +813,7 @@ def infer (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_context l d
         | .none => .none
       | _ => .none
     | .some exp_ty =>
-      match infer  Phi Psi Delta Gamma e .none with
+      match infer Phi Psi Delta Gamma e .none with
       | .some ⟨.all t0 t, pf⟩ =>
         let sub := check_subtype 99 Phi Psi Delta t' t0
         match sub with
@@ -805,7 +836,7 @@ def infer (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_context l d
       let substituted_type := subst_ty .var_label (cons t' .var_ty) t
       match check_subtype 99 Phi Psi Delta t' t0 with
       | .some sub =>
-        match infer  Phi Psi Delta Gamma e (.some substituted_type) with
+        match infer Phi Psi Delta Gamma e (.some substituted_type) with
         | .some pf =>
           .some ⟨pf.side_condition /\ sub.side_condition,
                  fun sc => has_type.T_IExist e t t' t0 (grind pf) (grind sub)⟩
@@ -815,7 +846,7 @@ def infer (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_context l d
   | .unpack e e' =>
     match exp with
     | .none =>
-      match infer  Phi Psi Delta Gamma e .none with
+      match infer Phi Psi Delta Gamma e .none with
       | .some ⟨.ex t0 t, pf_e⟩ =>
         let extended_delta := lift_delta (cons t0 Delta)
         let extended_gamma := cons t (lift_gamma_d Gamma)
@@ -825,7 +856,7 @@ def infer (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_context l d
         | .none => .none
       | _ => .none
     | .some exp_ty =>
-      match infer  Phi Psi Delta Gamma e .none with
+      match infer Phi Psi Delta Gamma e .none with
       | .some ⟨.ex t0 t, pf_e⟩ =>
         let extended_delta := lift_delta (cons t0 Delta)
         let extended_gamma := cons t (lift_gamma_d Gamma)
@@ -854,7 +885,7 @@ def infer (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_context l d
   | .lapp e lab' =>
     match exp with
     | .none =>
-      match infer  Phi Psi Delta Gamma e .none with
+      match infer Phi Psi Delta Gamma e .none with
       | .some ⟨.all_l cs lab t, pf⟩ =>
         let result_ty := subst_ty (cons lab' .var_label) .var_ty t
         let constraint_obligation := (Phi |= (.condition cs lab lab'))
@@ -864,7 +895,7 @@ def infer (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_context l d
                   has_type.T_ELUniv cs lab lab' e t (by grind) (grind pf)⟩⟩
       | _ => .none
     | .some exp_ty =>
-      match infer  Phi Psi Delta Gamma e .none with
+      match infer Phi Psi Delta Gamma e .none with
       | .some ⟨.all_l cs lab t, pf⟩ =>
         let result_ty := subst_ty (cons lab' .var_label) .var_ty t
         match check_subtype 99 Phi Psi Delta result_ty exp_ty with
@@ -880,13 +911,13 @@ def infer (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_context l d
   | .annot e t =>
     match exp with
     | .none => -- synthesize a type
-      match infer  Phi Psi Delta Gamma e (.some t) with
+      match infer Phi Psi Delta Gamma e (.some t) with
       | .some pf => .some ⟨t, ⟨pf.side_condition, fun sc => has_type.T_Annot e t (grind pf)⟩⟩
       | .none => .none
     | .some exp_ty => -- check the type of annotation
       match check_subtype 99 Phi Psi Delta t exp_ty with -- first check for subtype
       | .some sub =>
-        match infer  Phi Psi Delta Gamma e (.some t) with -- check that e has type t
+        match infer Phi Psi Delta Gamma e (.some t) with -- check that e has type t
         | .some pf =>
           .some ⟨sub.side_condition /\ pf.side_condition, fun sc => has_type.T_Sub (.annot e t) t exp_ty (grind sub) (has_type.T_Annot e t (grind pf))⟩
         | .none => .none
@@ -1144,8 +1175,8 @@ elab_rules : tactic
 
 theorem skip_has_unit_type (Phi : phi_context l) (Delta : delta_context l d)
                            (Gamma : gamma_context l d m) :
-                           has_type  Phi Psi Delta Gamma .skip .Any := by
-  cases h : infer  Phi Psi Delta Gamma .skip (.some .Any) with
+                           has_type Phi Psi Delta Gamma .skip .Any := by
+  cases h : infer Phi Psi Delta Gamma .skip (.some .Any) with
   | some result =>
           dsimp [infer, check_subtype, cons] at h;
           cases result with
@@ -1177,28 +1208,28 @@ theorem tc_ref_refl (Phi : phi_context l)
 
 theorem tc_ref_refl2 (Phi : phi_context l)
                     (Delta : delta_context l d) (l1 l2 : L.labels) :
-  has_type  Phi Psi Delta (cons (.Ref (.Data (.latl l1))) empty_gamma)
+  has_type Phi Psi Delta (cons (.Ref (.Data (.latl l1))) empty_gamma)
     (tm.var_tm ⟨0, by omega⟩)
     (.Ref (.Data (.latl l1))) := by
   tc (try grind)
 
 theorem tc_prod   (Phi : phi_context l)
                     (Delta : delta_context l d) (Gamma : gamma_context l d m) :
-  has_type  Phi Psi Delta Gamma
+  has_type Phi Psi Delta Gamma
     (.tm_pair (.alloc .skip) (.bitstring .bend))
     (.prod (.Ref .Unit) (.Data (.latl l1))):= by
   tc (try grind)
 
 theorem tc_label (Phi : phi_context l)
                          (Delta : delta_context l d) :
-                         has_type  Phi Psi Delta (cons (.Data (.latl l1)) empty_gamma)
+                         has_type Phi Psi Delta (cons (.Data (.latl l1)) empty_gamma)
                            (tm.var_tm ⟨0, by omega⟩)
                            (.Data (.latl l2)) := by
   tc (exact stub_label_flow)
 
 theorem packed_unit_tc (Phi : phi_context l)
                          (Delta : delta_context l d) (Gamma : gamma_context l d m) :
-                         has_type  Phi Psi Delta (cons (.Data (.latl l1))  Gamma)
+                         has_type Phi Psi Delta (cons (.Data (.latl l1))  Gamma)
                            packed_unit
                            (.ex .Any .Unit) := by
   tc (try grind)
@@ -1215,17 +1246,17 @@ theorem unpack_packed_skip_alt :
 
 theorem pack_unit_exists (Phi : phi_context l)
                          (Delta : delta_context l d) (Gamma : gamma_context l d m) :
-                         has_type  Phi Psi Delta Gamma
+                         has_type Phi Psi Delta Gamma
                            (.pack .Unit (.tm_pair .skip .skip))
                            (.ex .Any (.prod (.var_ty 0) (.var_ty 0))) := by
   tc (try grind)
 
 theorem lambda_simple (Phi : phi_context l) (Delta : delta_context l d) (Gamma : gamma_context l d m) :
-          has_type  Phi Psi Delta Gamma (.fixlam (.alloc .skip)) (.arr .Unit (.Ref .Unit)) := by
+          has_type Phi Psi Delta Gamma (.fixlam (.alloc .skip)) (.arr .Unit (.Ref .Unit)) := by
   tc (try grind)
 
 theorem lambda_identity_unit (Phi : phi_context l) (Delta : delta_context l d) (Gamma : gamma_context l d m) :
-          has_type  Phi Psi Delta Gamma (.fixlam (.var_tm ⟨1, by omega⟩)) (.arr .Unit .Unit) := by
+          has_type Phi Psi Delta Gamma (.fixlam (.var_tm ⟨1, by omega⟩)) (.arr .Unit .Unit) := by
   tc (try grind)
 
 -- Proof that injection into a larger goal works
@@ -1250,25 +1281,25 @@ theorem test_inject_2 : (Phi |= constr.condition cond_sym.leq (label.latl L.bot)
 -- Proof, that you can pass in a proof (proof of proof)
 theorem bitstring_has_bot_type (Phi : phi_context l) (Delta : delta_context l d)
                                 (Gamma : gamma_context l d m) (b : binary) :
-                                has_type  Phi Psi Delta Gamma (.bitstring b) (.Data (.latl l1)) := by
+                                has_type Phi Psi Delta Gamma (.bitstring b) (.Data (.latl l1)) := by
   tc (try grind)
 
 -- Test theorem for inl with skip
 theorem inl_skip_has_sum_type (Phi : phi_context l) (Delta : delta_context l d)
                               (Gamma : gamma_context l d m) (t2 : ty l d) :
-                              has_type  Phi Psi Delta Gamma (.inl .skip) (.sum .Unit t2) := by
+                              has_type Phi Psi Delta Gamma (.inl .skip) (.sum .Unit t2) := by
   tc (try grind)
 
 theorem fixlam_identity (Phi : phi_context l) (Delta : delta_context l d)
                         (Gamma : gamma_context l d m) :
-                        has_type  Phi Psi Delta Gamma
+                        has_type Phi Psi Delta Gamma
                           (.fixlam .skip)
                           (.arr .Any .Unit) := by
   tc (try grind)
 
 theorem pair_easy (Phi : phi_context l) (Delta : delta_context l d)
                         (Gamma : gamma_context l d m) :
-                        has_type  Phi Psi Delta Gamma
+                        has_type Phi Psi Delta Gamma
                         (.tm_pair .skip .skip)
                         (.prod .Unit .Unit) := by
   tc (try grind)
