@@ -523,15 +523,18 @@ noncomputable def infer (Phi : phi_context l) (Psi : psi_context l) (Delta : del
           | .none => .none
         | .none => .none
       | .Public => -- Maybe synthesize type of e1/e2, and then check if they are Public or Data l?
-        match infer Phi Psi Delta Gamma e1 (.some (.Data (.latl L.bot))) with
+        match infer Phi Psi Delta Gamma e1 (.some .Public) with
         | .some pf1 =>
-          match infer Phi Psi Delta Gamma e2 (.some (.Data (.latl L.bot))) with
+          match infer Phi Psi Delta Gamma e2 (.some .Public) with
           | .some pf2 =>
-            match check_subtype 99 Phi Psi Delta (.Data (.latl L.bot)) .Public with
-            |.some sub =>
+            match (check_subtype 99 Phi Psi Delta (.Data (.latl L.bot)) .Public) with -- a bit of a pain to get this to work, but it does (?)
+            | .some sub =>
               .some ⟨sub.side_condition /\ pf1.side_condition /\ pf2.side_condition,
-                    fun sc => has_type.T_Sub (.Op op e1 e2) (.Data (.latl L.bot)) .Public (grind sub)
-                                             (has_type.T_Op op e1 e2 (.latl L.bot) (grind pf1) (grind pf2))⟩
+                      fun sc => has_type.T_Sub (.Op op e1 e2) (.Data (.latl L.bot)) .Public
+                                (grind sub)
+                                (has_type.T_Op op e1 e2 (.latl L.bot)
+                                              (has_type.T_Sub e1 .Public (.Data (.latl L.bot)) (subtype.ST_RPublic (.latl L.bot)) (grind pf1))
+                                              (has_type.T_Sub e2 .Public (.Data (.latl L.bot)) (subtype.ST_RPublic (.latl L.bot)) (grind pf2)))⟩
             | .none => .none
           | .none => .none
         | .none => .none
