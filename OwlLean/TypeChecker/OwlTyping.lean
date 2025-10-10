@@ -671,7 +671,7 @@ noncomputable def infer (Phi : phi_context l) (Psi : psi_context l) (Delta : del
       | _ => .none
   | .inl e =>
     match exp with
-    | .none => .none -- CANNOT synthesize! Abort! Abort!
+    | .none => .none -- CANNOT synthesize! Abort! Abort! (No need to add right now)
     | .some t =>
       match t with
       | .sum t1 t2 =>
@@ -681,7 +681,7 @@ noncomputable def infer (Phi : phi_context l) (Psi : psi_context l) (Delta : del
       | _ => .none
   | .inr e =>
     match exp with
-    | .none => .none -- CANNOT synthesize! Abort! Abort!
+    | .none => .none -- CANNOT synthesize! Abort! Abort! (No need to add right now)
     | .some t =>
       match t with
       | .sum t1 t2 =>
@@ -883,7 +883,7 @@ noncomputable def infer (Phi : phi_context l) (Psi : psi_context l) (Delta : del
         let extended_gamma := cons t (lift_gamma_d Gamma)
         match infer Phi Psi extended_delta extended_gamma e' .none with
         | .some ⟨t', pf_e'⟩ =>
-          .none -- TODO TEMP FOR NOW ; NEEDS UNSHIFTING
+          .none -- TODO TEMP FOR NOW ; NEEDS UNSHIFTING; SEEMINGLY CANNOT BE DONE OTHERWISE
         | .none => .none
       | _ => .none
     | .some exp_ty =>

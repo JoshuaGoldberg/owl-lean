@@ -302,6 +302,32 @@ theorem ht_zero :
   by
   tc (try grind)
 
+theorem prove_corr :
+  psi_phi_entail_corr empty_phi [] (corruption.corr (Owl.label.latl Owl.L.bot)) := by
+  unfold psi_phi_entail_corr
+  intro pm C vpm Csp
+  have h1 := C.has_bot
+  simp [subst_psi_context, subst_corruption, Owl.subst_label]
+  simp [subst_psi_context] at Csp
+  apply C_satisfies_psi.psi_corr [] C _ (C_satisfies_psi.psi_empty C)
+  trivial
+
+-- VERY NICE!
+theorem prove_corr_harder :
+  psi_phi_entail_corr (pcons (.geq, (.var_label ⟨0, by omega⟩)) (pcons (.geq, (.latl Owl.L.bot)) empty_phi))
+                      ((.corr (.latl Owl.L.bot)) :: (.corr (.var_label ⟨1, by omega⟩)) :: []) (corruption.corr (.var_label ⟨1, by omega⟩)) := by
+  unfold psi_phi_entail_corr
+  intro pm C vpm Csp
+  have h1 := C.has_bot
+  simp [subst_psi_context, subst_corruption, Owl.subst_label]
+  simp [subst_psi_context, subst_corruption, Owl.subst_label] at Csp
+  apply C_satisfies_psi.psi_corr [] C _ (C_satisfies_psi.psi_empty C)
+  cases Csp with
+  | psi_corr psi C' l psi' h1 =>
+    cases psi' with
+    | psi_corr psi2 C'2 l2 psi'2 h12 =>
+      exact h12
+
 theorem ht_eq :
   ( · ; -- Phi
     · ; -- Delta
