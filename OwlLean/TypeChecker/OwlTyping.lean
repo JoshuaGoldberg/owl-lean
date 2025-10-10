@@ -496,7 +496,21 @@ noncomputable def infer (Phi : phi_context l) (Psi : psi_context l) (Delta : del
                       fun sc => has_type.T_Op op e1 e2 l2 (e1pf.side_condition_sound (by grind)) (pf2.side_condition_sound (by grind))⟩⟩
             | .none => .none
           | _ => .none
-      | _ => .none -- ADD AN EXTRA CASE FOR PUBLIC!
+      | .some ⟨.Public, pf1⟩ =>
+        match infer Phi Psi Delta Gamma e2 (.some .Public) with
+        | .some e2pf =>
+          .some ⟨.Data (.latl L.bot),
+                 ⟨pf1.side_condition /\ e2pf.side_condition,
+                  fun sc =>
+                  (has_type.T_Op op e1 e2 (.latl L.bot)
+                                          (has_type.T_Sub e1 .Public (.Data (.latl L.bot))
+                                                                     (subtype.ST_RPublic (.latl L.bot))
+                                                                     (pf1.side_condition_sound (by grind)))
+                                          (has_type.T_Sub e2 .Public (.Data (.latl L.bot))
+                                                                     (subtype.ST_RPublic (.latl L.bot))
+                                                                     (e2pf.side_condition_sound (by grind))))⟩⟩
+        | .none => .none --maybe talk more about
+      | _ => .none
     | .some t =>
       match t with
       | .Data l =>
