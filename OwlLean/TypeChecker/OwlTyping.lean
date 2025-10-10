@@ -476,7 +476,7 @@ noncomputable def infer (Phi : phi_context l) (Psi : psi_context l) (Delta : del
         .some ⟨pf.side_condition,
                fun sc => has_type.T_Sub (.bitstring b) .Public t (pf.side_condition_sound sc) (has_type.T_Const b)⟩
       | .none => .none
-  | .Op op e1 e2 =>
+  | .Op op e1 e2 => -- This case is long! Might need a step by step.
     match exp with
     | .none => -- try to synthesize
       match infer Phi Psi Delta Gamma e1 .none with -- find type of e1
@@ -495,6 +495,20 @@ noncomputable def infer (Phi : phi_context l) (Psi : psi_context l) (Delta : del
                      ⟨e1pf.side_condition /\ pf2.side_condition,
                       fun sc => has_type.T_Op op e1 e2 l2 (e1pf.side_condition_sound (by grind)) (pf2.side_condition_sound (by grind))⟩⟩
             | .none => .none
+          | .some ⟨.Public, pf2⟩ =>
+            match infer Phi Psi Delta Gamma e1 (.some .Public) with
+            | .some e1pf =>
+              .some ⟨.Data (.latl L.bot),
+                 ⟨pf2.side_condition /\ e1pf.side_condition,
+                  fun sc =>
+                  (has_type.T_Op op e1 e2 (.latl L.bot)
+                                          (has_type.T_Sub e1 .Public (.Data (.latl L.bot))
+                                                                     (subtype.ST_RPublic (.latl L.bot))
+                                                                     (e1pf.side_condition_sound (by grind)))
+                                          (has_type.T_Sub e2 .Public (.Data (.latl L.bot))
+                                                                     (subtype.ST_RPublic (.latl L.bot))
+                                                                     (pf2.side_condition_sound (by grind))))⟩⟩
+            | .none => .none
           | _ => .none
       | .some ⟨.Public, pf1⟩ =>
         match infer Phi Psi Delta Gamma e2 (.some .Public) with
@@ -509,7 +523,7 @@ noncomputable def infer (Phi : phi_context l) (Psi : psi_context l) (Delta : del
                                           (has_type.T_Sub e2 .Public (.Data (.latl L.bot))
                                                                      (subtype.ST_RPublic (.latl L.bot))
                                                                      (e2pf.side_condition_sound (by grind))))⟩⟩
-        | .none => .none --maybe talk more about
+        | .none => .none --match on e2, do the whole thing here
       | _ => .none
     | .some t =>
       match t with
@@ -522,7 +536,7 @@ noncomputable def infer (Phi : phi_context l) (Psi : psi_context l) (Delta : del
                    fun sc => has_type.T_Op op e1 e2 l (grind pf1) (grind pf2)⟩
           | .none => .none
         | .none => .none
-      | .Public => -- Maybe synthesize type of e1/e2, and then check if they are Public or Data l?
+      | .Public =>
         match infer Phi Psi Delta Gamma e1 (.some .Public) with
         | .some pf1 =>
           match infer Phi Psi Delta Gamma e2 (.some .Public) with
