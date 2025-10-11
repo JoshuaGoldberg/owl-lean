@@ -315,49 +315,25 @@ theorem ht_zero :
   )
 
 theorem prove_corr :
-  psi_phi_entail_corr empty_phi [] (corruption.corr (Owl.label.latl Owl.L.bot)) := by
-  unfold psi_phi_entail_corr
+  phi_psi_entail_corr empty_phi [] (Owl.corruption.corr (Owl.label.latl Owl.L.bot)) := by
+  unfold phi_psi_entail_corr
   intro pm C vpm Csp
-  have h1 := C.has_bot
-  simp [subst_psi_context, subst_corruption, Owl.subst_label]
-  simp [subst_psi_context] at Csp
-  apply C_satisfies_psi.psi_corr [] C _ (C_satisfies_psi.psi_empty C)
-  trivial
+  check_corr C Csp
 
 -- VERY NICE!
 theorem prove_corr_harder :
-  psi_phi_entail_corr (pcons (.geq, (.var_label ⟨0, by omega⟩)) (pcons (.geq, (.latl Owl.L.bot)) empty_phi))
-                      ((.corr (.latl Owl.L.bot)) :: (.corr (.var_label ⟨1, by omega⟩)) :: []) (corruption.corr (.var_label ⟨1, by omega⟩)) := by
-  unfold psi_phi_entail_corr
+  phi_psi_entail_corr (pcons (.geq, (.var_label ⟨0, by omega⟩)) (pcons (.geq, (.latl Owl.L.bot)) empty_phi))
+                      ((.corr (.latl Owl.L.bot)) :: (.corr (.var_label ⟨1, by omega⟩)) :: []) (Owl.corruption.corr (.var_label ⟨1, by omega⟩)) := by
   intro pm C vpm Csp
-  have h1 := C.has_bot
-  simp [subst_psi_context, subst_corruption, Owl.subst_label]
-  simp [subst_psi_context, subst_corruption, Owl.subst_label] at Csp
-  apply C_satisfies_psi.psi_corr [] C _ (C_satisfies_psi.psi_empty C)
-  cases Csp with
-  | psi_corr psi C' l psi' h1 =>
-    try trivial
-    cases psi' with
-    | psi_corr psi2 C'2 l2 psi'2 h12 =>
-      try trivial
+  check_corr C Csp
 
 -- VERY NICE!
 theorem prove_corr_harder2 :
-  psi_phi_entail_corr (pcons (.geq, (.var_label ⟨0, by omega⟩)) (pcons (.geq, (.latl Owl.L.bot)) empty_phi))
-                      ((.corr (.latl Owl.L.bot)) :: (.corr (.var_label ⟨1, by omega⟩)) :: []) (corruption.corr (.latl Owl.L.bot)) := by
-  unfold psi_phi_entail_corr
+  phi_psi_entail_corr (pcons (.geq, (.var_label ⟨0, by omega⟩)) (pcons (.geq, (.latl Owl.L.bot)) empty_phi))
+                      ((.corr (.latl Owl.L.bot)) :: (.corr (.var_label ⟨1, by omega⟩)) :: []) (Owl.corruption.corr (.latl Owl.L.bot)) := by
+  unfold phi_psi_entail_corr
   intro pm C vpm Csp
-  have h1 := C.has_bot
-  simp [subst_psi_context, subst_corruption, Owl.subst_label]
-  simp [subst_psi_context, subst_corruption, Owl.subst_label] at Csp
-  apply C_satisfies_psi.psi_corr [] C _ (C_satisfies_psi.psi_empty C)
-  cases Csp with
-  | psi_corr psi C' l psi' h1 =>
-    try trivial
-    -- scattering 'try trivial' helps top solve cases early
-    -- cases psi' with
-    -- | psi_corr psi2 C'2 l2 psi'2 h12 =>
-    --   try trivial
+  check_corr C Csp
 
 theorem ht_eq :
   ( · ; -- Phi
@@ -369,20 +345,21 @@ theorem ht_eq :
    :=
   by
   tc (
-    try simp
-    sorry
+    intro pm C vpm Csp
+    check_corr C Csp
   )
 
 theorem ht_if_eq :
-  ( · ; -- Phi
+  ( (x ⊑ ⟨Owl.L.bot⟩) ; -- Phi
+    (corr(⟨Owl.L.bot⟩), corr(x)) ; -- Psi
     · ; -- Delta
     · ; -- Gamma
-    · ;
    (if ⟨eq⟩(["111"], ["111"]) then ["111"] else ["111"]) ⊢  -- Tm
    (Public)) -- Ty
    :=
   by tc (
-    sorry
+    intro pm C vpm Csp
+    check_corr C Csp
   )
 
 theorem ht_insert :
@@ -397,7 +374,8 @@ theorem ht_insert :
   by
   intro t
   tc (
-    sorry
+    intro pm C vpm Csp
+    check_corr C Csp
   )
 
 theorem ht_insert_part :

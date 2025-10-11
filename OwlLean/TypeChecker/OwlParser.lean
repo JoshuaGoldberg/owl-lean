@@ -169,7 +169,7 @@ def STy.elab (s : STy) (P : TCtx) (D : TCtx): Option (Owl.ty P.length D.length) 
               | .none => .none
               | .some t' => .some (ty.all_l c' l' t')
   | .t_if c t1 t2 =>
-      match (SConstr.elab c P) with
+      match (SLabel.elab c P) with
       | .none => .none
       | .some c' =>
         match (STy.elab t1 P D) with
@@ -330,7 +330,7 @@ def SExpr.elab (s : SExpr) (P : TCtx) (D : TCtx) (G : TCtx): Option (Owl.tm P.le
       match (SExpr.elab e2 P D G) with
       | .none => .none
       | .some e2' =>
-        match (SConstr.elab c P) with
+        match (SLabel.elab c P) with
         | .none => .none
         | .some c' => .some (tm.if_c c' e1' e2')
   | .sync e =>

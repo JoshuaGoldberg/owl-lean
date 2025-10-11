@@ -100,16 +100,7 @@ def phi_entails_c (pctx : phi_context l) (co : constr l) : Prop :=
     valid_phi_map l pm pctx ->
     phi_map_holds l pm co)
 
-inductive corruption : Nat -> Type where
-| corr : label n -> corruption n
-| not_corr : label n -> corruption n
 
-def subst_corruption
-(sigma_label : Fin m_label -> label n_label) (s : corruption m_label) :
-corruption n_label :=
-  match s with
-  | .corr l1 => .corr (subst_label sigma_label l1)
-  | .not_corr l1 => .not_corr (subst_label sigma_label l1)
 
 structure CorruptionSet where
   is_corrupt : label 0 -> Prop
@@ -122,13 +113,6 @@ structure CorruptionSet where
 def psi_context (l : Nat) := (List (corruption l))
 
 def empty_psi (l : Nat) : psi_context l := []
-
-def ren_corruption
-  (xi_label : Fin m_label → Fin n_label)
-  (s : corruption m_label) : corruption n_label :=
-  match s with
-  | .corr l1 => .corr (ren_label xi_label l1)
-  | .not_corr l1 => .not_corr (ren_label xi_label l1)
 
 def lift_psi (pm : psi_context l) : psi_context (l + 1) :=
   pm.map (ren_corruption shift)
@@ -149,7 +133,7 @@ inductive C_satisfies_psi : CorruptionSet -> psi_context 0 -> Prop where
   ¬(C.is_corrupt l) ->
   C_satisfies_psi C ((.not_corr l) :: psi)
 
-def psi_phi_entail_corr (phictx : phi_context l) (psictx : psi_context l) (co : corruption l) : Prop :=
+def  phi_psi_entail_corr (phictx : phi_context l) (psictx : psi_context l) (co : corruption l) : Prop :=
   (forall pm C,
     (valid_phi_map l pm phictx) ->
     (C_satisfies_psi C (subst_psi_context pm psictx)) ->
@@ -201,8 +185,8 @@ inductive is_value : tm l d m -> Prop where
     subtype Phi Psi Delta (.Data lab) (.Data lab')
   | ST_RPublic : forall lab,
     subtype Phi Psi Delta .Public (.Data lab)
-  | ST_LPublic : forall lab,
-    psi_phi_entail_corr Phi Psi (.corr lab) ->
+  | ST_LPublic {Phi Psi Delta} : forall lab,
+     phi_psi_entail_corr Phi Psi (.corr lab) ->
     subtype Phi Psi Delta (.Data lab) .Public
   | ST_Func : forall t1' t1 t2 t2',
     subtype Phi Psi Delta t1' t1 ->
@@ -231,22 +215,22 @@ inductive is_value : tm l d m -> Prop where
     |= (.condition cs (.var_label var_zero) (ren_label shift lab'))) ->
     subtype (lift_phi (cons (cs, lab) Phi)) (lift_psi Psi) (lift_delta_l Delta) t t' ->
     subtype Phi Psi Delta (.all_l cs lab t) (.all_l cs lab' t')
-  | ST_IfElimL : forall co t1 t2 t1',
-    (Phi |= co) ->
+  | ST_LIf1 : forall lab t1 t2 t1',
+    phi_psi_entail_corr Phi Psi (.corr lab) ->
     subtype Phi Psi Delta t1 t1' ->
-    subtype Phi Psi Delta (.t_if co t1 t2) t1'
-  | ST_IfElimR : forall co t1 t2 t2',
-    (Phi |= (negate_cond co)) ->
+    subtype Phi Psi Delta (.t_if lab t1 t2) t1'
+  | ST_LIf2 : forall lab t1 t2 t2',
+    phi_psi_entail_corr Phi Psi (.not_corr lab) ->
     subtype Phi Psi Delta t2 t2' ->
-    subtype Phi Psi Delta (.t_if co t1 t2) t2'
-  | ST_IfIntroL : forall co t1 t1' t2',
-    (Phi |= co) ->
+    subtype Phi Psi Delta (.t_if lab t1 t2) t2'
+  | ST_RIf1 : forall lab t1 t1' t2',
+    phi_psi_entail_corr Phi Psi (.corr lab) ->
     subtype Phi Psi Delta t1 t1' ->
-    subtype Phi Psi Delta t1 (.t_if co t1' t2')
-  | ST_IfIntroR : forall co t2 t1' t2',
-    (Phi |= (negate_cond co)) ->
+    subtype Phi Psi Delta t1 (.t_if lab t1' t2')
+  | ST_RIf2 : forall lab t2 t1' t2',
+    phi_psi_entail_corr Phi Psi (.not_corr lab) ->
     subtype Phi Psi Delta t2 t2' ->
-    subtype Phi Psi Delta t2 (.t_if co t1' t2')
+    subtype Phi Psi Delta t2 (.t_if lab t1' t2')
   | ST_Refl : forall x,
     subtype Phi Psi Delta x x
 
@@ -265,7 +249,7 @@ inductive has_type : (Phi : phi_context l) -> (Psi : psi_context l) -> (Delta : 
 | T_Zero : forall e l,
   has_type Phi Psi Delta Gamma e (.Data l) ->
   has_type Phi Psi Delta Gamma (.zero e) .Public
-| T_If : forall e e1 e2 t,
+| T_If {Phi Psi Delta Gamma} : forall e e1 e2 t,
   has_type Phi Psi Delta Gamma e .Public ->
   has_type Phi Psi Delta Gamma e1 t ->
   has_type Phi Psi Delta Gamma e2 t ->
@@ -334,6 +318,14 @@ inductive has_type : (Phi : phi_context l) -> (Psi : psi_context l) -> (Delta : 
 | T_Sync : forall e,
   has_type Phi Psi Delta Gamma e .Public ->
   has_type Phi Psi Delta Gamma (.sync e) .Public
+| T_IfCorr1 : forall lab t e1 e2,
+  (phi_psi_entail_corr Phi Psi (.not_corr lab)) ->
+  has_type Phi Psi Delta Gamma e2 t ->
+  has_type Phi Psi Delta Gamma (.if_c lab e1 e2) t
+| T_IfCorr2 : forall lab t e1 e2,
+  (phi_psi_entail_corr Phi Psi (.corr lab)) ->
+  has_type Phi Psi Delta Gamma e1 t ->
+  has_type Phi Psi Delta Gamma (.if_c lab e1 e2) t
 | T_Sub : forall e t t',
   subtype Phi Psi Delta t t' ->
   has_type Phi Psi Delta Gamma e t ->
@@ -397,7 +389,7 @@ def check_subtype  (fuel : Nat) (Phi : phi_context l) (Psi : psi_context l) (Del
       | x, .Any => .some ⟨True, fun _ => subtype.ST_Any x⟩
       | .Unit, .Unit => .some ⟨True, fun _ => subtype.ST_Unit⟩
       | .Data l1, .Data l2 => .some ⟨(Phi |= (.condition .leq l1 l2)), fun sc => subtype.ST_Data l1 l2 sc⟩
-      | .Data l1, .Public => .some ⟨(psi_phi_entail_corr Phi Psi (.corr l1)), fun sc => subtype.ST_LPublic l1 sc⟩
+      | .Data l1, .Public => .some ⟨( phi_psi_entail_corr Phi Psi (.corr l1)), fun sc => subtype.ST_LPublic l1 sc⟩
       | .var_ty x1, .var_ty x2 =>
         .some ⟨(x1 = x2), by
           intro h
@@ -968,10 +960,31 @@ noncomputable def infer (Phi : phi_context l) (Psi : psi_context l) (Delta : del
           .some ⟨sub.side_condition /\ pf.side_condition, fun sc => has_type.T_Sub (.annot e t) t exp_ty (grind sub) (has_type.T_Annot e t (grind pf))⟩
         | .none => .none
       | .none => .none
+  | .if_c lab e1 e2 =>
+    match exp with
+    | .none => .none -- TODO, find a good way to synthesize
+    | .some t =>
+      match infer Phi Psi Delta Gamma e1 (.some t), infer Phi Psi Delta Gamma e2 (.some t) with
+      | .some pf1, .some pf2 =>
+        let corr_cond := phi_psi_entail_corr Phi Psi (.corr lab)
+        let not_corr_cond := phi_psi_entail_corr Phi Psi (.not_corr lab)
+        .some ⟨pf1.side_condition /\ pf2.side_condition /\ (corr_cond \/ not_corr_cond),
+            fun ⟨h1, h2, h_disj⟩ =>
+              match h_disj with
+              | Or.inl h_corr => has_type.T_IfCorr2 lab t e1 e2 h_corr (grind pf1)
+              | Or.inr h_not_corr => has_type.T_IfCorr1 lab t e1 e2 h_not_corr (grind pf2)⟩
+      | .some pf1, .none =>
+        .some ⟨pf1.side_condition /\ phi_psi_entail_corr Phi Psi (.corr lab),
+            fun sc => has_type.T_IfCorr2 lab t e1 e2 (by grind) (grind pf1)⟩
+      | .none, .some pf2 =>
+        .some ⟨pf2.side_condition /\ phi_psi_entail_corr Phi Psi (.not_corr lab),
+            fun sc => has_type.T_IfCorr1 lab t e1 e2 (by grind) (grind pf2)⟩
+      | _, _ => .none
   | _ =>
     match exp with
     | .some _ => .none
     | .none => .none
+  -- TODO CORR cases for infer and check_subtype (adding corruptions to justify types)
 
 theorem infer_sound (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_context l d)
           (Gamma : gamma_context l d m) (e : tm l d m) (t : ty l d) :
@@ -1060,6 +1073,8 @@ syntax "solve_phi_validation_anon" : tactic
 syntax "solve_phi_validation_anon_no_simp" : tactic
 syntax "case_phi " ident ident ident num num : tactic
 syntax "all_ren" ident ident num num : tactic
+syntax "check_corr" ident ident : tactic
+syntax "destruct_csp" ident : tactic
 
 macro_rules
   | `(tactic| all_ren $test:ident $inj:ident $curr:num $goal:num) => do
@@ -1194,11 +1209,40 @@ macro_rules
             try case_phi $(tailId):ident $(A):ident $(headHoldsId):ident $newKSyntax $newIterSyntax
         )
 
+macro_rules
+  | `(tactic| destruct_csp $Csp:ident) => do
+    `(tactic|
+      first
+      |   cases $Csp:ident with
+          | psi_empty => trivial
+      |  cases $Csp:ident with
+         | psi_corr psi C' l $Csp:ident Csp' =>
+           try grind;
+           try destruct_csp $Csp:ident
+      | (cases $Csp:ident with
+         | psi_not_corr psi C' l $Csp:ident Csp' =>
+           try grind;
+           try destruct_csp $Csp:ident)
+    )
+  | `(tactic| check_corr $C:ident $Csp:ident) => do
+    `(tactic|
+      have h1 := ($C:ident).has_bot;
+      have h2 := ($C:ident).downward_closed;
+      have h3 := Owl.L.leq_trans;
+      have h4 := Owl.L.bot_all;
+      have h5 := Owl.L.leq_refl;
+      simp [subst_psi_context, subst_corruption, Owl.subst_label];
+      simp [subst_psi_context, subst_corruption, Owl.subst_label] at $Csp:ident;
+      (repeat constructor);
+      destruct_csp $Csp:ident
+    )
+
 macro "solve_all_constraints" : tactic => `(tactic|
   repeat (first
     | constructor <;> (first
         | trivial
         | simp
+        | (intro pm C vpm Csp; check_corr C Csp)
         | attempt_solve
         | solve_phi_validation_anon
         | solve_phi_validation_anon_no_simp)))

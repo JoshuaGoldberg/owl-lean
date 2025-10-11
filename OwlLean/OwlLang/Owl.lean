@@ -43,6 +43,11 @@ inductive label : Nat -> Type where
 | default : label n
 deriving Repr
 
+inductive corruption : Nat -> Type where
+| corr : label n -> corruption n
+| not_corr : label n -> corruption n
+deriving Repr
+
 inductive constr (n_label : Nat) : Type where
 | condition : cond_sym -> label n_label -> label n_label -> constr n_label
 deriving Repr
@@ -59,7 +64,7 @@ inductive ty : Nat -> Nat-> Type where
 | all : ty n_label n_ty -> ty n_label (n_ty + 1) -> ty n_label n_ty
 | ex : ty n_label n_ty -> ty n_label (n_ty + 1) -> ty n_label n_ty
 | all_l : cond_sym -> label n_label -> ty (n_label + 1) n_ty -> ty n_label n_ty
-| t_if : constr n_label -> ty n_label n_ty -> ty n_label n_ty -> ty n_label n_ty
+| t_if : label n_label -> ty n_label n_ty -> ty n_label n_ty -> ty n_label n_ty
 | Public : ty n_label n_ty
 | default : ty n_label n_ty
 deriving Repr
@@ -104,7 +109,7 @@ inductive tm : Nat -> Nat -> Nat -> Type where
     tm n_label n_ty n_tm ->
     tm n_label n_ty n_tm -> tm n_label n_ty n_tm -> tm n_label n_ty n_tm
 | if_c :
-    constr n_label -> tm n_label n_ty n_tm -> tm n_label n_ty n_tm -> tm n_label n_ty n_tm
+    label n_label -> tm n_label n_ty n_tm -> tm n_label n_ty n_tm -> tm n_label n_ty n_tm
 | sync : tm n_label n_ty n_tm -> tm n_label n_ty n_tm
 | annot : tm n_label n_ty n_tm -> ty n_label n_ty -> tm n_label n_ty n_tm
 | default : tm n_label n_ty n_tm
@@ -164,6 +169,13 @@ def ren_constr
   match s with
   | .condition s0 s1 s2 => .condition s0 (ren_label xi_label s1) (ren_label xi_label s2)
 
+def ren_corruption
+  (xi_label : Fin m_label → Fin n_label)
+  (s : corruption m_label) : corruption n_label :=
+  match s with
+  | .corr l1 => .corr (ren_label xi_label l1)
+  | .not_corr l1 => .not_corr (ren_label xi_label l1)
+
 def ren_ty
 (xi_label : Fin m_label -> Fin n_label) (xi_ty : Fin m_ty -> Fin n_ty)
 (s : ty m_label m_ty) : ty n_label n_ty :=
@@ -189,7 +201,7 @@ def ren_ty
       .all_l s0 (ren_label xi_label s1)
         (ren_ty (upRen_label_label xi_label) (upRen_label_ty xi_ty) s2)
   | .t_if s0 s1 s2 =>
-      .t_if (ren_constr xi_label s0) (ren_ty xi_label xi_ty s1)
+      .t_if (ren_label xi_label s0) (ren_ty xi_label xi_ty s1)
         (ren_ty xi_label xi_ty s2)
   | .Public => .Public
   | .default => .default
@@ -279,7 +291,7 @@ tm n_label n_ty n_tm :=
       .if_tm (ren_tm xi_label xi_ty xi_tm s0)
         (ren_tm xi_label xi_ty xi_tm s1) (ren_tm xi_label xi_ty xi_tm s2)
   | .if_c s0 s1 s2 =>
-      .if_c (ren_constr xi_label s0)
+      .if_c (ren_label xi_label s0)
         (ren_tm xi_label xi_ty xi_tm s1) (ren_tm xi_label xi_ty xi_tm s2)
   | .sync s0 => .sync (ren_tm xi_label xi_ty xi_tm s0)
   | .annot e t => .annot (ren_tm xi_label xi_ty xi_tm e) (ren_ty xi_label xi_ty t)
@@ -296,6 +308,13 @@ label n_label :=
   | .lmeet s0 s1 =>
       .lmeet (subst_label sigma_label s0) (subst_label sigma_label s1)
   | .default => .default
+
+def subst_corruption
+(sigma_label : Fin m_label -> label n_label) (s : corruption m_label) :
+corruption n_label :=
+  match s with
+  | .corr l1 => .corr (subst_label sigma_label l1)
+  | .not_corr l1 => .not_corr (subst_label sigma_label l1)
 
 def subst_constr
   (sigma_label : Fin m_label -> label n_label) (s : constr m_label) :
@@ -352,7 +371,7 @@ ty n_label n_ty :=
       .all_l s0 (subst_label sigma_label s1)
         (subst_ty (up_label_label sigma_label) (up_label_ty sigma_ty) s2)
   | .t_if s0 s1 s2 =>
-      .t_if (subst_constr sigma_label s0)
+      .t_if (subst_label sigma_label s0)
         (subst_ty sigma_label sigma_ty s1) (subst_ty sigma_label sigma_ty s2)
   | .Public => .Public
   | .default => .default

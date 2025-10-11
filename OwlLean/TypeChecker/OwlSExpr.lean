@@ -46,7 +46,7 @@ inductive STy : Type where
 | all : String -> STy -> STy -> STy
 | ex : String -> STy -> STy -> STy
 | all_l : String -> SCondSym -> SLabel -> STy -> STy
-| t_if : SConstr -> STy -> STy -> STy
+| t_if : SLabel -> STy -> STy -> STy
 | embedty : Owl.ty 0 0 -> STy
 | Public : STy
 | default : STy
@@ -80,7 +80,7 @@ inductive SExpr : Type where
 | if_tm :
     SExpr -> SExpr -> SExpr -> SExpr
 | if_c :
-    SConstr -> SExpr -> SExpr -> SExpr
+    SLabel -> SExpr -> SExpr -> SExpr
 | sync : SExpr -> SExpr
 | embedtm : Owl.tm 0 0 0 -> SExpr
 | annot : SExpr -> STy -> SExpr
