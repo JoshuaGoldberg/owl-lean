@@ -1010,6 +1010,7 @@ theorem infer_sound_none (Phi : phi_context l) (Psi : psi_context l) (Delta : de
   apply h2
 
 syntax "tc_full" term:max term:max term:max term:max term:max term:max tactic : tactic
+syntax "tc_full_man" term:max term:max term:max term:max term:max term:max tactic : tactic
 
 open Lean Meta Elab Tactic
 
@@ -1257,7 +1258,24 @@ macro_rules
             try dsimp at side_condition_sound
             apply side_condition_sound
             trace_state;
-            -- solve_all_constraints;
+            solve_all_constraints;
+            try simp;
+            $k
+      | none =>
+          dsimp [infer] at h
+          cases h
+    )
+
+macro_rules
+  | `(tactic| tc_full_man $Phi $Psi $Delta $Gamma $e $t $k) => `(tactic|
+      cases h : infer $Phi $Psi $Delta $Gamma $e (some $t) with
+      | some result =>
+          cases result with
+          | mk side_condition side_condition_sound =>
+            cases h
+            try dsimp at side_condition_sound
+            apply side_condition_sound
+            trace_state;
             try simp;
             $k
       | none =>
@@ -1266,6 +1284,7 @@ macro_rules
     )
 
 syntax "tc" tactic:max : tactic
+syntax "tc_man" tactic:max : tactic
 
 elab_rules : tactic
 | `(tactic| tc $k) => do
@@ -1275,6 +1294,23 @@ elab_rules : tactic
   let n := args.size
   let elems := args.extract (n-6) n
   let tac ← `(tactic| tc_full
+                $(<- Term.exprToSyntax elems[0]!)
+                $(<- Term.exprToSyntax elems[1]!)
+                $(<- Term.exprToSyntax elems[2]!)
+                $(<- Term.exprToSyntax elems[3]!)
+                $(<- Term.exprToSyntax elems[4]!)
+                $(<- Term.exprToSyntax elems[5]!)
+                $k)
+  evalTactic tac
+
+elab_rules : tactic
+| `(tactic| tc_man $k) => do
+  let g <- getMainGoal
+  let ty <- g.getType
+  let args := ty.getAppArgs
+  let n := args.size
+  let elems := args.extract (n-6) n
+  let tac ← `(tactic| tc_full_man
                 $(<- Term.exprToSyntax elems[0]!)
                 $(<- Term.exprToSyntax elems[1]!)
                 $(<- Term.exprToSyntax elems[2]!)
