@@ -114,7 +114,7 @@ syntax owl_type "+" owl_type : owl_type
 syntax "∀" owl_type "<:" owl_type "." owl_type : owl_type
 syntax "∃" owl_type "<:" owl_type "." owl_type : owl_type
 syntax "∀" owl_label owl_cond_sym owl_label "." owl_type : owl_type
-syntax "if" owl_label "then" owl_type "else" owl_type : owl_type
+syntax "corr" "(" owl_label ")" "?" owl_type ":" owl_type : owl_type
 syntax "Public" : owl_type
 syntax "$" term : owl_type
 
@@ -156,7 +156,7 @@ partial def elabType : Syntax → MetaM Expr
     let elab_l <- elabLabel l
     let elab_c <- elabCondSym c
     mkAppM ``STy.all_l #[mkStrLit id.getId.toString, elab_c, elab_l, elab_t]
-  | `(owl_type| if $c:owl_label then $t1:owl_type else $t2:owl_type) => do
+  | `(owl_type| corr ( $c:owl_label ) ? $t1:owl_type : $t2:owl_type) => do
     let elab_t1 <- elabType t1
     let elab_t2 <- elabType t2
     let elab_c <- elabLabel c
@@ -194,7 +194,7 @@ syntax owl_tm "[[[" owl_label "]]]" : owl_tm
 syntax "pack" "(" owl_type "," owl_tm ")" : owl_tm
 syntax "unpack" owl_tm "as" "(" ident "," ident ")" "in" owl_tm : owl_tm
 syntax "if" owl_tm "then" owl_tm "else" owl_tm : owl_tm
-syntax "ifc" owl_label "then" owl_tm "else" owl_tm : owl_tm
+syntax "if" "corr" "(" owl_label ")" "then" owl_tm "else" owl_tm : owl_tm
 syntax "sync" owl_tm : owl_tm
 syntax "let" ident "=" owl_tm "in" owl_tm : owl_tm
 syntax "λ" ident "." owl_tm : owl_tm
@@ -290,7 +290,7 @@ partial def elabTm : Syntax → TermElabM Expr
     let elab_e2 <- elabTm e2
     let elab_e3 <- elabTm e3
     mkAppM ``SExpr.if_tm #[elab_e1, elab_e2, elab_e3]
-  | `(owl_tm| ifc $c:owl_label then $e1:owl_tm else $e2:owl_tm) => do
+  | `(owl_tm| if corr($c:owl_label) then $e1:owl_tm else $e2:owl_tm) => do
     let elab_c <- elabLabel c
     let elab_e1 <- elabTm e1
     let elab_e2 <- elabTm e2
@@ -379,7 +379,7 @@ partial def elabType_closed : Syntax → MetaM Expr
     let elab_l <- elabLabel_closed l
     let elab_c <- elabCondSym c
     mkAppM ``STy.all_l #[mkStrLit id.getId.toString, elab_c, elab_l, elab_t]
-  | `(owl_type| if $c:owl_label then $t1:owl_type else $t2:owl_type) => do
+  | `(owl_type| corr ( $c:owl_label ) ? $t1:owl_type : $t2:owl_type) => do
     let elab_t1 <- elabType_closed t1
     let elab_t2 <- elabType_closed t2
     let elab_c <- elabLabel_closed c
@@ -473,7 +473,7 @@ partial def elabTm_closed : Syntax → TermElabM Expr
     let elab_e2 <- elabTm_closed e2
     let elab_e3 <- elabTm_closed e3
     mkAppM ``SExpr.if_tm #[elab_e1, elab_e2, elab_e3]
-  | `(owl_tm| ifc $c:owl_label then $e1:owl_tm else $e2:owl_tm) => do
+  | `(owl_tm| if corr($c:owl_label) then $e1:owl_tm else $e2:owl_tm) => do
     let elab_c <- elabLabel_closed c
     let elab_e1 <- elabTm_closed e1
     let elab_e2 <- elabTm_closed e2

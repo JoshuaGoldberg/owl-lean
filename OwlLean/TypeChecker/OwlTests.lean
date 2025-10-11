@@ -170,18 +170,22 @@ theorem gen_key_pack_pair_if_ht (l1 l2 : Owl.L.labels) (pf : Owl.L.leq l1 l2 = t
       attempt_solve
     )
 
-def ENC (betaK betaM betaC : Owl.label 0) :=
-  OwlTy [] [] {
-    ∃ alphaK <: (Data ($ betaK)) . (alphaK * (if ($ betaK ⊑ $ betaC)
-                                             then ((Data ($ betaC) * Data ($ betaC)) -> Data ($ betaC))
-                                             else ((alphaK * Data ($ betaM)) -> Data ($ betaC))))
+noncomputable def ENC :=
+  OwlTy [betaK, betaM, betaC] [] {
+    ∃ alphaK <: (Data betaK) . (alphaK * ((corr ( betaK ) ? (Public * Public) -> Public : (alphaK * Data betaM) -> Public)
+                                          *
+                                          (corr ( betaK ) ? (Public * Public) -> Public : ((Data betaK) * (Data betaM)) -> Public)))
   }
+
+
 
 def Enc (betaK betaC : Owl.label 0) :=
   Owl [] [] [] {
     pack (Public, ⟨⟨genKey⟩ (["000"], ["000"]),
                   if ($ betaK ⊑ $ betaC) then λx . ⟨enc⟩ (π1 x, π2 x) else λx . ⟨rand⟩(zero π2 x, ["000"])⟩) -- Unit is temp
   }
+
+
 
  theorem enc_ty (l1 l2 l3 : Owl.label 0):
   (· ; · ; · ; · ; ($ (Enc l1 l3)) ⊢ ($ (ENC l1 l2 l3))) :=

@@ -980,6 +980,24 @@ noncomputable def infer (Phi : phi_context l) (Psi : psi_context l) (Delta : del
         .some ⟨pf2.side_condition /\ phi_psi_entail_corr Phi Psi (.not_corr lab),
             fun sc => has_type.T_IfCorr1 lab t e1 e2 (by grind) (grind pf2)⟩
       | _, _ => .none
+  | .sync e =>
+    match exp with
+    | .none =>
+      match infer Phi Psi Delta Gamma e (.some .Public) with
+      | .some pf1 =>
+        .some ⟨.Public, ⟨pf1.side_condition, fun sc => has_type.T_Sync e (grind pf1)⟩⟩
+      | .none => .none
+    | .some exp_ty =>
+      match infer Phi Psi Delta Gamma e (.some .Public) with
+      | .some pf1 =>
+        match check_subtype 99 Phi Psi Delta .Public exp_ty with
+        | .some sub =>
+          .some ⟨pf1.side_condition /\ sub.side_condition,
+                fun sc => has_type.T_Sub (.sync e) .Public exp_ty
+                (grind sub)
+                (has_type.T_Sync e (grind pf1))⟩
+        | .none => .none
+      | .none => .none
   | _ =>
     match exp with
     | .some _ => .none
