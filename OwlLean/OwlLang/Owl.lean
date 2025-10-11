@@ -8,6 +8,7 @@ structure Lattice where
   join   : labels -> labels -> labels
   meet   : labels -> labels -> labels
   leq_trans : forall l1 l2 l3, leq l1 l2 -> leq l2 l3 -> leq l1 l3
+  leq_refl : forall l, leq l l = true
   bot_all : forall l, leq bot l = true
 
 axiom L : Lattice

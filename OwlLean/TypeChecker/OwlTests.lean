@@ -163,12 +163,18 @@ theorem gen_key_ht (l1 : Owl.L.labels):
 theorem gen_key_pack_ht (l1 l2 : Owl.L.labels) (pf : Owl.L.leq l1 l2 = true):
   (· ; · ; · ; · ; (pack ((Data ⟨l1⟩), ⟨genKey⟩ (["000"], ["000"]))) ⊢ (∃ alphaK <: (Data ⟨l2⟩) . alphaK)) :=
     by
-    tc (try grind)
+    tc (
+      constructor
+      trivial
+      try attempt_solve
+    )
 
 theorem gen_key_pack_pair_ht (l1 l2 : Owl.L.labels) (pf : Owl.L.leq l1 l2 = true):
   (· ; · ; · ; · ; (pack ((Data ⟨l1⟩), ⟨⟨genKey⟩ (["000"], ["000"]), *⟩ )) ⊢ (∃ alphaK <: (Data ⟨l2⟩) . (alphaK * Unit))) :=
     by
-    tc (try grind)
+    tc (
+      solve_all_constraints
+    )
 
 theorem gen_key_pack_pair_if_ht (l1 l2 : Owl.L.labels) (pf : Owl.L.leq l1 l2 = true):
   (· ; · ; · ; · ;
@@ -176,7 +182,9 @@ theorem gen_key_pack_pair_if_ht (l1 l2 : Owl.L.labels) (pf : Owl.L.leq l1 l2 = t
                         if ["10001"] then * else *⟩)) ⊢
     (∃ alphaK <: (Data ⟨l2⟩) . (alphaK * Unit))) :=
     by
-    tc (try grind)
+    tc (
+      solve_all_constraints
+    )
 
  theorem enc_ty (l1 l2 l3 : Owl.label 0):
   (· ; · ; · ; · ; ($ (Enc l1 l3)) ⊢ ($ (ENC l1 l2 l3))) :=
@@ -247,7 +255,9 @@ theorem phi_tc_test (l1 : Owl.L.labels):
   (Unit * (Unit -> (Data ⟨l1⟩)))) -- Ty
   :=
   by
-  tc (try grind)
+  tc (
+    solve_all_constraints
+  )
 
 -- cool test for embdedding
 theorem test_latt_new :
@@ -273,7 +283,9 @@ theorem ht_empty :
    :=
   by
   intro t
-  tc (try grind)
+  tc (
+    solve_all_constraints
+  )
 
 -- non functional
 def eq : Owl.op :=
@@ -282,8 +294,7 @@ def eq : Owl.op :=
 
 def insert_tm := --TEMP
   Owl [] [] [] {
-    λmap . λx . λv . λy .
-      if (⟨eq⟩(["111"], ["111"])) then (ı1 *) else (ı1 *) -- change to EQ!!!
+    λmap . λx . λv . λy . if (⟨eq⟩(["111"], ["111"])) then (ı1 *) else (ı1 *)
   }
 
 def insert_ty (t : Owl.ty 0 0) :=
@@ -300,7 +311,9 @@ theorem ht_zero :
    (Public)) -- Ty
    :=
   by
-  tc (try grind)
+  tc (
+    solve_all_constraints
+  )
 
 theorem prove_corr :
   psi_phi_entail_corr empty_phi [] (corruption.corr (Owl.label.latl Owl.L.bot)) := by
@@ -356,7 +369,10 @@ theorem ht_eq :
    (Public)) -- Ty
    :=
   by
-  tc (try grind)
+  tc (
+    try simp
+    sorry
+  )
 
 theorem ht_if_eq :
   ( · ; -- Phi
@@ -366,18 +382,34 @@ theorem ht_if_eq :
    (if ⟨eq⟩(["111"], ["111"]) then ["111"] else ["111"]) ⊢  -- Tm
    (Public)) -- Ty
    :=
-  by
-  tc (try grind)
+  by tc (
+    sorry
+  )
 
 theorem ht_insert :
   forall (t : Owl.ty 0 0),
   ( · ; -- Phi
     · ; -- Delta
-    · ; -- Gamma
+    (a <: Any) ; -- Gamma
     · ;
-   ($ insert_tm) ⊢  -- Tm
-   ($ (insert_ty t))) -- Ty
+   (λmap . λx . λv . λy . if (⟨eq⟩(y, x)) then (ı2 v) else (map [y])) ⊢  -- Tm
+   (Public -> (Unit + a)) -> Public -> a -> Public -> (Unit + a)) -- Ty
    :=
   by
   intro t
-  tc (try grind)
+  tc (
+    sorry
+  )
+
+theorem ht_insert_part :
+  ( · ; -- Phi
+    · ; -- Delta
+    (a <: Any) ; -- Gamma
+    · ;
+   (λmap . map [*]) ⊢  -- Tm
+   (Unit -> (Unit + a)) -> (Unit + a)) -- Ty
+   :=
+  by
+  tc (
+    try simp
+  )

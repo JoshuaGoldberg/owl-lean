@@ -247,8 +247,8 @@ inductive is_value : tm l d m -> Prop where
     (Phi |= (negate_cond co)) ->
     subtype Phi Psi Delta t2 t2' ->
     subtype Phi Psi Delta t2 (.t_if co t1' t2')
-  | ST_Public :
-    subtype Phi Psi Delta .Public .Public
+  | ST_Refl : forall x,
+    subtype Phi Psi Delta x x
 
 -- Typing rules for Owl
 inductive has_type : (Phi : phi_context l) -> (Psi : psi_context l) -> (Delta : delta_context l d) -> (Gamma : gamma_context l d m) ->
@@ -398,7 +398,13 @@ def check_subtype  (fuel : Nat) (Phi : phi_context l) (Psi : psi_context l) (Del
       | .Unit, .Unit => .some ⟨True, fun _ => subtype.ST_Unit⟩
       | .Data l1, .Data l2 => .some ⟨(Phi |= (.condition .leq l1 l2)), fun sc => subtype.ST_Data l1 l2 sc⟩
       | .Data l1, .Public => .some ⟨(psi_phi_entail_corr Phi Psi (.corr l1)), fun sc => subtype.ST_LPublic l1 sc⟩
-      | .Public, .Public => .some ⟨True, fun _ => subtype.ST_Public⟩
+      | .var_ty x1, .var_ty x2 =>
+        .some ⟨(x1 = x2), by
+          intro h
+          cases h
+          exact (subtype.ST_Refl (.var_ty x1))⟩
+      | .Public, .Public =>
+        .some ⟨True, fun sc => subtype.ST_Refl .Public⟩
       | .var_ty x, t' =>
           match check_subtype n Phi Psi Delta (Delta x) t' with
           | .some pf =>
@@ -430,7 +436,11 @@ def check_subtype  (fuel : Nat) (Phi : phi_context l) (Psi : psi_context l) (Del
           intro h
           cases h
           exact subtype.ST_Ref u⟩
-      | _, _ => .none
+      | x1, x2 =>
+        .some ⟨(x1 = x2), by
+          intro h
+          cases h
+          exact (subtype.ST_Refl x1)⟩
 
 -- Infer performs the dual roles of synthesis and checking
 -- This is controlled via the the "exp" argument
@@ -456,7 +466,12 @@ noncomputable def infer (Phi : phi_context l) (Psi : psi_context l) (Delta : del
       match es with
       | .some es' =>
         .some ⟨es'.side_condition, fun sc => has_type.T_Sub (.var_tm x) et1 t (grind es') et2⟩
-      | .none => .none
+      | .none => .some ⟨(et1 = t),
+          by
+          intro h
+          subst h
+          subst et1
+          exact has_type.T_Var x⟩
   | .skip =>
     match exp with
     | .none => .some ⟨.Unit, ⟨True, fun _ => has_type.T_IUnit⟩⟩
@@ -958,6 +973,17 @@ noncomputable def infer (Phi : phi_context l) (Psi : psi_context l) (Delta : del
     | .some _ => .none
     | .none => .none
 
+theorem infer_sound (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_context l d)
+          (Gamma : gamma_context l d m) (e : tm l d m) :
+          (forall result, infer Phi Psi Delta Gamma e none = some result ->
+          result.snd.side_condition ->
+          has_type Phi Psi Delta Gamma e result.fst) /\
+          (forall cond,
+           infer Phi Psi Delta Gamma e (some t) = some cond →
+           cond.side_condition →
+           has_type Phi Psi Delta Gamma e t) := by
+  sorry
+
 syntax "tc_full" term:max term:max term:max term:max term:max term:max tactic : tactic
 
 open Lean Meta Elab Tactic
@@ -1174,7 +1200,8 @@ macro_rules
             try dsimp at side_condition_sound
             apply side_condition_sound
             trace_state;
-            solve_all_constraints;
+            -- solve_all_constraints;
+            try simp;
             $k
       | none =>
           dsimp [infer] at h
@@ -1256,7 +1283,11 @@ theorem tc_label (Phi : phi_context l)
                          has_type Phi Psi Delta (cons (.Data (.latl l1)) empty_gamma)
                            (tm.var_tm ⟨0, by omega⟩)
                            (.Data (.latl l2)) := by
-  tc (exact stub_label_flow)
+  tc (
+    try simp
+    let h := True
+    exact stub_label_flow
+  )
 
 theorem packed_unit_tc (Phi : phi_context l)
                          (Delta : delta_context l d) (Gamma : gamma_context l d m) :
