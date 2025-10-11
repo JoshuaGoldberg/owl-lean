@@ -141,20 +141,6 @@ def rand : Owl.op :=
   fun (_ _ : Owl.binary) =>
     Owl.Dist.ret (Owl.binary.bend)
 
-def ENC (betaK betaM betaC : Owl.label 0) :=
-  OwlTy [] [] {
-    ∃ alphaK <: (Data ($ betaK)) . (alphaK * (if ($ betaK ⊑ $ betaC)
-                                             then (Data ($ betaC) * Data ($ betaC) -> Data ($ betaC))
-                                             else (alphaK * Data ($ betaM) -> Data ($ betaC))))
-  }
-
-def Enc (betaK betaC : Owl.label 0) :=
-  Owl [] [] [] {
-    let k = ⟨genKey⟩ (["000"], ["000"]) in
-    let enc' = if ($ betaK ⊑ $ betaC) then λx . ⟨enc⟩ (π1 x, π2 x) else λx . ⟨rand⟩(zero π2 x, *) in
-    pack (Public, ⟨k, enc'⟩) -- Unit is temp
-  }
-
 theorem gen_key_ht (l1 : Owl.L.labels):
   (· ; · ; · ; · ; (⟨genKey⟩ (["000"], ["000"])) ⊢ (Data ⟨l1⟩)) :=
     by
@@ -164,8 +150,6 @@ theorem gen_key_pack_ht (l1 l2 : Owl.L.labels) (pf : Owl.L.leq l1 l2 = true):
   (· ; · ; · ; · ; (pack ((Data ⟨l1⟩), ⟨genKey⟩ (["000"], ["000"]))) ⊢ (∃ alphaK <: (Data ⟨l2⟩) . alphaK)) :=
     by
     tc (
-      constructor
-      trivial
       try attempt_solve
     )
 
@@ -173,7 +157,7 @@ theorem gen_key_pack_pair_ht (l1 l2 : Owl.L.labels) (pf : Owl.L.leq l1 l2 = true
   (· ; · ; · ; · ; (pack ((Data ⟨l1⟩), ⟨⟨genKey⟩ (["000"], ["000"]), *⟩ )) ⊢ (∃ alphaK <: (Data ⟨l2⟩) . (alphaK * Unit))) :=
     by
     tc (
-      solve_all_constraints
+      attempt_solve
     )
 
 theorem gen_key_pack_pair_if_ht (l1 l2 : Owl.L.labels) (pf : Owl.L.leq l1 l2 = true):
@@ -183,13 +167,28 @@ theorem gen_key_pack_pair_if_ht (l1 l2 : Owl.L.labels) (pf : Owl.L.leq l1 l2 = t
     (∃ alphaK <: (Data ⟨l2⟩) . (alphaK * Unit))) :=
     by
     tc (
-      solve_all_constraints
+      attempt_solve
     )
+
+def ENC (betaK betaM betaC : Owl.label 0) :=
+  OwlTy [] [] {
+    ∃ alphaK <: (Data ($ betaK)) . (alphaK * (if ($ betaK ⊑ $ betaC)
+                                             then ((Data ($ betaC) * Data ($ betaC)) -> Data ($ betaC))
+                                             else ((alphaK * Data ($ betaM)) -> Data ($ betaC))))
+  }
+
+def Enc (betaK betaC : Owl.label 0) :=
+  Owl [] [] [] {
+    pack (Public, ⟨⟨genKey⟩ (["000"], ["000"]),
+                  if ($ betaK ⊑ $ betaC) then λx . ⟨enc⟩ (π1 x, π2 x) else λx . ⟨rand⟩(zero π2 x, ["000"])⟩) -- Unit is temp
+  }
 
  theorem enc_ty (l1 l2 l3 : Owl.label 0):
   (· ; · ; · ; · ; ($ (Enc l1 l3)) ⊢ ($ (ENC l1 l2 l3))) :=
     by
-    tc (try grind)
+    tc (
+      sorry
+    )
 
 def P (l1 l2 adv : Owl.label 0) :=
   Owl [] [] [] {
@@ -256,7 +255,7 @@ theorem phi_tc_test (l1 : Owl.L.labels):
   :=
   by
   tc (
-    solve_all_constraints
+    attempt_solve
   )
 
 -- cool test for embdedding

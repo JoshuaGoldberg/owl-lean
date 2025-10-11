@@ -974,15 +974,27 @@ noncomputable def infer (Phi : phi_context l) (Psi : psi_context l) (Delta : del
     | .none => .none
 
 theorem infer_sound (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_context l d)
-          (Gamma : gamma_context l d m) (e : tm l d m) :
-          (forall result, infer Phi Psi Delta Gamma e none = some result ->
-          result.snd.side_condition ->
-          has_type Phi Psi Delta Gamma e result.fst) /\
-          (forall cond,
+          (Gamma : gamma_context l d m) (e : tm l d m) (t : ty l d) :
+          forall cond,
            infer Phi Psi Delta Gamma e (some t) = some cond →
            cond.side_condition →
-           has_type Phi Psi Delta Gamma e t) := by
-  sorry
+           has_type Phi Psi Delta Gamma e t := by
+  intro cond h1 h2
+  simp at cond
+  have cond' := cond.side_condition_sound
+  apply cond'
+  apply h2
+
+theorem infer_sound_none (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_context l d)
+          (Gamma : gamma_context l d m) (e : tm l d m) :
+  (forall result, infer Phi Psi Delta Gamma e none = some result ->
+          result.snd.side_condition ->
+          has_type Phi Psi Delta Gamma e result.fst) := by
+  intros cond h1 h2
+  simp at cond
+  have cond' := cond.snd.side_condition_sound
+  apply cond'
+  apply h2
 
 syntax "tc_full" term:max term:max term:max term:max term:max term:max tactic : tactic
 
@@ -1082,6 +1094,7 @@ macro_rules
       intros pm vpm;
       have tester : forall l1 l2 l3, L.leq l1 l2 -> L.leq l2 l3 -> L.leq l1 l3 := L.leq_trans;
       have tester' : forall l, L.leq L.bot l = true := L.bot_all;
+      have tester'' := L.leq_refl;
       unfold phi_map_holds;
       unfold valid_constraint;
       simp [subst_label, interp_lattice];
