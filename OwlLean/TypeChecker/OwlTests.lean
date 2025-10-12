@@ -157,6 +157,7 @@ theorem gen_key_pack_pair_ht (l1 l2 : Owl.L.labels) (pf : Owl.L.leq l1 l2 = true
   (· ; · ; · ; · ; (pack ((Data ⟨l1⟩), ⟨⟨genKey⟩ (["000"], ["000"]), *⟩ )) ⊢ (∃ alphaK <: (Data ⟨l2⟩) . (alphaK * Unit))) :=
     by
     tc_man (
+      try simp
       attempt_solve
     )
 
@@ -167,6 +168,7 @@ theorem gen_key_pack_pair_if_ht (l1 l2 : Owl.L.labels) (pf : Owl.L.leq l1 l2 = t
     (∃ alphaK <: (Data ⟨l2⟩) . (alphaK * Unit))) :=
     by
     tc_man (
+      try simp
       attempt_solve
     )
 
@@ -349,16 +351,18 @@ theorem ht_eq :
    :=
   by
   tc_man (
+    try simp
     intro pm C vpm Csp
     check_corr C Csp
   )
 
+-- testing a contradiction case now
 theorem ht_if_eq :
-  ( (x ⊑ ⟨Owl.L.bot⟩) ; -- Phi
-    (corr(⟨Owl.L.bot⟩), corr(x)) ; -- Psi
+  ( (x ⊑ ⟨Owl.L.bot⟩, y) ; -- Phi
+    (¬corr(y), corr(y)) ; -- Psi
     · ; -- Delta
     · ; -- Gamma
-   (if ⟨eq⟩(["111"], ["111"]) then ["111"] else ["111"]) ⊢  -- Tm
+   (if (⟨eq⟩(["111"], ["111"]) : (Data x)) then ["111"] else ["111"]) ⊢  -- Tm
    (Public)) -- Ty
    :=
   by tc (
@@ -392,5 +396,34 @@ theorem ht_insert_part :
    :=
   by
   tc (
+    solve_all_constraints
+  )
+
+-- example of a how tc_man lets you know when typing fails
+theorem ht_unit :
+  ( · ; -- Phi
+    · ; -- Delta
+    · ; -- Gamma
+    · ;
+   * ⊢  -- Tm
+   (Data ⟨Owl.L.bot⟩)) -- Ty
+   :=
+  by
+  tc_man (
     try simp
+    sorry
+  )
+
+theorem ht_if_corr :
+  ( x ; -- Phi
+    (¬corr(x)) ; -- Delta
+    · ; -- Gamma
+    · ;
+   (if corr (x) then ["1111"] else *) ⊢  -- Tm
+   Unit) -- Ty
+   :=
+  by
+  tc_man (
+    try simp
+    solve_constraint
   )

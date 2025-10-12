@@ -330,6 +330,10 @@ inductive has_type : (Phi : phi_context l) -> (Psi : psi_context l) -> (Delta : 
   subtype Phi Psi Delta t t' ->
   has_type Phi Psi Delta Gamma e t ->
   has_type Phi Psi Delta Gamma e t'
+| T_CorrCase : forall lab e t,
+  has_type Phi ((.corr lab) :: Psi) Delta Gamma e t ->
+  has_type Phi ((.not_corr lab) :: Psi) Delta Gamma e t ->
+  has_type Phi Psi Delta Gamma (.corr_case lab e) t
 | T_Annot : forall e t,
   has_type Phi Psi Delta Gamma e t ->
   has_type Phi Psi Delta Gamma (.annot e t) t
@@ -428,6 +432,49 @@ def check_subtype  (fuel : Nat) (Phi : phi_context l) (Psi : psi_context l) (Del
           intro h
           cases h
           exact subtype.ST_Ref u⟩
+      | .all t0 t, .all t0' t' =>
+        match check_subtype n Phi Psi Delta t0 t0' with
+        | .some sub_param =>
+          let extended_delta := lift_delta (cons t0' Delta)
+          match check_subtype n Phi Psi extended_delta t t' with
+          | .some sub_body =>
+            .some ⟨sub_param.side_condition /\ sub_body.side_condition,
+              fun sc =>
+                subtype.ST_Univ t0 t0' t t'
+                  (grind sub_param)
+                  (grind sub_body)⟩
+          | .none => .none
+        | .none => .none
+      | .ex t0 t, .ex t0' t' =>
+        match check_subtype n Phi Psi Delta t0 t0' with
+        | .some sub1 =>
+          let extended_delta := lift_delta (cons t0 Delta)
+          match check_subtype n Phi Psi extended_delta t t' with
+          | .some sub2 =>
+            .some ⟨sub1.side_condition /\ sub2.side_condition,
+                  fun ⟨h_witness, h_body⟩ =>
+                    subtype.ST_Exist t0 t0' t t'
+                      (grind sub1)
+                      (grind sub2)⟩
+          | .none => .none
+        | .none => .none
+      | .all_l cs lab t, .all_l cs' lab' t' =>
+        let extended_phi := lift_phi (cons (cs, lab) Phi)
+        let constraint := (.condition cs (.var_label var_zero) (ren_label shift lab'))
+        let constraint_holds := extended_phi |= constraint
+        let extended_psi := lift_psi Psi
+        let extended_delta := lift_delta_l Delta
+        match check_subtype n extended_phi extended_psi extended_delta t t' with
+        | .some sub_body =>
+          .some ⟨(cs = cs') /\ sub_body.side_condition /\ constraint_holds,
+                  by
+                  intro h1
+                  obtain ⟨h2, h3, h4⟩ := h1
+                  subst h2
+                  exact (subtype.ST_LatUniv cs lab lab' t t'
+                                            (by grind)
+                                            (grind sub_body))⟩
+        | .none => .none
       | x1, x2 =>
         .some ⟨(x1 = x2), by
           intro h
@@ -473,7 +520,8 @@ noncomputable def infer (Phi : phi_context l) (Psi : psi_context l) (Delta : del
         .some ⟨pf.side_condition,
               fun sc =>
                 has_type.T_Sub .skip .Unit t (pf.side_condition_sound sc) has_type.T_IUnit⟩
-      | .none => .none
+      | .none =>
+        .none
   | .bitstring b =>
     match exp with
     | .none => .some ⟨.Public, ⟨True, fun _ => has_type.T_Const b⟩⟩
@@ -968,17 +1016,54 @@ noncomputable def infer (Phi : phi_context l) (Psi : psi_context l) (Delta : del
       | .some pf1, .some pf2 =>
         let corr_cond := phi_psi_entail_corr Phi Psi (.corr lab)
         let not_corr_cond := phi_psi_entail_corr Phi Psi (.not_corr lab)
-        .some ⟨pf1.side_condition /\ pf2.side_condition /\ (corr_cond \/ not_corr_cond),
-            fun ⟨h1, h2, h_disj⟩ =>
-              match h_disj with
-              | Or.inl h_corr => has_type.T_IfCorr2 lab t e1 e2 h_corr (grind pf1)
-              | Or.inr h_not_corr => has_type.T_IfCorr1 lab t e1 e2 h_not_corr (grind pf2)⟩
+        .some ⟨(pf1.side_condition /\ corr_cond) \/ (pf2.side_condition /\ not_corr_cond),
+            fun sc =>
+              match sc with
+              | Or.inl h_corr => has_type.T_IfCorr2 lab t e1 e2 h_corr.right (grind pf1)
+              | Or.inr h_not_corr => has_type.T_IfCorr1 lab t e1 e2 h_not_corr.right (grind pf2)⟩
       | .some pf1, .none =>
         .some ⟨pf1.side_condition /\ phi_psi_entail_corr Phi Psi (.corr lab),
             fun sc => has_type.T_IfCorr2 lab t e1 e2 (by grind) (grind pf1)⟩
       | .none, .some pf2 =>
         .some ⟨pf2.side_condition /\ phi_psi_entail_corr Phi Psi (.not_corr lab),
             fun sc => has_type.T_IfCorr1 lab t e1 e2 (by grind) (grind pf2)⟩
+      | _, _ => .none
+  | .corr_case lab e =>
+    match exp with
+    | .none => -- attempt synthesis
+      let psi_corr := (.corr lab) :: Psi
+      let psi_not_corr := (.not_corr lab) :: Psi
+      match infer Phi psi_corr Delta Gamma e .none, infer Phi psi_not_corr Delta Gamma e .none with
+      | .some ⟨t1, pf1⟩, .some ⟨t2, pf2⟩ =>
+        match check_subtype 99 Phi psi_corr Delta t1 t2 with
+        | .some sub12 =>
+          .some ⟨t2, ⟨pf1.side_condition /\ pf2.side_condition /\ sub12.side_condition,
+                    fun sc =>
+                      has_type.T_CorrCase lab e t2
+                        (has_type.T_Sub e t1 t2 (grind sub12)
+                          (grind pf1))
+                          (grind pf2)⟩⟩
+        | .none =>
+          match check_subtype 99 Phi psi_not_corr Delta t2 t1 with
+          | .some sub21 =>
+            .some ⟨t1, ⟨pf1.side_condition /\ pf2.side_condition /\ sub21.side_condition,
+                        fun sc =>
+                          has_type.T_CorrCase lab e t1
+                            (grind pf1)
+                            (has_type.T_Sub e t2 t1 (grind sub21)
+                              (grind pf2))⟩⟩
+          | .none => .none
+      | _, _ => .none
+    | .some exp_ty =>
+      let psi_corr := (.corr lab) :: Psi
+      let psi_not_corr := (.not_corr lab) :: Psi
+      match infer Phi psi_corr Delta Gamma e (.some exp_ty), infer Phi psi_not_corr Delta Gamma e (.some exp_ty) with
+      | .some pf1, .some pf2 =>
+        .some ⟨pf1.side_condition /\ pf2.side_condition,
+            fun sc =>
+              has_type.T_CorrCase lab e exp_ty
+                (grind pf1)
+                (grind pf2)⟩
       | _, _ => .none
   | .sync e =>
     match exp with
@@ -1002,7 +1087,7 @@ noncomputable def infer (Phi : phi_context l) (Psi : psi_context l) (Delta : del
     match exp with
     | .some _ => .none
     | .none => .none
-  -- TODO CORR cases for infer and check_subtype (adding corruptions to justify types)
+  -- TODO CORR cases for infer and check_subtype (adding corruptions to justify types) (may be done)
 
 theorem infer_sound (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_context l d)
           (Gamma : gamma_context l d m) (e : tm l d m) (t : ty l d) :
@@ -1236,12 +1321,16 @@ macro_rules
           | psi_empty => trivial
       |  cases $Csp:ident with
          | psi_corr psi C' l $Csp:ident Csp' =>
-           try grind;
-           try destruct_csp $Csp:ident
+           first
+           | (contradiction; trace "Contradiction found within Psi")
+           | grind
+           | destruct_csp $Csp:ident
       | (cases $Csp:ident with
          | psi_not_corr psi C' l $Csp:ident Csp' =>
-           try grind;
-           try destruct_csp $Csp:ident)
+           first
+           | (contradiction; trace "Contradiction found within Psi")
+           | grind
+           | destruct_csp $Csp:ident)
     )
   | `(tactic| check_corr $C:ident $Csp:ident) => do
     `(tactic|
@@ -1261,10 +1350,23 @@ macro "solve_all_constraints" : tactic => `(tactic|
     | constructor <;> (first
         | trivial
         | simp
+        | (right; intro pm C vpm Csp; check_corr C Csp)
+        | (left; intro pm C vpm Csp; check_corr C Csp)
         | (intro pm C vpm Csp; check_corr C Csp)
         | attempt_solve
         | solve_phi_validation_anon
         | solve_phi_validation_anon_no_simp)))
+
+macro "solve_constraint" : tactic => `(tactic|
+      (first
+        | trivial
+        | simp
+        | (right; intro pm C vpm Csp; check_corr C Csp)
+        | (left; intro pm C vpm Csp; check_corr C Csp)
+        | (intro pm C vpm Csp; check_corr C Csp)
+        | attempt_solve
+        | solve_phi_validation_anon
+        | solve_phi_validation_anon_no_simp))
 
 macro_rules
   | `(tactic| tc_full $Phi $Psi $Delta $Gamma $e $t $k) => `(tactic|
@@ -1294,7 +1396,7 @@ macro_rules
             try dsimp at side_condition_sound
             apply side_condition_sound
             trace_state;
-            try simp;
+            -- try simp;
             $k
       | none =>
           dsimp [infer] at h

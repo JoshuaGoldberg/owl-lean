@@ -337,6 +337,13 @@ def SExpr.elab (s : SExpr) (P : TCtx) (D : TCtx) (G : TCtx): Option (Owl.tm P.le
     match (SExpr.elab e P D G) with
     | .none => .none
     | .some e' => .some (tm.sync e')
+  | .corr_case lab e =>
+    match (SExpr.elab e P D G) with
+    | .none => .none
+    | .some e' =>
+      match (SLabel.elab lab P) with
+      | .none => .none
+      | .some lab' => .some (tm.corr_case lab' e')
   | .annot e t =>
     match (SExpr.elab e P D G) with
     | .none => .none

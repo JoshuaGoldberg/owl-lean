@@ -30,7 +30,7 @@ inductive cond_sym : Type
 | ngeq : cond_sym
 | ngt : cond_sym
 | nlt : cond_sym
-deriving Repr
+deriving Repr, DecidableEq
 
 instance : Repr Owl.Lcarrier where
   reprPrec _ _ := "<Lattice Label>"
@@ -111,6 +111,7 @@ inductive tm : Nat -> Nat -> Nat -> Type where
 | if_c :
     label n_label -> tm n_label n_ty n_tm -> tm n_label n_ty n_tm -> tm n_label n_ty n_tm
 | sync : tm n_label n_ty n_tm -> tm n_label n_ty n_tm
+| corr_case : label n_label -> tm n_label n_ty n_tm -> tm n_label n_ty n_tm
 | annot : tm n_label n_ty n_tm -> ty n_label n_ty -> tm n_label n_ty n_tm
 | default : tm n_label n_ty n_tm
 deriving Repr
@@ -294,6 +295,7 @@ tm n_label n_ty n_tm :=
       .if_c (ren_label xi_label s0)
         (ren_tm xi_label xi_ty xi_tm s1) (ren_tm xi_label xi_ty xi_tm s2)
   | .sync s0 => .sync (ren_tm xi_label xi_ty xi_tm s0)
+  | .corr_case lab e => .corr_case (ren_label xi_label lab) (ren_tm xi_label xi_ty xi_tm e)
   | .annot e t => .annot (ren_tm xi_label xi_ty xi_tm e) (ren_ty xi_label xi_ty t)
   | .default => .default
 
