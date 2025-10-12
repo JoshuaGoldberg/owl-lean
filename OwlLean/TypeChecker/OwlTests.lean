@@ -179,21 +179,27 @@ noncomputable def ENC :=
                                           (corr ( betaK ) ? (Public * Public) -> Public : ((Data betaK) * (Data betaM)) -> Public)))
   }
 
-
-
-def Enc (betaK betaC : Owl.label 0) :=
-  Owl [] [] [] {
+ theorem enc_ty :
+  ((betaK, betaM, betaC) ; · ; · ; · ;
     pack (Public, ⟨⟨genKey⟩ (["000"], ["000"]),
-                  if ($ betaK ⊑ $ betaC) then λx . ⟨enc⟩ (π1 x, π2 x) else λx . ⟨rand⟩(zero π2 x, ["000"])⟩) -- Unit is temp
-  }
-
-
-
- theorem enc_ty (l1 l2 l3 : Owl.label 0):
-  (· ; · ; · ; · ; ($ (Enc l1 l3)) ⊢ ($ (ENC l1 l2 l3))) :=
+                  (corr_case betaK in if corr ( betaK ) then ((λx . ⟨enc⟩ (π1 x, π2 x)) : (Public * Public) -> Public)
+                                                        else ((λx . ⟨enc⟩ (π1 x, π2 x)) : (Public * Public) -> Public))⟩)
+    ⊢
+    (∃ alphaK <: (Data betaK) . (alphaK * (Public * Public) -> Public))) :=
     by
     tc_man (
-      sorry
+      try simp
+      solve_constraint
+      solve_constraint
+      solve_constraint
+      solve_constraint
+      solve_constraint
+      solve_constraint
+      solve_constraint
+      right
+      solve_constraint
+      solve_constraint
+      solve_constraint
     )
 
 def P (l1 l2 adv : Owl.label 0) :=
@@ -419,7 +425,7 @@ theorem ht_if_corr :
     (¬corr(x)) ; -- Delta
     · ; -- Gamma
     · ;
-   (if corr (x) then ["1111"] else *) ⊢  -- Tm
+   (if corr (x) then * else *) ⊢  -- Tm
    Unit) -- Ty
    :=
   by

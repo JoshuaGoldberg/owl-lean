@@ -1357,7 +1357,7 @@ macro "solve_all_constraints" : tactic => `(tactic|
         | solve_phi_validation_anon
         | solve_phi_validation_anon_no_simp)))
 
-macro "solve_constraint" : tactic => `(tactic|
+macro "solve_constraint_help" : tactic => `(tactic|
       (first
         | trivial
         | simp
@@ -1367,6 +1367,16 @@ macro "solve_constraint" : tactic => `(tactic|
         | attempt_solve
         | solve_phi_validation_anon
         | solve_phi_validation_anon_no_simp))
+
+syntax "solve_constraint" : tactic
+
+
+macro "solve_constraint" : tactic => `(tactic|
+      (first
+        | constructor
+        | solve_constraint_help
+        | (left; solve_constraint_help)
+        | (right; solve_constraint_help)))
 
 macro_rules
   | `(tactic| tc_full $Phi $Psi $Delta $Gamma $e $t $k) => `(tactic|
