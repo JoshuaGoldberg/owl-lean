@@ -1,0 +1,40 @@
+|- ENC :=
+    forall betaK, betaM < betaK.
+        forall tau <: Data betaM.
+            exists alpha <: Data betaK.
+            (
+                  alpha
+                * (if corr betaK then (Public * Public -> Public) else (alpha * tau -> Public))
+                * (if corr betaK then (Public * Public -> Public) else (alpha * Public -> (tau + Unit)))
+            )
+
+
+
+|- EncI :=
+    Lam betaK. Lam betaM. Lam tau. 
+        let k : Data betaK = genkey () in 
+        let L : ref (Public -> tau + Unit) = ref (fun _ -> inr ()) in 
+        let enc = fun k m. 
+            if corr(betaK) then [[enc]](k, m)
+            else 
+                let c = randenc(zero m) in 
+                let L_old = !L in 
+                L := (fun y -> if y = c then inl m else L_old y) in 
+                c
+        in
+        let dec = fun k c -> 
+            if corr(betaK) then [[dec]](k, c) else (!L)(m)
+        in  
+        pack <Data betaK, (k, enc, dec)>
+
+- It's always true that |- EncI : Enc
+
+
+|- EncR :=
+    Lam betaK. Lam betaM. Lam tau. 
+        let k : Data betaK = genkey () in 
+        pack<Data betaK, (k, (fun k m -> [[enc]](k, m)), (fun k c -> [[dec]](k, c)))>
+
+
+
+- corr(betaK) |- EncR[betaK] : EncInner[betaK]
