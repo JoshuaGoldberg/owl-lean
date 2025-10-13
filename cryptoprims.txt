@@ -1,5 +1,14 @@
 TODO: place in OwlLean/CryptoPrims/AuthEnc.lean
 
+
+define EncInner [betaK, betaM, tau] := 
+        exists alpha <: Data betaK.
+        (
+                alpha
+            * (if corr betaK then (Public * Public -> Public) else (alpha * tau -> Public))
+            * (if corr betaK then (Public * Public -> Public) else (alpha * Public -> (tau + Unit)))
+        )
+
 |- ENC :=
     forall betaK, betaM < betaK.
         forall tau <: Data betaM.
@@ -40,3 +49,30 @@ TODO: place in OwlLean/CryptoPrims/AuthEnc.lean
 
 
 - corr(betaK) |- EncR[betaK] : EncInner[betaK]
+
+--------------
+
+Encryption protocol 1: just encrypt a message under the encryption module 
+
+E : EncInner[betaK, betaM, tau], x : tau |- 
+    unpack E as <alpha, (K, encK, decK)> in 
+    let c = encK(K, x) in 
+    sync c
+
+------
+
+Encryption protocol 1: given a higher and a lower encryption module, encrypt the lower one's key under the higher one
+
+betaH > betaM > betaL
+
+E1 : EncInner[betaH, betaM, tau1], 
+E2 : EncInner[betaM, betaL, tau2] |-
+    unpack <alpha1, (K1, enc1, dec1)> in 
+    unpack <alpha2, (K2, enc2, dec2)> in 
+    enc1(K1, K2)
+
+
+
+
+
+
