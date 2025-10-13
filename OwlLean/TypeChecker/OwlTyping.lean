@@ -475,6 +475,40 @@ def check_subtype  (fuel : Nat) (Phi : phi_context l) (Psi : psi_context l) (Del
                                             (by grind)
                                             (grind sub_body))⟩
         | .none => .none
+      | .t_if lab t1 t2, t' =>
+        match check_subtype n Phi Psi Delta t1 t', check_subtype n Phi Psi Delta t2 t' with
+        | .some pf1, .some pf2 =>
+          let corr_cond := phi_psi_entail_corr Phi Psi (.corr lab)
+          let not_corr_cond := phi_psi_entail_corr Phi Psi (.not_corr lab)
+          .some ⟨(pf1.side_condition /\ corr_cond) \/ (pf2.side_condition /\ not_corr_cond),
+            fun sc =>
+              match sc with
+              | Or.inl h => subtype.ST_LIf1 lab t1 t2 t' h.right (grind pf1)
+              | Or.inr h => subtype.ST_LIf2 lab t1 t2 t' h.right (grind pf2)⟩
+        | .some pf1, .none =>
+          .some ⟨pf1.side_condition /\ phi_psi_entail_corr Phi Psi (.corr lab),
+                fun sc => subtype.ST_LIf1 lab t1 t2 t' sc.right (grind pf1)⟩
+        | .none, .some pf2 =>
+          .some ⟨pf2.side_condition /\ phi_psi_entail_corr Phi Psi (.not_corr lab),
+                fun sc => subtype.ST_LIf2 lab t1 t2 t' sc.right (grind pf2)⟩
+        | .none, .none => .none
+      | t, .t_if lab t1' t2' =>
+        match check_subtype n Phi Psi Delta t t1', check_subtype n Phi Psi Delta t t2' with
+        | .some pf1, .some pf2 =>
+          let corr_cond := phi_psi_entail_corr Phi Psi (.corr lab)
+          let not_corr_cond := phi_psi_entail_corr Phi Psi (.not_corr lab)
+          .some ⟨(pf1.side_condition /\ corr_cond) \/ (pf2.side_condition /\ not_corr_cond),
+            fun sc =>
+              match sc with
+              | Or.inl h => subtype.ST_RIf1 lab t t1' t2' h.right (grind pf1)
+              | Or.inr h => subtype.ST_RIf2 lab t t1' t2' h.right (grind pf2)⟩
+        | .some pf1, .none =>
+          .some ⟨pf1.side_condition /\ phi_psi_entail_corr Phi Psi (.corr lab),
+                fun sc => subtype.ST_RIf1 lab t t1' t2' sc.right (grind pf1)⟩
+        | .none, .some pf2 =>
+          .some ⟨pf2.side_condition /\ phi_psi_entail_corr Phi Psi (.not_corr lab),
+                fun sc => subtype.ST_RIf2 lab t t1' t2' sc.right (grind pf2)⟩
+        | .none, .none => .none
       | x1, x2 =>
         .some ⟨(x1 = x2), by
           intro h
@@ -768,21 +802,14 @@ noncomputable def infer (Phi : phi_context l) (Psi : psi_context l) (Delta : del
         | _ => .none
       | .none => .none
     | .some exp_ty =>
-      match infer Phi Psi Delta Gamma e1 .none with -- synthesize a type for e1
+      match infer Phi Psi Delta Gamma e2 .none with
       | .some ⟨ty1, pf1⟩ =>
-        match ty1 with
-            | .arr t t' => -- correct type synthesized
-              match infer Phi Psi Delta Gamma e2 (some t) with -- check type of e2
-              | .some pf2 =>
-                let sub := check_subtype 99 Phi Psi Delta t' exp_ty -- check that t' is a subtype of exp_ty
-                match sub with
-                | .some sub' =>
-                    .some ⟨pf1.side_condition /\ pf2.side_condition /\ sub'.side_condition,
-                           fun sc => has_type.T_Sub (.app e1 e2) t' exp_ty (grind sub') (has_type.T_EFun e1 e2 t t' (grind pf1) (grind pf2))⟩ -- proof that |- e1 e2 : exp_ty
-                | .none => .none
-              | .none => .none
-            | _ => .none
-      | .none => .none
+        match infer Phi Psi Delta Gamma e1 (.some (.arr ty1 exp_ty)) with
+        | .some pf2 =>
+          .some ⟨pf1.side_condition /\ pf2.side_condition,
+                 fun sc => (has_type.T_EFun e1 e2 ty1 exp_ty (grind pf2) (grind pf1))⟩
+        | .none => .none
+      | _ => .none
   | .tm_pair e1 e2 =>
     match exp with
     | .none =>
@@ -1360,7 +1387,6 @@ macro "solve_all_constraints" : tactic => `(tactic|
 macro "solve_constraint_help" : tactic => `(tactic|
       (first
         | trivial
-        | simp
         | (right; intro pm C vpm Csp; check_corr C Csp)
         | (left; intro pm C vpm Csp; check_corr C Csp)
         | (intro pm C vpm Csp; check_corr C Csp)
@@ -1370,13 +1396,14 @@ macro "solve_constraint_help" : tactic => `(tactic|
 
 syntax "solve_constraint" : tactic
 
-
 macro "solve_constraint" : tactic => `(tactic|
       (first
+        | (left; constructor; solve_constraint_help; (intro pm C vpm Csp; check_corr C Csp))
+        | (right; constructor; solve_constraint_help; (intro pm C vpm Csp; check_corr C Csp))
+        | (left; constructor; solve_constraint_help)
+        | (right; constructor; solve_constraint_help)
         | constructor
-        | solve_constraint_help
-        | (left; solve_constraint_help)
-        | (right; solve_constraint_help)))
+        | solve_constraint_help))
 
 macro_rules
   | `(tactic| tc_full $Phi $Psi $Delta $Gamma $e $t $k) => `(tactic|

@@ -180,27 +180,50 @@ noncomputable def ENC :=
   }
 
  theorem enc_ty :
-  ((betaK, betaM, betaC) ; · ; · ; · ;
+  ((betaK, betaM ⊑ betaK) ; · ; · ; · ;
     pack (Public, ⟨⟨genKey⟩ (["000"], ["000"]),
                   (corr_case betaK in if corr ( betaK ) then ((λx . ⟨enc⟩ (π1 x, π2 x)) : (Public * Public) -> Public)
-                                                        else ((λx . ⟨enc⟩ (π1 x, π2 x)) : (Public * Public) -> Public))⟩)
+                                                        else ((λx . ⟨rand⟩ (π2 x, ["0"])) : (Public * Data betaM) -> Public))⟩)
     ⊢
-    (∃ alphaK <: (Data betaK) . (alphaK * (Public * Public) -> Public))) :=
+    (∃ alphaK <: (Data betaK) . (alphaK * corr (betaK) ? (Public * Public) -> Public : (Public * Public) -> Public))) :=
     by
     tc_man (
       try simp
       solve_constraint
       solve_constraint
       solve_constraint
+      left
       solve_constraint
+      solve_constraint
+      left
       solve_constraint
       solve_constraint
       solve_constraint
       right
       solve_constraint
       solve_constraint
+      right
       solve_constraint
+      solve_constraint
+      solve_constraint
+      intro pm C vpm Csp
+      have h1 := C.has_bot;
+      have h2 := C.downward_closed;
+      have h3 := Owl.L.leq_trans;
+      have h4 := Owl.L.bot_all;
+      have h5 := Owl.L.leq_refl
     )
+
+theorem test_annot :
+   (· ; -- Phi
+    · ;
+    · ; -- Delta
+    · ; -- Gamma
+   ((λ y. y) [*]) ⊢ -- Tm
+   (Unit)) -- Ty
+    :=
+  by
+  tc (try grind)
 
 def P (l1 l2 adv : Owl.label 0) :=
   Owl [] [] [] {
