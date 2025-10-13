@@ -179,20 +179,37 @@ noncomputable def ENC :=
                                           (corr ( betaK ) ? (Public * Public) -> Public : ((Data betaK) * (Data betaM)) -> Public)))
   }
 
+open Lean Elab Tactic Meta PrettyPrinter in
+elab "show_constraints" : tactic => do
+  let goal ← getMainTarget
+  -- Use delaboration to get a nicer format
+  let stx ← delab goal
+  let str := toString stx
+  let clean := str
+    |> String.replace "«Owl»." ""
+    |> String.replace "phi_psi_entail_corr" "⊢"
+  logInfo m!"Current goal:\n{clean}"
+
+-- ((betaK, betaM ⊑ betaK) ; · ; · ; · ;
+--    pack (Public, ⟨⟨genKey⟩ (["000"], ["000"]),
+--                  (corr_case betaK in if corr ( betaK ) then ((λx . ⟨enc⟩ (π1 x, π2 x)) : (Public * Public) -> Public)
+--                                                        else ((λx . ⟨rand⟩ (π2 x, ["0"])) : (Public * Data betaM) -> Public))⟩)
+--    ⊢
+--    (∃ alphaK <: (Data betaK) . (alphaK * corr (betaK) ? (Public * Public) -> Public : (alphaK * Data betaM) -> Public))) :=
+
  theorem enc_ty :
   ((betaK, betaM ⊑ betaK) ; · ; · ; · ;
-    pack (Public, ⟨⟨genKey⟩ (["000"], ["000"]),
-                  (corr_case betaK in if corr ( betaK ) then ((λx . ⟨enc⟩ (π1 x, π2 x)) : (Public * Public) -> Public)
-                                                        else ((λx . ⟨rand⟩ (π2 x, ["0"])) : (Public * Data betaM) -> Public))⟩)
+    pack (Public,  ⟨⟨genKey⟩ (["000"], ["000"]), (corr_case betaK in if corr ( betaK ) then ((λx . ⟨enc⟩ (π1 x, π2 x)) : (Public * Public) -> Public)
+                                                        else ((λx . ⟨rand⟩ (zero (π2 x), ["0"])) : (Public * Data betaM) -> Public))⟩)
     ⊢
-    (∃ alphaK <: (Data betaK) . (alphaK * corr (betaK) ? (Public * Public) -> Public : (Public * Public) -> Public))) :=
+    (∃ alphaK <: (Data betaK) . (alphaK * corr (betaK) ? (Public * Public) -> Public : (Public * Data betaM) -> Public))) :=
     by
     tc_man (
       try simp
       solve_constraint
       solve_constraint
       solve_constraint
-      left
+      solve_constraint
       solve_constraint
       solve_constraint
       left
@@ -202,16 +219,9 @@ noncomputable def ENC :=
       right
       solve_constraint
       solve_constraint
-      right
       solve_constraint
       solve_constraint
       solve_constraint
-      intro pm C vpm Csp
-      have h1 := C.has_bot;
-      have h2 := C.downward_closed;
-      have h3 := Owl.L.leq_trans;
-      have h4 := Owl.L.bot_all;
-      have h5 := Owl.L.leq_refl
     )
 
 theorem test_annot :
@@ -353,14 +363,14 @@ theorem prove_corr :
   phi_psi_entail_corr empty_phi [] (Owl.corruption.corr (Owl.label.latl Owl.L.bot)) := by
   unfold phi_psi_entail_corr
   intro pm C vpm Csp
-  check_corr C Csp
+  check_corr vpm C Csp
 
 -- VERY NICE!
 theorem prove_corr_harder :
   phi_psi_entail_corr (pcons (.geq, (.var_label ⟨0, by omega⟩)) (pcons (.geq, (.latl Owl.L.bot)) empty_phi))
                       ((.corr (.latl Owl.L.bot)) :: (.corr (.var_label ⟨1, by omega⟩)) :: []) (Owl.corruption.corr (.var_label ⟨1, by omega⟩)) := by
   intro pm C vpm Csp
-  check_corr C Csp
+  check_corr vpm C Csp
 
 -- VERY NICE!
 theorem prove_corr_harder2 :
@@ -368,7 +378,7 @@ theorem prove_corr_harder2 :
                       ((.corr (.latl Owl.L.bot)) :: (.corr (.var_label ⟨1, by omega⟩)) :: []) (Owl.corruption.corr (.latl Owl.L.bot)) := by
   unfold phi_psi_entail_corr
   intro pm C vpm Csp
-  check_corr C Csp
+  check_corr vpm C Csp
 
 theorem ht_eq :
   ( · ; -- Phi
@@ -382,7 +392,7 @@ theorem ht_eq :
   tc_man (
     try simp
     intro pm C vpm Csp
-    check_corr C Csp
+    check_corr vpm C Csp
   )
 
 -- testing a contradiction case now
@@ -396,7 +406,7 @@ theorem ht_if_eq :
    :=
   by tc (
     intro pm C vpm Csp
-    check_corr C Csp
+    check_corr vpm C Csp
   )
 
 theorem ht_insert :
@@ -412,7 +422,7 @@ theorem ht_insert :
   intro t
   tc (
     intro pm C vpm Csp
-    check_corr C Csp
+    check_corr vpm C Csp
   )
 
 theorem ht_insert_part :
@@ -454,5 +464,6 @@ theorem ht_if_corr :
   by
   tc_man (
     try simp
+    right
     solve_constraint
   )

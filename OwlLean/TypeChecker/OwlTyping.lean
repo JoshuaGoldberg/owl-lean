@@ -1203,8 +1203,9 @@ syntax "attempt_solve" : tactic
 syntax "solve_phi_validation_anon" : tactic
 syntax "solve_phi_validation_anon_no_simp" : tactic
 syntax "case_phi " ident ident ident num num : tactic
+syntax "case_phi_corr" ident ident ident ident num num : tactic
 syntax "all_ren" ident ident num num : tactic
-syntax "check_corr" ident ident : tactic
+syntax "check_corr" ident ident ident : tactic
 syntax "destruct_csp" ident : tactic
 
 macro_rules
@@ -1339,8 +1340,77 @@ macro_rules
             try grind [interp_lattice]
             try case_phi $(tailId):ident $(A):ident $(headHoldsId):ident $newKSyntax $newIterSyntax
         )
-
-macro_rules
+  | `(tactic| case_phi_corr $H:ident $A:ident $prevHold:ident $Csp:ident $k:num $iter:num) => do
+      let suf := "_" ++ toString k.getNat
+      let iterVal := (iter.getNat)
+      let newKVal := (k.getNat + 1)
+      let prevKVal := (k.getNat - 1)
+      let prevKValSyntax := Syntax.mkNumLit (toString prevKVal)
+      let newIterVal := (iter.getNat + 1)
+      let newIterSyntax := Syntax.mkNumLit (toString newIterVal)
+      let newKSyntax := Syntax.mkNumLit (toString newKVal)
+      let mk (s : String) : TSyntax `ident := mkIdent <| Name.str .anonymous (s ++ suf)
+      let lId         := mk "l"
+      let pmPrevId    := mk "pm_prev"
+      let pctxPrevId  := mk "phictx_prev"
+      let phiEqId     := mk "phi_eq"
+      let symId       := mk "sym"
+      let labId       := mk "lab"
+      let labValId    := mk "lab_val"
+      let tailId      := mk "vpm_tail"
+      let headHoldsId := mk "head_holds"
+      let aId       := mk "a"
+      let hId := mk "h0"
+      let labeqId := mk "lab_eq"
+      if iterVal = 0 then
+        `(tactic|
+          first
+          | destruct_csp $Csp:ident
+          | cases $H:ident with
+            | phi_cons $(lId):ident $(pmPrevId):ident $(pctxPrevId):ident $(phiEqId):ident
+                      $(symId):ident $(labId):ident $(labValId):ident
+                      $(tailId):ident $(headHoldsId):ident $(aId):ident =>
+                trace "hi 2";
+                have h0 := congrArg (fun f => f 0) $(aId):ident
+                simp [lift_phi, cons] at h0
+                obtain ⟨sym_eq, lab_eq⟩ := h0
+                unfold phi_map_holds at $(headHoldsId):ident
+                unfold valid_constraint at $(headHoldsId):ident
+                rw [<- lab_eq] at $(headHoldsId):ident
+                try simp [ren_label, shift, cons, subst_label] at $(headHoldsId):ident
+                simp [var_zero] at $(headHoldsId):ident
+                try case_phi_corr $(tailId):ident $(aId):ident $(headHoldsId):ident $Csp:ident $newKSyntax $newIterSyntax
+        )
+      else
+        `(tactic|
+          first
+          | destruct_csp $Csp:ident
+          | cases $H:ident with
+              | phi_cons $(lId):ident $(pmPrevId):ident $(pctxPrevId):ident $(phiEqId):ident
+                        $(symId):ident $(labId):ident $(labValId):ident
+                        $(tailId):ident $(headHoldsId):ident $(aId):ident =>
+                trace "hi 3";
+                rw [$(aId):ident] at $A:ident
+                have $(hId):ident := congrArg (fun f => f $prevKValSyntax) $A:ident
+                simp [lift_phi, cons] at $(hId):ident
+                trace "hi 4";
+                try obtain ⟨sym_eq, $(labeqId):ident⟩ := $(hId):ident
+                simp at $(headHoldsId):ident
+                trace "hi 5";
+                unfold phi_map_holds at $(headHoldsId):ident
+                unfold valid_constraint at $(headHoldsId):ident
+                try all_ren $(labeqId):ident $(headHoldsId):ident 0 $prevKValSyntax:num
+                try all_ren $(hId):ident $(headHoldsId):ident 0 $prevKValSyntax:num
+                try simp [ren_label, shift, cons, subst_label] at $(headHoldsId):ident
+                simp [var_zero] at $(headHoldsId):ident
+                trace "hi 6";
+                try simp [cons] at $(prevHold):ident
+                try simp [Owl.cons]
+                trace "hi 7";
+                try simp [cons]
+                try grind [interp_lattice]
+                try case_phi_corr $(tailId):ident $(A):ident $(headHoldsId):ident $Csp:ident $newKSyntax $newIterSyntax
+        )
   | `(tactic| destruct_csp $Csp:ident) => do
     `(tactic|
       first
@@ -1348,28 +1418,41 @@ macro_rules
           | psi_empty => trivial
       |  cases $Csp:ident with
          | psi_corr psi C' l $Csp:ident Csp' =>
+           try simp [Owl.cons] at Csp';
            first
            | (contradiction; trace "Contradiction found within Psi")
            | grind
            | destruct_csp $Csp:ident
       | (cases $Csp:ident with
          | psi_not_corr psi C' l $Csp:ident Csp' =>
+           try simp [Owl.cons] at Csp';
            first
            | (contradiction; trace "Contradiction found within Psi")
            | grind
            | destruct_csp $Csp:ident)
     )
-  | `(tactic| check_corr $C:ident $Csp:ident) => do
+  | `(tactic| check_corr $vpm:ident $C:ident $Csp:ident) => do
     `(tactic|
-      have h1 := ($C:ident).has_bot;
-      have h2 := ($C:ident).downward_closed;
-      have h3 := Owl.L.leq_trans;
-      have h4 := Owl.L.bot_all;
-      have h5 := Owl.L.leq_refl;
-      simp [subst_psi_context, subst_corruption, Owl.subst_label];
-      simp [subst_psi_context, subst_corruption, Owl.subst_label] at $Csp:ident;
-      (repeat constructor);
-      destruct_csp $Csp:ident
+      first
+      | unfold pcons at $vpm:ident;
+        have h1 := ($C:ident).has_bot;
+        have h2 := ($C:ident).downward_closed;
+        have h3 := Owl.L.leq_trans;
+        have h4 := Owl.L.bot_all;
+        have h5 := Owl.L.leq_refl;
+        simp [subst_psi_context, subst_corruption, Owl.subst_label];
+        simp [subst_psi_context, subst_corruption, Owl.subst_label] at $Csp:ident;
+        (repeat constructor);
+        case_phi_corr $vpm:ident $vpm:ident $vpm:ident $Csp:ident 1 0;
+      | have h1 := ($C:ident).has_bot;
+        have h2 := ($C:ident).downward_closed;
+        have h3 := Owl.L.leq_trans;
+        have h4 := Owl.L.bot_all;
+        have h5 := Owl.L.leq_refl;
+        simp [subst_psi_context, subst_corruption, Owl.subst_label];
+        simp [subst_psi_context, subst_corruption, Owl.subst_label] at $Csp:ident;
+        (repeat constructor);
+        case_phi_corr $vpm:ident $vpm:ident $vpm:ident $Csp:ident 1 0;
     )
 
 macro "solve_all_constraints" : tactic => `(tactic|
@@ -1377,9 +1460,9 @@ macro "solve_all_constraints" : tactic => `(tactic|
     | constructor <;> (first
         | trivial
         | simp
-        | (right; intro pm C vpm Csp; check_corr C Csp)
-        | (left; intro pm C vpm Csp; check_corr C Csp)
-        | (intro pm C vpm Csp; check_corr C Csp)
+        | (right; intro pm C vpm Csp; check_corr vpm C Csp)
+        | (left; intro pm C vpm Csp; check_corr vpm C Csp)
+        | (intro pm C vpm Csp; check_corr vpm C Csp)
         | attempt_solve
         | solve_phi_validation_anon
         | solve_phi_validation_anon_no_simp)))
@@ -1387,9 +1470,9 @@ macro "solve_all_constraints" : tactic => `(tactic|
 macro "solve_constraint_help" : tactic => `(tactic|
       (first
         | trivial
-        | (right; intro pm C vpm Csp; check_corr C Csp)
-        | (left; intro pm C vpm Csp; check_corr C Csp)
-        | (intro pm C vpm Csp; check_corr C Csp)
+        | (right; intro pm C vpm Csp; check_corr vpm C Csp)
+        | (left; intro pm C vpm Csp; check_corr vpm C Csp)
+        | (intro pm C vpm Csp; check_corr vpm C Csp)
         | attempt_solve
         | solve_phi_validation_anon
         | solve_phi_validation_anon_no_simp))
@@ -1398,8 +1481,8 @@ syntax "solve_constraint" : tactic
 
 macro "solve_constraint" : tactic => `(tactic|
       (first
-        | (left; constructor; solve_constraint_help; (intro pm C vpm Csp; check_corr C Csp))
-        | (right; constructor; solve_constraint_help; (intro pm C vpm Csp; check_corr C Csp))
+        | (left; constructor; solve_constraint_help; (intro pm C vpm Csp; check_corr vpm C Csp))
+        | (right; constructor; solve_constraint_help; (intro pm C vpm Csp; check_corr vpm C Csp))
         | (left; constructor; solve_constraint_help)
         | (right; constructor; solve_constraint_help)
         | constructor
@@ -1662,12 +1745,12 @@ theorem test_latt_mix2 (l1 l2 l3 : L.labels) :
 theorem test_latt_manual (l1 l2 l3 : L.labels) (pf1 : L.leq l1 l2 = true) :
   lemma_phi_mix l1 l2 l3 |= (.condition .leq (.latl l1) (.latl l2)) := by
   intros pm vpm;
-    have tester : forall l1 l2 l3, L.leq l1 l2 -> L.leq l2 l3 -> L.leq l1 l3 := L.leq_trans;
-    unfold phi_map_holds;
-    unfold valid_constraint;
-    simp [subst_label];
-    unfold lemma_phi_mix at vpm;
-    unfold pcons at vpm;
+  have tester : forall l1 l2 l3, L.leq l1 l2 -> L.leq l2 l3 -> L.leq l1 l3 := L.leq_trans;
+  unfold phi_map_holds;
+  unfold valid_constraint;
+  simp [subst_label];
+  unfold lemma_phi_mix at vpm;
+  unfold pcons at vpm;
   cases vpm with
   | phi_cons l1 pm_prev1 phictx_prev1 phi_eq1 sym1 lab1 lab_val1 h_prev1 h_holds1 a1 =>
     have h0 := congrArg (fun f => f 0) a1
@@ -1676,8 +1759,6 @@ theorem test_latt_manual (l1 l2 l3 : L.labels) (pf1 : L.leq l1 l2 = true) :
     unfold phi_map_holds at h_holds1
     unfold valid_constraint at h_holds1
     rw [<- lab_eq] at h_holds1
-    try simp [ren_label, cons, subst_label] at h_holds1
-    simp [var_zero] at h_holds1
     cases h_prev1 with
     | phi_cons l2 pm_prev2 phictx_prev2 phi_eq2 sym2 lab2 lab_val2 h_prev2 h_holds2 a2 =>
       rw [a2] at a1
