@@ -1467,26 +1467,17 @@ macro "solve_all_constraints" : tactic => `(tactic|
         | solve_phi_validation_anon
         | solve_phi_validation_anon_no_simp)))
 
-macro "solve_constraint_help" : tactic => `(tactic|
-      (first
-        | trivial
-        | (right; intro pm C vpm Csp; check_corr vpm C Csp)
-        | (left; intro pm C vpm Csp; check_corr vpm C Csp)
-        | (intro pm C vpm Csp; check_corr vpm C Csp)
-        | attempt_solve
-        | solve_phi_validation_anon
-        | solve_phi_validation_anon_no_simp))
-
-syntax "solve_constraint" : tactic
-
-macro "solve_constraint" : tactic => `(tactic|
-      (first
-        | (left; constructor; solve_constraint_help; (intro pm C vpm Csp; check_corr vpm C Csp))
-        | (right; constructor; solve_constraint_help; (intro pm C vpm Csp; check_corr vpm C Csp))
-        | (left; constructor; solve_constraint_help)
-        | (right; constructor; solve_constraint_help)
-        | constructor
-        | solve_constraint_help))
+syntax "auto_solve" : tactic
+macro_rules
+  | `(tactic| auto_solve) =>
+    `(tactic| first
+      | intro pm C vpm Csp; check_corr vpm C Csp
+      | attempt_solve
+      | solve_phi_validation_anon
+      | solve_phi_validation_anon_no_simp
+      | (left; auto_solve)
+      | (right; auto_solve)
+      | (constructor; all_goals auto_solve))
 
 macro_rules
   | `(tactic| tc_full $Phi $Psi $Delta $Gamma $e $t $k) => `(tactic|
@@ -1498,7 +1489,7 @@ macro_rules
             try dsimp at side_condition_sound
             apply side_condition_sound
             trace_state;
-            solve_all_constraints;
+            try auto_solve;
             try simp;
             $k
       | none =>
@@ -1584,7 +1575,7 @@ def packed_unit : tm l d m := .pack .Unit .skip
 #reduce infer empty_phi (empty_psi 0) empty_delta empty_gamma (.unpack (.annot packed_unit (.ex .Any .Unit)) .skip) (.some .Unit)
 
 -- for label testing purposes!
-theorem stub_label_flow : Phi |= constr.condition cond_sym.leq (label.latl l1) (label.latl l2) := by
+theorem stub_label_flow : L.leq l1 l2 = true := by
   sorry
 
 #reduce infer empty_phi (empty_psi 0) empty_delta empty_gamma (.tm_pair (.alloc .skip) (.bitstring .bend)) (.some (.prod (.Ref .Unit) .Public))
@@ -1614,11 +1605,10 @@ theorem tc_prod   (Phi : phi_context l)
 theorem tc_label (Phi : phi_context l)
                          (Delta : delta_context l d) :
                          has_type Phi Psi Delta (cons (.Data (.latl l1)) empty_gamma)
-                           (tm.var_tm ⟨0, by omega⟩)
-                           (.Data (.latl l2)) := by
+                         (tm.var_tm ⟨0, by omega⟩)
+                         (.Data (.latl l2)) := by
   tc (
     try simp
-    let h := True
     exact stub_label_flow
   )
 
@@ -1789,3 +1779,9 @@ theorem test_latt_manual (l1 l2 l3 : L.labels) (pf1 : L.leq l1 l2 = true) :
         try simp [cons] at h_holds2
         try simp [cons]
         grind [interp_lattice]
+
+open Lean PrettyPrinter Delaborator SubExpr
+
+@[delab Owl.cond_sym.leq]
+def delabLeq : Delab := do
+  `("⊑")

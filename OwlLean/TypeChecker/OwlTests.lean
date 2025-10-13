@@ -169,7 +169,7 @@ theorem gen_key_pack_pair_if_ht (l1 l2 : Owl.L.labels) (pf : Owl.L.leq l1 l2 = t
     by
     tc_man (
       try simp
-      attempt_solve
+      auto_solve
     )
 
 noncomputable def ENC :=
@@ -190,38 +190,22 @@ elab "show_constraints" : tactic => do
     |> String.replace "phi_psi_entail_corr" "⊢"
   logInfo m!"Current goal:\n{clean}"
 
--- ((betaK, betaM ⊑ betaK) ; · ; · ; · ;
---    pack (Public, ⟨⟨genKey⟩ (["000"], ["000"]),
---                  (corr_case betaK in if corr ( betaK ) then ((λx . ⟨enc⟩ (π1 x, π2 x)) : (Public * Public) -> Public)
---                                                        else ((λx . ⟨rand⟩ (π2 x, ["0"])) : (Public * Data betaM) -> Public))⟩)
---    ⊢
---    (∃ alphaK <: (Data betaK) . (alphaK * corr (betaK) ? (Public * Public) -> Public : (alphaK * Data betaM) -> Public))) :=
+open Lean PrettyPrinter
+
+@[app_unexpander pcons] def unexp_pcons : Unexpander
+| `($_ $a $b) => `($a :: $b)
+| _           => throw ()
 
  theorem enc_ty :
   ((betaK, betaM ⊑ betaK) ; · ; · ; · ;
-    pack (Public,  ⟨⟨genKey⟩ (["000"], ["000"]), (corr_case betaK in if corr ( betaK ) then ((λx . ⟨enc⟩ (π1 x, π2 x)) : (Public * Public) -> Public)
+    pack (Public, ⟨⟨genKey⟩ (["000"], ["000"]), (corr_case betaK in if corr ( betaK ) then ((λx . ⟨enc⟩ (π1 x, π2 x)) : (Public * Public) -> Public)
                                                         else ((λx . ⟨rand⟩ (zero (π2 x), ["0"])) : (Public * Data betaM) -> Public))⟩)
-    ⊢
-    (∃ alphaK <: (Data betaK) . (alphaK * corr (betaK) ? (Public * Public) -> Public : (Public * Data betaM) -> Public))) :=
+      ⊢
+      (∃ alphaK <: (Data betaK) . (alphaK * corr (betaK) ? (Public * Public) -> Public : (alphaK * Data betaM) -> Public))) :=
     by
     tc_man (
       try simp
-      solve_constraint
-      solve_constraint
-      solve_constraint
-      solve_constraint
-      solve_constraint
-      solve_constraint
-      left
-      solve_constraint
-      solve_constraint
-      solve_constraint
-      right
-      solve_constraint
-      solve_constraint
-      solve_constraint
-      solve_constraint
-      solve_constraint
+      auto_solve
     )
 
 theorem test_annot :
@@ -404,10 +388,7 @@ theorem ht_if_eq :
    (if (⟨eq⟩(["111"], ["111"]) : (Data x)) then ["111"] else ["111"]) ⊢  -- Tm
    (Public)) -- Ty
    :=
-  by tc (
-    intro pm C vpm Csp
-    check_corr vpm C Csp
-  )
+  by tc (try grind)
 
 theorem ht_insert :
   forall (t : Owl.ty 0 0),
@@ -420,10 +401,7 @@ theorem ht_insert :
    :=
   by
   intro t
-  tc (
-    intro pm C vpm Csp
-    check_corr vpm C Csp
-  )
+  tc (try grind)
 
 theorem ht_insert_part :
   ( · ; -- Phi
@@ -453,6 +431,25 @@ theorem ht_unit :
     sorry
   )
 
+open Lean Elab Tactic Meta in
+
+elab "pp_or" : tactic => do
+  let goal ← getMainTarget
+  match goal with
+  | .app (.app (.const `Or _) lhs) rhs =>
+    let lhsStr ← ppExpr lhs
+    let rhsStr ← ppExpr rhs
+    let lhsClean := toString lhsStr |>.replace "«Owl»." "" |>.replace "phi_psi_entail_corr" "⊢"
+    let rhsClean := toString rhsStr |>.replace "«Owl»." "" |>.replace "phi_psi_entail_corr" "⊢"
+    logInfo m!"{lhsClean}\n ∨\n {rhsClean}\n"
+  | .app (.app (.const `And _) lhs) rhs =>
+    let lhsStr ← ppExpr lhs
+    let rhsStr ← ppExpr rhs
+    let lhsClean := toString lhsStr |>.replace "«Owl»." "" |>.replace "phi_psi_entail_corr" "⊢"
+    let rhsClean := toString rhsStr |>.replace "«Owl»." "" |>.replace "phi_psi_entail_corr" "⊢"
+    logInfo m!"{lhsClean}\n ∧\n {rhsClean}\n"
+  | _ => logInfo m!"{← ppExpr goal}"
+
 theorem ht_if_corr :
   ( x ; -- Phi
     (¬corr(x)) ; -- Delta
@@ -463,7 +460,6 @@ theorem ht_if_corr :
    :=
   by
   tc_man (
-    try simp
-    right
-    solve_constraint
+    pp_or
+    auto_solve
   )
