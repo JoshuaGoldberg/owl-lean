@@ -1,3 +1,5 @@
+TODO: place in OwlLean/CryptoPrims/AuthEnc.lean
+
 |- ENC :=
     forall betaK, betaM < betaK.
         forall tau <: Data betaM.
