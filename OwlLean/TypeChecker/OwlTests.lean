@@ -179,23 +179,6 @@ noncomputable def ENC :=
                                           (corr ( betaK ) ? (Public * Public) -> Public : ((Data betaK) * (Data betaM)) -> Public)))
   }
 
-open Lean Elab Tactic Meta PrettyPrinter in
-elab "show_constraints" : tactic => do
-  let goal ← getMainTarget
-  -- Use delaboration to get a nicer format
-  let stx ← delab goal
-  let str := toString stx
-  let clean := str
-    |> String.replace "«Owl»." ""
-    |> String.replace "phi_psi_entail_corr" "⊢"
-  logInfo m!"Current goal:\n{clean}"
-
-open Lean PrettyPrinter
-
-@[app_unexpander pcons] def unexp_pcons : Unexpander
-| `($_ $a $b) => `($a :: $b)
-| _           => throw ()
-
  theorem enc_ty :
   ((betaK, betaM ⊑ betaK) ; · ; · ; · ;
     pack (Public, ⟨⟨genKey⟩ (["000"], ["000"]), (corr_case betaK in if corr ( betaK ) then ((λx . ⟨enc⟩ (π1 x, π2 x)) : (Public * Public) -> Public)
@@ -431,25 +414,6 @@ theorem ht_unit :
     sorry
   )
 
-open Lean Elab Tactic Meta in
-
-elab "pp_or" : tactic => do
-  let goal ← getMainTarget
-  match goal with
-  | .app (.app (.const `Or _) lhs) rhs =>
-    let lhsStr ← ppExpr lhs
-    let rhsStr ← ppExpr rhs
-    let lhsClean := toString lhsStr |>.replace "«Owl»." "" |>.replace "phi_psi_entail_corr" "⊢"
-    let rhsClean := toString rhsStr |>.replace "«Owl»." "" |>.replace "phi_psi_entail_corr" "⊢"
-    logInfo m!"{lhsClean}\n ∨\n {rhsClean}\n"
-  | .app (.app (.const `And _) lhs) rhs =>
-    let lhsStr ← ppExpr lhs
-    let rhsStr ← ppExpr rhs
-    let lhsClean := toString lhsStr |>.replace "«Owl»." "" |>.replace "phi_psi_entail_corr" "⊢"
-    let rhsClean := toString rhsStr |>.replace "«Owl»." "" |>.replace "phi_psi_entail_corr" "⊢"
-    logInfo m!"{lhsClean}\n ∧\n {rhsClean}\n"
-  | _ => logInfo m!"{← ppExpr goal}"
-
 theorem ht_if_corr :
   ( x ; -- Phi
     (¬corr(x)) ; -- Delta
@@ -460,6 +424,5 @@ theorem ht_if_corr :
    :=
   by
   tc_man (
-    pp_or
     auto_solve
   )
