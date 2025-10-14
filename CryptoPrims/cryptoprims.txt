@@ -72,6 +72,36 @@ E2 : EncInner[betaM, betaL, tau2] |-
     enc1(K1, K2)
 
 
+-----
+
+|- SIG :=
+    forall betaK.
+        forall tau <: Public.
+            exists alpha <: Data betaK.
+            exists beta <: Public
+            (
+                  alpha
+                * beta
+                * (if corr betaK then (Public * Public -> Public) else (alpha * tau -> Public))
+                * (if corr betaK then (Public * Public * Public -> Public) else (beta * Public * Public -> (tau + Unit)))
+            )
+
+SigI :=
+    Lam betaK.
+        Lam tau. 
+            // Uninterpreted functions
+            let sk = genSK () in 
+            let pk = pk_of_sk sk in 
+
+            let L : ref (Public -> Public -> tau + Unit) := ref (fun _ -> inr ()) in  // Mutable map like in EncI
+            let sign = fun sk m -> 
+                let sig = [[rand_sign]](m)
+                let L_old = !L in 
+                L := (fun m' sig' -> if m = m' && sig = sig' then inl m else L_old m' sig');
+                sig
+            let vrfy = fun vk m sig -> 
+                (!L) m sig
+    
 
 
 
