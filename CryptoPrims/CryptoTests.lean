@@ -19,14 +19,20 @@ notation "Ψ∅" => empty_psi
 notation "corr(" l ")"  => Owl.corruption.corr l
 notation "¬corr(" l ")" => Owl.corruption.not_corr l
 notation pm " ▷ " ψ => subst_psi_context pm ψ
-notation "⟪" l "⟫"   => Owl.label.latl l
-notation "⊥"        => Owl.label.latl Owl.L.bot
+notation "ℓ⊥" => Owl.label.latl Owl.L.bot
+notation "⟪" l "⟫" => Owl.label.latl l
 notation "⊑" => Owl.cond_sym.leq
 notation "⊒" => Owl.cond_sym.geq
 notation "⊏" => Owl.cond_sym.lt
 notation "⊐" => Owl.cond_sym.gt
 notation "ℓ" n => Owl.label.var_label n
 notation "(" a c b ")" => Owl.constr.condition c a b
+
+@[app_unexpander Owl.label.latl]
+def unexp_label_latl : Unexpander
+| `($_ «Owl».Lattice.bot) =>  `(ℓ⊥)
+| `($_ $arg)      =>  `(⟪$arg⟫)
+| _               =>  throw ()
 
 -- non functional
 def genKey : Owl.op :=
