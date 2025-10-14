@@ -275,6 +275,10 @@ theorem test_latt_new :
   ((x, y ⊒ x, z ⊒ y, a ⊒ z) ⊨ (y ⊒ x)) := by
     solve_phi_validation_anon
 
+theorem test_latt_new2 :
+  (· ⊨ (y ⊒ x)) := by
+    attempt_solve
+
 
 def MapOf (t : Owl.ty 0 0) := OwlTy [] [] { Public -> (Unit + $ t) }
 

@@ -1226,7 +1226,6 @@ macro_rules
           try rw [<- $test:ident] at $inj:ident)
   | `(tactic| solve_phi_validation $lemma_phi:ident) => `(tactic|
       intros pm vpm;
-      trace "hi 1";
       have tester : forall l1 l2 l3, L.leq l1 l2 -> L.leq l2 l3 -> L.leq l1 l3 := L.leq_trans;
       have tester' : forall l, L.leq L.bot l = true := L.bot_all;
       unfold phi_map_holds;
@@ -1249,28 +1248,22 @@ macro_rules
     )
   | `(tactic| solve_phi_validation_anon) => `(tactic|
       intros pm vpm;
-      trace "hi 1";
       have tester : forall l1 l2 l3, L.leq l1 l2 -> L.leq l2 l3 -> L.leq l1 l3 := L.leq_trans;
       have tester' : forall l, L.leq L.bot l = true := L.bot_all;
       unfold phi_map_holds;
       unfold valid_constraint;
-      trace "hi 1.2";
       simp [subst_label];
       simp at vpm;
-      trace "hi 1.5";
       unfold pcons at vpm;
       case_phi vpm vpm vpm 1 0
     )
   | `(tactic| solve_phi_validation_anon_no_simp) => `(tactic|
       intros pm vpm;
-      trace "hi 1";
       have tester : forall l1 l2 l3, L.leq l1 l2 -> L.leq l2 l3 -> L.leq l1 l3 := L.leq_trans;
       have tester' : forall l, L.leq L.bot l = true := L.bot_all;
       unfold phi_map_holds;
       unfold valid_constraint;
-      trace "hi 1.2";
       simp [subst_label];
-      trace "hi 1.5";
       unfold pcons at vpm;
       case_phi vpm vpm vpm 1 0
     )
@@ -1302,7 +1295,6 @@ macro_rules
           | phi_cons $(lId):ident $(pmPrevId):ident $(pctxPrevId):ident $(phiEqId):ident
                     $(symId):ident $(labId):ident $(labValId):ident
                     $(tailId):ident $(headHoldsId):ident $(aId):ident =>
-              trace "hi 2";
               have h0 := congrArg (fun f => f 0) $(aId):ident
               simp [lift_phi, cons] at h0
               obtain ⟨sym_eq, lab_eq⟩ := h0
@@ -1319,23 +1311,18 @@ macro_rules
           | phi_cons $(lId):ident $(pmPrevId):ident $(pctxPrevId):ident $(phiEqId):ident
                     $(symId):ident $(labId):ident $(labValId):ident
                     $(tailId):ident $(headHoldsId):ident $(aId):ident =>
-            trace "hi 3";
             rw [$(aId):ident] at $A:ident
             have $(hId):ident := congrArg (fun f => f $prevKValSyntax) $A:ident
             simp [lift_phi, cons] at $(hId):ident
-            trace "hi 4";
             try obtain ⟨sym_eq, $(labeqId):ident⟩ := $(hId):ident
             simp at $(headHoldsId):ident
-            trace "hi 5";
             unfold phi_map_holds at $(headHoldsId):ident
             unfold valid_constraint at $(headHoldsId):ident
             try all_ren $(labeqId):ident $(headHoldsId):ident 0 $prevKValSyntax:num
             try all_ren $(hId):ident $(headHoldsId):ident 0 $prevKValSyntax:num
             try simp [ren_label, shift, cons, subst_label] at $(headHoldsId):ident
             simp [var_zero] at $(headHoldsId):ident
-            trace "hi 6";
             try simp [cons] at $(prevHold):ident
-            trace "hi 7";
             try simp [cons]
             try grind [interp_lattice]
             try case_phi $(tailId):ident $(A):ident $(headHoldsId):ident $newKSyntax $newIterSyntax
@@ -1365,12 +1352,13 @@ macro_rules
       if iterVal = 0 then
         `(tactic|
           first
-          | destruct_csp $Csp:ident
+          | cases $H:ident with
+            | phi_empty_valid =>
+                destruct_csp $Csp:ident
           | cases $H:ident with
             | phi_cons $(lId):ident $(pmPrevId):ident $(pctxPrevId):ident $(phiEqId):ident
                       $(symId):ident $(labId):ident $(labValId):ident
                       $(tailId):ident $(headHoldsId):ident $(aId):ident =>
-                trace "hi 2";
                 have h0 := congrArg (fun f => f 0) $(aId):ident
                 simp [lift_phi, cons] at h0
                 obtain ⟨sym_eq, lab_eq⟩ := h0
@@ -1384,29 +1372,26 @@ macro_rules
       else
         `(tactic|
           first
-          | destruct_csp $Csp:ident
+          | cases $H:ident with
+            | phi_empty_valid =>
+                destruct_csp $Csp:ident
           | cases $H:ident with
               | phi_cons $(lId):ident $(pmPrevId):ident $(pctxPrevId):ident $(phiEqId):ident
                         $(symId):ident $(labId):ident $(labValId):ident
                         $(tailId):ident $(headHoldsId):ident $(aId):ident =>
-                trace "hi 3";
                 rw [$(aId):ident] at $A:ident
                 have $(hId):ident := congrArg (fun f => f $prevKValSyntax) $A:ident
                 simp [lift_phi, cons] at $(hId):ident
-                trace "hi 4";
                 try obtain ⟨sym_eq, $(labeqId):ident⟩ := $(hId):ident
                 simp at $(headHoldsId):ident
-                trace "hi 5";
                 unfold phi_map_holds at $(headHoldsId):ident
                 unfold valid_constraint at $(headHoldsId):ident
                 try all_ren $(labeqId):ident $(headHoldsId):ident 0 $prevKValSyntax:num
                 try all_ren $(hId):ident $(headHoldsId):ident 0 $prevKValSyntax:num
                 try simp [ren_label, shift, cons, subst_label] at $(headHoldsId):ident
                 simp [var_zero] at $(headHoldsId):ident
-                trace "hi 6";
                 try simp [cons] at $(prevHold):ident
                 try simp [Owl.cons]
-                trace "hi 7";
                 try simp [cons]
                 try grind [interp_lattice]
                 try case_phi_corr $(tailId):ident $(A):ident $(headHoldsId):ident $Csp:ident $newKSyntax $newIterSyntax
@@ -1420,14 +1405,14 @@ macro_rules
          | psi_corr psi C' l $Csp:ident Csp' =>
            try simp [Owl.cons] at Csp';
            first
-           | (contradiction; trace "Contradiction found within Psi")
+           | (contradiction)
            | grind
            | destruct_csp $Csp:ident
       | (cases $Csp:ident with
          | psi_not_corr psi C' l $Csp:ident Csp' =>
            try simp [Owl.cons] at Csp';
            first
-           | (contradiction; trace "Contradiction found within Psi")
+           | (contradiction)
            | grind
            | destruct_csp $Csp:ident)
     )
@@ -1469,15 +1454,16 @@ macro "solve_all_constraints" : tactic => `(tactic|
 
 syntax "auto_solve" : tactic
 macro_rules
-  | `(tactic| auto_solve) =>
-    `(tactic| first
-      | intro pm C vpm Csp; check_corr vpm C Csp
-      | attempt_solve
-      | solve_phi_validation_anon
-      | solve_phi_validation_anon_no_simp
-      | (left; auto_solve)
-      | (right; auto_solve)
-      | (constructor; all_goals auto_solve))
+| `(tactic| auto_solve) =>
+  `(tactic| first
+    | (focus trivial)
+    | (focus (left;  auto_solve; done))
+    | (focus (right; auto_solve; done))
+    | (apply And.intro; all_goals auto_solve)
+    | (focus (intro pm C vpm Csp; check_corr vpm C Csp; done))
+    | (focus attempt_solve)
+    | (focus solve_phi_validation_anon)
+    | (focus solve_phi_validation_anon_no_simp))
 
 macro_rules
   | `(tactic| tc_full $Phi $Psi $Delta $Gamma $e $t $k) => `(tactic|
