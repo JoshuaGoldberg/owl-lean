@@ -1037,7 +1037,35 @@ noncomputable def infer (Phi : phi_context l) (Psi : psi_context l) (Delta : del
       | .none => .none
   | .if_c lab e1 e2 =>
     match exp with
-    | .none => .none -- TODO, find a good way to synthesize
+    | .none =>
+      match infer Phi Psi Delta Gamma e1 .none, infer Phi Psi Delta Gamma e2 .none with
+      | .some ⟨t1, pf1⟩, .some ⟨t2, pf2⟩ =>
+        let result_type := ty.t_if lab t1 t2
+        let corr_cond := phi_psi_entail_corr Phi Psi (.corr lab)
+        let not_corr_cond := phi_psi_entail_corr Phi Psi (.not_corr lab)
+        .some ⟨result_type,
+          ⟨(pf1.side_condition /\ corr_cond) \/ (pf2.side_condition /\ not_corr_cond),
+          fun sc =>
+            match sc with
+            | Or.inl h =>
+              has_type.T_Sub (.if_c lab e1 e2) t1 result_type
+                (subtype.ST_RIf1 lab t1 t1 t2 h.right (subtype.ST_Refl t1))
+                (has_type.T_IfCorr2 lab t1 e1 e2 h.right (grind pf1))
+            | Or.inr h =>
+              has_type.T_Sub (.if_c lab e1 e2) t2 result_type
+                (subtype.ST_RIf2 lab t2 t1 t2 h.right (subtype.ST_Refl t2))
+                (has_type.T_IfCorr1 lab t2 e1 e2 h.right (grind pf2))⟩⟩
+      | .some ⟨t1, pf1⟩, .none =>
+        let corr_cond := phi_psi_entail_corr Phi Psi (.corr lab)
+        .some ⟨t1,
+              ⟨pf1.side_condition /\ corr_cond,
+              fun sc => has_type.T_IfCorr2 lab t1 e1 e2 sc.right (grind pf1)⟩⟩
+      | .none, .some ⟨t2, pf2⟩ =>
+        let not_corr_cond := phi_psi_entail_corr Phi Psi (.not_corr lab)
+        .some ⟨t2,
+              ⟨pf2.side_condition ∧ not_corr_cond,
+              fun sc => has_type.T_IfCorr1 lab t2 e1 e2 sc.right (grind pf2)⟩⟩
+      | _, _ => .none
     | .some t =>
       match infer Phi Psi Delta Gamma e1 (.some t), infer Phi Psi Delta Gamma e2 (.some t) with
       | .some pf1, .some pf2 =>
