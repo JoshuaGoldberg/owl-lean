@@ -1230,7 +1230,7 @@ macro_rules
       have tester' : forall l, L.leq L.bot l = true := L.bot_all;
       unfold phi_map_holds;
       unfold valid_constraint;
-      simp [subst_label];
+      simp [subst_label, Owl.ren_label];
       unfold $lemma_phi:ident at vpm;
       simp at vpm;
       unfold pcons at vpm;
@@ -1243,7 +1243,7 @@ macro_rules
       have tester'' := L.leq_refl;
       unfold phi_map_holds;
       unfold valid_constraint;
-      simp [subst_label, interp_lattice];
+      simp [subst_label, interp_lattice, Owl.ren_label];
       try grind
     )
   | `(tactic| solve_phi_validation_anon) => `(tactic|
@@ -1252,7 +1252,7 @@ macro_rules
       have tester' : forall l, L.leq L.bot l = true := L.bot_all;
       unfold phi_map_holds;
       unfold valid_constraint;
-      simp [subst_label];
+      simp [subst_label, Owl.ren_label];
       simp at vpm;
       unfold pcons at vpm;
       case_phi vpm vpm vpm 1 0
@@ -1263,7 +1263,7 @@ macro_rules
       have tester' : forall l, L.leq L.bot l = true := L.bot_all;
       unfold phi_map_holds;
       unfold valid_constraint;
-      simp [subst_label];
+      simp [subst_label, Owl.ren_label];
       unfold pcons at vpm;
       case_phi vpm vpm vpm 1 0
     )
@@ -1301,7 +1301,7 @@ macro_rules
               unfold phi_map_holds at $(headHoldsId):ident
               unfold valid_constraint at $(headHoldsId):ident
               rw [<- lab_eq] at $(headHoldsId):ident
-              try simp [ren_label, shift, cons, subst_label] at $(headHoldsId):ident
+              try simp [ren_label, shift, cons, subst_label, Owl.ren_label] at $(headHoldsId):ident
               simp [var_zero] at $(headHoldsId):ident
               case_phi $(tailId):ident $(aId):ident $(headHoldsId):ident $newKSyntax $newIterSyntax
         )
@@ -1320,7 +1320,7 @@ macro_rules
             unfold valid_constraint at $(headHoldsId):ident
             try all_ren $(labeqId):ident $(headHoldsId):ident 0 $prevKValSyntax:num
             try all_ren $(hId):ident $(headHoldsId):ident 0 $prevKValSyntax:num
-            try simp [ren_label, shift, cons, subst_label] at $(headHoldsId):ident
+            try simp [ren_label, shift, cons, subst_label ,Owl.ren_label] at $(headHoldsId):ident
             simp [var_zero] at $(headHoldsId):ident
             try simp [cons] at $(prevHold):ident
             try simp [cons]
@@ -1365,7 +1365,7 @@ macro_rules
                 unfold phi_map_holds at $(headHoldsId):ident
                 unfold valid_constraint at $(headHoldsId):ident
                 rw [<- lab_eq] at $(headHoldsId):ident
-                try simp [ren_label, shift, cons, subst_label] at $(headHoldsId):ident
+                try simp [ren_label, shift, cons, subst_label, Owl.ren_label] at $(headHoldsId):ident
                 simp [var_zero] at $(headHoldsId):ident
                 try case_phi_corr $(tailId):ident $(aId):ident $(headHoldsId):ident $Csp:ident $newKSyntax $newIterSyntax
         )
@@ -1388,7 +1388,7 @@ macro_rules
                 unfold valid_constraint at $(headHoldsId):ident
                 try all_ren $(labeqId):ident $(headHoldsId):ident 0 $prevKValSyntax:num
                 try all_ren $(hId):ident $(headHoldsId):ident 0 $prevKValSyntax:num
-                try simp [ren_label, shift, cons, subst_label] at $(headHoldsId):ident
+                try simp [ren_label, shift, cons, subst_label, Owl.ren_label] at $(headHoldsId):ident
                 simp [var_zero] at $(headHoldsId):ident
                 try simp [cons] at $(prevHold):ident
                 try simp [Owl.cons]
@@ -1425,8 +1425,8 @@ macro_rules
         have h3 := Owl.L.leq_trans;
         have h4 := Owl.L.bot_all;
         have h5 := Owl.L.leq_refl;
-        simp [subst_psi_context, subst_corruption, Owl.subst_label];
-        simp [subst_psi_context, subst_corruption, Owl.subst_label] at $Csp:ident;
+        simp [subst_psi_context, subst_corruption, Owl.subst_label, Owl.ren_label];
+        simp [subst_psi_context, subst_corruption, Owl.subst_label, Owl.ren_label] at $Csp:ident;
         (repeat constructor);
         case_phi_corr $vpm:ident $vpm:ident $vpm:ident $Csp:ident 1 0;
       | have h1 := ($C:ident).has_bot;
@@ -1434,8 +1434,8 @@ macro_rules
         have h3 := Owl.L.leq_trans;
         have h4 := Owl.L.bot_all;
         have h5 := Owl.L.leq_refl;
-        simp [subst_psi_context, subst_corruption, Owl.subst_label];
-        simp [subst_psi_context, subst_corruption, Owl.subst_label] at $Csp:ident;
+        simp [subst_psi_context, subst_corruption, Owl.subst_label, Owl.ren_label];
+        simp [subst_psi_context, subst_corruption, Owl.subst_label, Owl.ren_label] at $Csp:ident;
         (repeat constructor);
         case_phi_corr $vpm:ident $vpm:ident $vpm:ident $Csp:ident 1 0;
     )
@@ -1454,16 +1454,15 @@ macro "solve_all_constraints" : tactic => `(tactic|
 
 syntax "auto_solve" : tactic
 macro_rules
-| `(tactic| auto_solve) =>
-  `(tactic| first
-    | (focus trivial)
-    | (focus (left;  auto_solve; done))
-    | (focus (right; auto_solve; done))
-    | (apply And.intro; all_goals auto_solve)
-    | (focus (intro pm C vpm Csp; check_corr vpm C Csp; done))
-    | (focus attempt_solve)
-    | (focus solve_phi_validation_anon)
-    | (focus solve_phi_validation_anon_no_simp))
+  | `(tactic| auto_solve) =>
+    `(tactic| first
+      | intro pm C vpm Csp; check_corr vpm C Csp
+      | attempt_solve
+      | solve_phi_validation_anon
+      | solve_phi_validation_anon_no_simp
+      | (left; auto_solve)
+      | (right; auto_solve)
+      | (constructor; all_goals auto_solve))
 
 macro_rules
   | `(tactic| tc_full $Phi $Psi $Delta $Gamma $e $t $k) => `(tactic|

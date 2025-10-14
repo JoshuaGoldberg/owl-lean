@@ -299,6 +299,7 @@ tm n_label n_ty n_tm :=
   | .annot e t => .annot (ren_tm xi_label xi_ty xi_tm e) (ren_ty xi_label xi_ty t)
   | .default => .default
 
+@[simp]
 def subst_label
 (sigma_label : Fin m_label -> label n_label) (s : label m_label) :
 label n_label :=
