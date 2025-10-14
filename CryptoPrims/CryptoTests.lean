@@ -45,6 +45,11 @@ def enc : Owl.op :=
     Owl.Dist.ret (Owl.binary.bend)
 
 -- non functional
+def dec : Owl.op :=
+  fun (_ _ : Owl.binary) =>
+    Owl.Dist.ret (Owl.binary.bend)
+
+-- non functional
 def rand : Owl.op :=
   fun (_ _ : Owl.binary) =>
     Owl.Dist.ret (Owl.binary.bend)
@@ -68,17 +73,24 @@ theorem enc_ty :
                   else (
                     (λx .
                     let c = ⟨rand⟩ (zero ((π2 x) : Data betaM), ["0"]) in
-                    let L_old = (! L : (Public -> tau + Unit)) in
+                    let L_old = (! L) in
                     let sc = L := (λ y . if ⟨eq⟩(y, c) then ı1 (π2 x) else L_old [y]) in
                     c : (Data betaK * tau) -> Public) : (Data betaK * tau) -> Public) :
-                  corr (betaK) ? (Public * Public) -> Public : (Data betaK * tau) -> Public))
+                    corr (betaK) ? (Public * Public) -> Public : (Data betaK * tau) -> Public))
     in
-    pack (Data betaK, ⟨k, (corr_case betaK in enc')⟩)
+    let dec' = (corr_case betaK in
+               (if corr (betaK) then (λ x . ⟨dec⟩(π1 x, π2 x) : (Public * Public) -> Public)
+                else (λ x . (!L) [π2 x] : (Data betaK * Public) -> (tau + Unit)) :
+                corr (betaK) ? (Public * Public) -> Public : (Data betaK * Public) -> (tau + Unit)))
+    in
+    pack (Data betaK, ⟨k, ⟨(corr_case betaK in enc'), (corr_case betaK in dec')⟩⟩)
     ⊢
     ∀ betaK ⊒ ⟨Owl.L.bot⟩ .
     ∀ betaM ⊑ betaK .
     ∀ tau <: Data betaM .
-    (∃ alphaK <: (Data betaK) . (alphaK * corr (betaK) ? (Public * Public) -> Public : (alphaK * tau) -> Public))) :=
+    (∃ alphaK <: (Data betaK) . (alphaK *
+                                 ((corr (betaK) ? (Public * Public) -> Public : (alphaK * tau) -> Public) *
+                                  (corr (betaK) ? (Public * Public) -> Public : (alphaK * Public) -> (tau + Unit)))))) :=
     by
     tc_man (
       try simp
