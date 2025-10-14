@@ -1319,41 +1319,49 @@ macro_rules
       let labeqId := mk "lab_eq"
       if iterVal = 0 then
         `(tactic|
-          cases $H:ident with
-          | phi_cons $(lId):ident $(pmPrevId):ident $(pctxPrevId):ident $(phiEqId):ident
-                    $(symId):ident $(labId):ident $(labValId):ident
-                    $(tailId):ident $(headHoldsId):ident $(aId):ident =>
-              have h0 := congrArg (fun f => f 0) $(aId):ident
-              simp [lift_phi, cons] at h0
-              obtain ⟨sym_eq, lab_eq⟩ := h0
-              unfold phi_map_holds at $(headHoldsId):ident
-              unfold valid_constraint at $(headHoldsId):ident
-              rw [<- lab_eq] at $(headHoldsId):ident
-              try simp [ren_label, shift, cons, subst_label, Owl.ren_label] at $(headHoldsId):ident
-              simp [var_zero] at $(headHoldsId):ident
-              case_phi $(tailId):ident $(aId):ident $(headHoldsId):ident $newKSyntax $newIterSyntax
+          first
+          | cases $H:ident with
+            | phi_empty_valid =>
+              try simp [cons]
+              try grind [interp_lattice]
+          | cases $H:ident with
+            | phi_cons $(lId):ident $(pmPrevId):ident $(pctxPrevId):ident $(phiEqId):ident
+                      $(symId):ident $(labId):ident $(labValId):ident
+                      $(tailId):ident $(headHoldsId):ident $(aId):ident =>
+                have h0 := congrArg (fun f => f 0) $(aId):ident
+                simp [lift_phi, cons] at h0
+                obtain ⟨sym_eq, lab_eq⟩ := h0
+                unfold phi_map_holds at $(headHoldsId):ident
+                unfold valid_constraint at $(headHoldsId):ident
+                rw [<- lab_eq] at $(headHoldsId):ident
+                try simp [ren_label, shift, cons, subst_label, Owl.ren_label] at $(headHoldsId):ident
+                simp [var_zero] at $(headHoldsId):ident
+                case_phi $(tailId):ident $(aId):ident $(headHoldsId):ident $newKSyntax $newIterSyntax
         )
       else
         `(tactic|
-         cases $H:ident with
-          | phi_cons $(lId):ident $(pmPrevId):ident $(pctxPrevId):ident $(phiEqId):ident
-                    $(symId):ident $(labId):ident $(labValId):ident
-                    $(tailId):ident $(headHoldsId):ident $(aId):ident =>
-            rw [$(aId):ident] at $A:ident
-            have $(hId):ident := congrArg (fun f => f $prevKValSyntax) $A:ident
-            simp [lift_phi, cons] at $(hId):ident
-            try obtain ⟨sym_eq, $(labeqId):ident⟩ := $(hId):ident
-            simp at $(headHoldsId):ident
-            unfold phi_map_holds at $(headHoldsId):ident
-            unfold valid_constraint at $(headHoldsId):ident
-            try all_ren $(labeqId):ident $(headHoldsId):ident 0 $prevKValSyntax:num
-            try all_ren $(hId):ident $(headHoldsId):ident 0 $prevKValSyntax:num
-            try simp [ren_label, shift, cons, subst_label ,Owl.ren_label] at $(headHoldsId):ident
-            simp [var_zero] at $(headHoldsId):ident
-            try simp [cons] at $(prevHold):ident
-            try simp [cons]
-            try grind [interp_lattice]
-            try case_phi $(tailId):ident $(A):ident $(headHoldsId):ident $newKSyntax $newIterSyntax
+         first
+          | cases $H:ident with
+            | phi_empty_valid =>
+              try simp [cons] at *
+              try grind [interp_lattice]
+          | cases $H:ident with
+            | phi_cons $(lId):ident $(pmPrevId):ident $(pctxPrevId):ident $(phiEqId):ident
+                      $(symId):ident $(labId):ident $(labValId):ident
+                      $(tailId):ident $(headHoldsId):ident $(aId):ident =>
+              rw [$(aId):ident] at $A:ident
+              have $(hId):ident := congrArg (fun f => f $prevKValSyntax) $A:ident
+              simp [lift_phi, cons] at $(hId):ident
+              try obtain ⟨sym_eq, $(labeqId):ident⟩ := $(hId):ident
+              simp at $(headHoldsId):ident
+              unfold phi_map_holds at $(headHoldsId):ident
+              unfold valid_constraint at $(headHoldsId):ident
+              try all_ren $(labeqId):ident $(headHoldsId):ident 0 $prevKValSyntax:num
+              try all_ren $(hId):ident $(headHoldsId):ident 0 $prevKValSyntax:num
+              try simp [ren_label, shift, cons, subst_label ,Owl.ren_label] at $(headHoldsId):ident
+              simp [var_zero] at $(headHoldsId):ident
+              try simp [cons] at $(prevHold):ident
+              try case_phi $(tailId):ident $(A):ident $(headHoldsId):ident $newKSyntax $newIterSyntax
         )
   | `(tactic| case_phi_corr $H:ident $A:ident $prevHold:ident $Csp:ident $k:num $iter:num) => do
       let suf := "_" ++ toString k.getNat
