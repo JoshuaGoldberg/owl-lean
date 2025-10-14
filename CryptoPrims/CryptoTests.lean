@@ -92,7 +92,7 @@ theorem enc_ty :
     by
     tc_man (
       try simp
-      auto_solve
+      auto_solve_fast
     )
 
 theorem enc_ty2 :

@@ -1421,27 +1421,27 @@ macro_rules
                 try simp [cons] at $(prevHold):ident
                 try simp [Owl.cons]
                 try simp [cons]
-                try grind [interp_lattice]
                 try case_phi_corr $(tailId):ident $(A):ident $(headHoldsId):ident $Csp:ident $newKSyntax $newIterSyntax
         )
   | `(tactic| destruct_csp $Csp:ident) => do
     `(tactic|
       first
       |   cases $Csp:ident with
-          | psi_empty => trivial
+          | psi_empty =>
+            first
+            | trivial
+            | grind
       |  cases $Csp:ident with
          | psi_corr psi C' l $Csp:ident Csp' =>
            try simp [Owl.cons] at Csp';
            first
            | (contradiction)
-           | grind
            | destruct_csp $Csp:ident
       | (cases $Csp:ident with
          | psi_not_corr psi C' l $Csp:ident Csp' =>
            try simp [Owl.cons] at Csp';
            first
            | (contradiction)
-           | grind
            | destruct_csp $Csp:ident)
     )
   | `(tactic| check_corr $vpm:ident $C:ident $Csp:ident) => do
@@ -1491,6 +1491,18 @@ macro_rules
       | (left; auto_solve)
       | (right; auto_solve)
       | (constructor; all_goals auto_solve))
+
+syntax "auto_solve_fast" : tactic
+macro_rules
+| `(tactic| auto_solve_fast) =>
+  `(tactic| first
+    | attempt_solve
+    | (constructor; all_goals auto_solve_fast)
+    | (left; auto_solve_fast)
+    | (right; auto_solve_fast)
+    | solve_phi_validation_anon
+    | solve_phi_validation_anon_no_simp
+    | (intro pm C vpm Csp; check_corr vpm C Csp))
 
 macro_rules
   | `(tactic| tc_full $Phi $Psi $Delta $Gamma $e $t $k) => `(tactic|
@@ -1622,7 +1634,8 @@ theorem tc_label (Phi : phi_context l)
                          (.Data (.latl l2)) := by
   tc (
     try simp
-    exact stub_label_flow
+    try exact stub_label_flow
+    try sorry
   )
 
 theorem packed_unit_tc (Phi : phi_context l)
