@@ -148,10 +148,10 @@ theorem enc_layered :
   ( (l1, l2 ⊒ l1, l3 ⊒ l2) ; · ; · ;
   (E1 => (∃ alphaK <: (Data l3) . (alphaK *
                                       ((corr (l3) ? (Public * Public) -> Public : (alphaK * (Data l2)) -> Public) *
-                                       (corr  (l3) ? (Public * Public) -> Public : (alphaK * Public) -> ((Data l2) + Unit))))),
+                                       (corr (l3) ? (Public * Public) -> Public : (alphaK * Public) -> ((Data l2) + Unit))))),
    E2 => (∃ alphaK <: (Data l2) . (alphaK *
                                       ((corr (l2) ? (Public * Public) -> Public : (alphaK * (Data l1)) -> Public) *
-                                       (corr  (l2) ? (Public * Public) -> Public : (alphaK * Public) -> ((Data l1) + Unit)))))) ;
+                                       (corr (l2) ? (Public * Public) -> Public : (alphaK * Public) -> ((Data l1) + Unit)))))) ;
     (corr_case l3 in
        unpack E1 as (alpha1, ked1) in
        unpack E2 as (alpha2, ked2) in
