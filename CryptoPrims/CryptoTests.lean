@@ -34,11 +34,11 @@ notation "↑" a => lift_phi a
 notation "↑" a => lift_psi a
 notation "[" a "]" => Owl.ren_label id a
 notation h "::" t => Owl.cons h t
-notation "ℓ⊥" => Owl.L.bot
+notation "⊥" => Owl.L.bot
 
 @[app_unexpander Owl.Lattice.bot]
 def unexpOwlBot : Unexpander
-| `($_ $_) => `(ℓ⊥)
+| `($_ $_) => `(⊥)
 | _        => throw ()
 
 -- non functional
@@ -67,7 +67,7 @@ def eq : Owl.op :=
     Owl.Dist.ret (Owl.binary.bend)
 
 -- "[0]" represents garbage values not needed for computation
-theorem enc_ty :
+theorem enc_i :
   ( · ; · ; · ; · ;
     Λβ betaK .
     Λβ betaM .
@@ -110,4 +110,21 @@ theorem enc_ty2 :
     by
     tc_man (
       auto_solve
+    )
+
+theorem enc_r :
+  ( (betaK, betaM ⊑ betaK) ; (corr(betaK)) ; · ; · ;
+    Λ tau .
+    let k = (⟨genKey⟩ (["0"], ["0"]) : Data betaK) in
+    pack (Data betaK, ⟨k, ⟨(λ x . ⟨enc⟩ (π1 x, π2 x) : (Public * Public) -> Public),
+                          (λ y . ⟨dec⟩ (π1 y, π2 y) : (Public * Public) -> Public)⟩⟩)
+    ⊢
+    ∀ tau <: Data betaM .
+    (∃ alphaK <: (Data betaK) . (alphaK *
+                                 ((corr (betaK) ? (Public * Public) -> Public : (alphaK * tau) -> Public) *
+                                  (corr (betaK) ? (Public * Public) -> Public : (alphaK * Public) -> (tau + Unit)))))) :=
+    by
+    tc_man (
+      try simp
+      auto_solve_fast
     )
