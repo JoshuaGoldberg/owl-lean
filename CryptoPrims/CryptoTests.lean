@@ -132,10 +132,30 @@ theorem enc_unpack :
   (E => (∃ alphaK <: (Data betaK) . (alphaK *
                                      ((corr (betaK) ? (Public * Public) -> Public : (alphaK * tau) -> Public) *
                                       (corr (betaK) ? (Public * Public) -> Public : (alphaK * Public) -> (tau + Unit))))),
-                                                        x => tau) ;
+   x => tau) ;
     (corr_case betaK in
      unpack E as (alpha, ked) in
      (π1 (π2 ked)) [⟨(π1 ked), x⟩])
+    ⊢
+    Public) :=
+    by
+    tc_man (
+      try simp
+      try auto_solve_fast
+    )
+
+theorem enc_layered :
+  ( (l1, l2 ⊒ l1, l3 ⊒ l2) ; · ; · ;
+  (E1 => (∃ alphaK <: (Data l3) . (alphaK *
+                                      ((corr (l3) ? (Public * Public) -> Public : (alphaK * (Data l2)) -> Public) *
+                                       (corr  (l3) ? (Public * Public) -> Public : (alphaK * Public) -> ((Data l2) + Unit))))),
+   E2 => (∃ alphaK <: (Data l2) . (alphaK *
+                                      ((corr (l2) ? (Public * Public) -> Public : (alphaK * (Data l1)) -> Public) *
+                                       (corr  (l2) ? (Public * Public) -> Public : (alphaK * Public) -> ((Data l1) + Unit)))))) ;
+    (corr_case l3 in
+       unpack E1 as (alpha1, ked1) in
+       unpack E2 as (alpha2, ked2) in
+       (π1 (π2 ked1)) [⟨(π1 ked1), (π1 ked2)⟩])
     ⊢
     Public) :=
     by
