@@ -113,13 +113,11 @@ theorem enc_ty2 :
     )
 
 theorem enc_r :
-  ( (betaK, betaM ⊑ betaK) ; (corr(betaK)) ; · ; · ;
-    Λ tau .
+  ( (betaK, betaM) ; (corr(betaK)) ; (tau <: Any) ; · ;
     let k = (⟨genKey⟩ (["0"], ["0"]) : Data betaK) in
     pack (Data betaK, ⟨k, ⟨(λ x . ⟨enc⟩ (π1 x, π2 x) : (Public * Public) -> Public),
                           (λ y . ⟨dec⟩ (π1 y, π2 y) : (Public * Public) -> Public)⟩⟩)
     ⊢
-    ∀ tau <: Data betaM .
     (∃ alphaK <: (Data betaK) . (alphaK *
                                  ((corr (betaK) ? (Public * Public) -> Public : (alphaK * tau) -> Public) *
                                   (corr (betaK) ? (Public * Public) -> Public : (alphaK * Public) -> (tau + Unit)))))) :=
@@ -127,4 +125,21 @@ theorem enc_r :
     tc_man (
       try simp
       auto_solve_fast
+    )
+
+theorem enc_unpack :
+  ( (betaK, betaM ⊑ betaK) ; · ; (tau <: Data betaM) ;
+  (E => (∃ alphaK <: (Data betaK) . (alphaK *
+                                     ((corr (betaK) ? (Public * Public) -> Public : (alphaK * tau) -> Public) *
+                                      (corr (betaK) ? (Public * Public) -> Public : (alphaK * Public) -> (tau + Unit))))),
+                                                        x => tau) ;
+    (corr_case betaK in
+     unpack E as (alpha, ked) in
+     (π1 (π2 ked)) [⟨(π1 ked), x⟩])
+    ⊢
+    Public) :=
+    by
+    tc_man (
+      try simp
+      try auto_solve_fast
     )

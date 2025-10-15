@@ -1,7 +1,7 @@
 TODO: place in OwlLean/CryptoPrims/AuthEnc.lean
 
 
-define EncInner [betaK, betaM, tau] := 
+define EncInner [betaK, betaM, tau] :=  -- Close to done/done
         exists alpha <: Data betaK.
         (
                 alpha
@@ -9,7 +9,7 @@ define EncInner [betaK, betaM, tau] :=
             * (if corr betaK then (Public * Public -> Public) else (alpha * Public -> (tau + Unit)))
         )
 
-|- ENC :=
+|- ENC := -- Close to done/done
     forall betaK, betaM < betaK.
         forall tau <: Data betaM.
             exists alpha <: Data betaK.
@@ -21,7 +21,7 @@ define EncInner [betaK, betaM, tau] :=
 
 
 
-|- EncI :=
+|- EncI := -- Close to done/done
     Lam betaK. Lam betaM. Lam tau. 
         let k : Data betaK = genkey () in 
         let L : ref (Public -> tau + Unit) = ref (fun _ -> inr ()) in 
