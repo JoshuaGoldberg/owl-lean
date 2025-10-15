@@ -59,13 +59,13 @@ def eq : Owl.op :=
   fun (_ _ : Owl.binary) =>
     Owl.Dist.ret (Owl.binary.bend)
 
-
+-- "[0]" represents garbage values not needed for computation
 theorem enc_ty :
   ( · ; · ; · ; · ;
     Λβ betaK .
     Λβ betaM .
     Λ tau .
-    let k = (⟨genKey⟩ (["000"], ["000"]) : Data betaK) in
+    let k = (⟨genKey⟩ (["0"], ["0"]) : Data betaK) in
     let L = (alloc (λ null . ı2 *) : Ref (Public -> tau + Unit)) in
     let enc' = (corr_case betaK in
                 (if corr ( betaK )
