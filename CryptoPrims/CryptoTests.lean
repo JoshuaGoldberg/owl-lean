@@ -80,6 +80,10 @@ def and_op : Owl.op :=
   fun (_ _ : Owl.binary) =>
     Owl.Dist.ret (Owl.binary.bend)
 
+def combine : Owl.op :=
+  fun (_ _ : Owl.binary) =>
+    Owl.Dist.ret (Owl.binary.bend)
+
 -- "[0]" represents garbage values not needed for computation
 theorem enc_i :
   ( · ; · ; · ; · ;
@@ -87,7 +91,7 @@ theorem enc_i :
     Λβ betaM .
     Λ tau .
     let k = (⟨genKey⟩ (["0"], ["0"]) : Data betaK) in
-    let L = (alloc (λ null . ı2 *) : Ref (Public -> tau + Unit)) in
+    let L = (alloc (λ null . ı2 *) : Ref (Public -> (tau + Unit))) in
     let enc' = (corr_case betaK in
                 (if corr ( betaK )
                   then ((λx . ⟨enc⟩ (π1 x, π2 x)) : (Public * Public) -> Public)
@@ -127,13 +131,13 @@ theorem enc_ty2 :
     )
 
 theorem enc_r :
-  ( (betaK, betaM) ; (corr(betaK)) ; (tau <: Any) ; · ;
+  ( (betaK, betaM) ; (corr(betaK)) ; (tau <: Data betaM) ; · ;
     let k = (⟨genKey⟩ (["0"], ["0"]) : Data betaK) in
     pack (Data betaK, ⟨k, ⟨(λ x . ⟨enc⟩ (π1 x, π2 x) : (Public * Public) -> Public),
                           (λ y . ⟨dec⟩ (π1 y, π2 y) : (Public * Public) -> Public)⟩⟩)
     ⊢
     (∃ alphaK <: (Data betaK) . (alphaK *
-                                 ((corr (betaK) ? (Public * Public) -> Public : (alphaK * tau) -> Public) *
+                                 ((corr (betaK) ? (Public * Public) -> Public : (alphaK * (Data betaM)) -> Public) *
                                   (corr (betaK) ? (Public * Public) -> Public : (alphaK * Public) -> (tau + Unit)))))) :=
     by
     tc_man (
@@ -159,13 +163,15 @@ theorem enc_unpack :
     )
 
 theorem enc_layered :
-  ( (l1, l2 ⊒ l1, l3 ⊒ l2) ; · ; · ;
-  (E1 => (∃ alphaK <: (Data l3) . (alphaK *
-                                      ((corr (l3) ? (Public * Public) -> Public : (alphaK * (Data l2)) -> Public) *
-                                       (corr (l3) ? (Public * Public) -> Public : (alphaK * Public) -> ((Data l2) + Unit))))),
-   E2 => (∃ alphaK <: (Data l2) . (alphaK *
-                                      ((corr (l2) ? (Public * Public) -> Public : (alphaK * (Data l1)) -> Public) *
-                                       (corr (l2) ? (Public * Public) -> Public : (alphaK * Public) -> ((Data l1) + Unit)))))) ;
+  ( (l1, l2 ⊒ l1, l3 ⊒ l2) ; · ; (a <: Data l2, b <: Data l1) ;
+  (E1 => (∃ alphaK <: (Data l3) .
+                        (alphaK *
+                         ((corr (l3) ? (Public * Public) -> Public : (alphaK * (Data l2)) -> Public) *
+                          (corr (l3) ? (Public * Public) -> Public : (alphaK * Public) -> (a + Unit))))),
+   E2 => (∃ alphaK <: (Data l2) .
+                        (alphaK *
+                         ((corr (l2) ? (Public * Public) -> Public : (alphaK * (Data l1)) -> Public) *
+                          (corr (l2) ? (Public * Public) -> Public : (alphaK * Public) -> (b + Unit)))))) ;
     (corr_case l3 in
        unpack E1 as (alpha1, ked1) in
        unpack E2 as (alpha2, ked2) in
@@ -216,3 +222,42 @@ theorem enc_sig :
     )
 
     -- the issue here is that just because tau <: public, does that mean public <: tau?
+
+theorem enc_layered23 :
+  ( (L_sec, L_low ⊒ L_sec, L_high ⊒ L_low) ; · ; (a <: Data L_sec, b <: Data L_low) ;
+    (x => (Data L_low)) ;
+    x
+    ⊢
+    (Data L_low)) :=
+    by
+    tc_man (
+      try simp
+      try auto_solve_fast
+    )
+
+
+theorem enc_layered2 :
+  ( (L_sec, L_low ⊒ L_sec, L_high ⊒ L_low) ; · ; (a <: Data L_sec, b <: Data L_low) ;
+  (E1 => (∃ alphaK <: (Data L_low) .
+                        (alphaK *
+                         ((corr (L_low) ? (Public * Public) -> Public : (alphaK * (Data L_sec)) -> Public) *
+                          (corr (L_low) ? (Public * Public) -> Public : (alphaK * Public) -> (a + Unit))))),
+   E2 => (∃ betaK <: (Data L_high) .
+                        (betaK *
+                         ((corr (L_high) ? (Public * Public) -> Public : (betaK * Any) -> Public) *
+                          (corr (L_high) ? (Public * Public) -> Public : (betaK * Public) -> (b + Unit)))))) ;
+    (corr_case L_low in
+      (corr_case L_high in
+       unpack E1 as (alpha1, ked1) in
+       unpack E2 as (alpha2, ked2) in
+       ((λ x .
+        let c1 = ((π1 (π2 ked1)) [⟨(π1 ked1), x⟩] : Public) in
+        let c2 = ((π1 (π2 ked2)) [⟨(π1 ked2), ((π1 ked1) : (Data L_low))⟩] : Public) in
+        ["0"]) : ((Data L_sec) -> Public))))
+    ⊢
+    ((Data L_sec) -> Public)) :=
+    by
+    tc_man (
+      try simp
+      try auto_solve_fast
+    )

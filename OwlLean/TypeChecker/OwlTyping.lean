@@ -1340,6 +1340,7 @@ macro_rules
       intros pm vpm;
       have tester : forall l1 l2 l3, L.leq l1 l2 -> L.leq l2 l3 -> L.leq l1 l3 := L.leq_trans;
       have tester' : forall l, L.leq L.bot l = true := L.bot_all;
+      have tester'' : forall l, L.leq l l = true := L.leq_refl;
       unfold phi_map_holds;
       unfold valid_constraint;
       simp [subst_label, Owl.ren_label];
@@ -1352,7 +1353,7 @@ macro_rules
       intros pm vpm;
       have tester : forall l1 l2 l3, L.leq l1 l2 -> L.leq l2 l3 -> L.leq l1 l3 := L.leq_trans;
       have tester' : forall l, L.leq L.bot l = true := L.bot_all;
-      have tester'' := L.leq_refl;
+      have tester'' : forall l, L.leq l l = true := L.leq_refl;
       unfold phi_map_holds;
       unfold valid_constraint;
       simp [subst_label, interp_lattice, Owl.ren_label];
@@ -1362,6 +1363,7 @@ macro_rules
       intros pm vpm;
       have tester : forall l1 l2 l3, L.leq l1 l2 -> L.leq l2 l3 -> L.leq l1 l3 := L.leq_trans;
       have tester' : forall l, L.leq L.bot l = true := L.bot_all;
+      have tester'' : forall l, L.leq l l = true := L.leq_refl;
       unfold phi_map_holds;
       unfold valid_constraint;
       simp [subst_label, Owl.ren_label];
@@ -1373,6 +1375,7 @@ macro_rules
       intros pm vpm;
       have tester : forall l1 l2 l3, L.leq l1 l2 -> L.leq l2 l3 -> L.leq l1 l3 := L.leq_trans;
       have tester' : forall l, L.leq L.bot l = true := L.bot_all;
+      have tester'' : forall l, L.leq l l = true := L.leq_refl;
       unfold phi_map_holds;
       unfold valid_constraint;
       simp [subst_label, Owl.ren_label];
@@ -1522,18 +1525,19 @@ macro_rules
           | psi_empty =>
             first
             | trivial
+            | (contradiction; trace "contradiction found")
             | grind
       |  cases $Csp:ident with
          | psi_corr psi C' l $Csp:ident Csp' =>
            try simp [Owl.cons] at Csp';
            first
-           | (contradiction)
+           | (contradiction; trace "contradiction found")
            | destruct_csp $Csp:ident
       | (cases $Csp:ident with
          | psi_not_corr psi C' l $Csp:ident Csp' =>
            try simp [Owl.cons] at Csp';
            first
-           | (contradiction)
+           | (contradiction; trace "contradiction found")
            | destruct_csp $Csp:ident)
     )
   | `(tactic| check_corr $vpm:ident $C:ident $Csp:ident) => do
