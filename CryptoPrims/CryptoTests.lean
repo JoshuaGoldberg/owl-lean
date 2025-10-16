@@ -195,7 +195,10 @@ theorem enc_sig :
                                                else L_old [msig'])) in
                  sig) : (corr (betaK) ? ((Public * Public) -> Public) : ((Data betaK * tau) -> Public)))
     in
-    pack(Data betaK, pack(Public, ⟨sk, ⟨pk, (corr_case betaK in sign)⟩⟩))
+    let vrfy = corr_case betaK in ((λ vkmsig .
+                (! L) [⟨π1 (π2 vkmsig), π2 (π2 vkmsig)⟩]) :
+                ((Public * Public * Public) -> (Public + Unit))) in
+    pack(Data betaK, pack(Public, ⟨sk, ⟨pk, ⟨(corr_case betaK in sign), (corr_case betaK in vrfy)⟩⟩⟩))
     ⊢
     ∀ betaK ⊒ ⟨Owl.L.bot⟩ .
     ∀ tau <: Public .
@@ -203,7 +206,8 @@ theorem enc_sig :
     ∃ beta <: Public .
     (alpha *
     (beta *
-    (corr (betaK) ? ((Public * Public) -> Public) : ((alpha * tau) -> Public))))
+    ((corr (betaK) ? ((Public * Public) -> Public) : ((alpha * tau) -> Public)) *
+     (corr (betaK) ? ((Public * Public * Public) -> (Public + Unit)) : ((beta * Public * Public) -> (Public + Unit))))))
     ) :=
     by
     tc_man (
