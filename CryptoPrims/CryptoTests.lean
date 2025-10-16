@@ -178,13 +178,14 @@ theorem enc_layered :
       try auto_solve_fast
     )
 
+-- partial
 theorem enc_sig :
   ( · ; · ; · ; · ;
     Λβ betaK .
     Λ tau .
     let sk = ⟨genSk⟩(["0"], ["0"]) in
     let pk = ⟨pk_of_sk⟩(sk, ["0"]) in
-    let L = (alloc (λ null . ı2 *) : Ref ((Public * Public) -> (tau + Unit))) in
+    let L = (alloc (λ null . ı2 *) : Ref ((Public * Public) -> (Public + Unit))) in
     let sign = corr_case betaK in
                 ((λ skm .
                  let sig = (⟨rand⟩(π2 skm, ["0"]) : Public) in
