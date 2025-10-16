@@ -92,14 +92,14 @@ SigI :=
             if corr(betaK) then
                 // Uninterpreted functions
                 let sk = genSK () in
-                let pk = pk_of_sk sk in
-                pack<Public, pack <Public, (sk, pk,
+                let vk = vk_of_sk sk in
+                pack<Public, pack <Public, (sk, vk,
                     (fun (x, y) -> [[sign]](x, y)),
                     (fun (x, y) -> [[vrfy]](x, y)))>>
             else
                 let L : ref (Public -> Public -> tau + Unit) := ref (fun _ -> inr ()) in  // Mutable map like in EncI
                 let sk = genSK () in
-                let pk = genPK () in // TODO: this is weird. but do this for now
+                let vk = gen_fresh_VK () in // TODO: this is weird. but do this for now
                 let sign = fun sk m ->
                     let sig = [[rand_sign]](m)
                     let L_old = !L in
@@ -108,4 +108,4 @@ SigI :=
                 let vrfy = fun vk m sig ->
                     (!L) m sig
                 in
-                pack<Data betaK, pack <Public, (sk, pk, sign, vrfy)>>
+                pack<Data betaK, pack <Public, (sk, vk, sign, vrfy)>>
