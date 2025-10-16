@@ -66,6 +66,20 @@ def eq : Owl.op :=
   fun (_ _ : Owl.binary) =>
     Owl.Dist.ret (Owl.binary.bend)
 
+-- non functional
+def genSk : Owl.op :=
+  fun (_ _ : Owl.binary) =>
+    Owl.Dist.ret (Owl.binary.bend)
+
+-- non functional
+def pk_of_sk : Owl.op :=
+  fun (_ _ : Owl.binary) =>
+    Owl.Dist.ret (Owl.binary.bend)
+
+def and_op : Owl.op :=
+  fun (_ _ : Owl.binary) =>
+    Owl.Dist.ret (Owl.binary.bend)
+
 -- "[0]" represents garbage values not needed for computation
 theorem enc_i :
   ( · ; · ; · ; · ;
@@ -163,3 +177,37 @@ theorem enc_layered :
       try simp
       try auto_solve_fast
     )
+
+theorem enc_sig :
+  ( · ; · ; · ; · ;
+    Λβ betaK .
+    Λ tau .
+    let sk = ⟨genSk⟩(["0"], ["0"]) in
+    let pk = ⟨pk_of_sk⟩(sk, ["0"]) in
+    let L = (alloc (λ null . ı2 *) : Ref ((Public * Public) -> (tau + Unit))) in
+    let sign = corr_case betaK in
+                ((λ skm .
+                 let sig = (⟨rand⟩(π2 skm, ["0"]) : Public) in
+                 let L_old = (! L) in
+                 let action = (L := (λ msig' . if ⟨and_op⟩(⟨eq⟩((π2 skm), π2 msig'), ⟨eq⟩(sig, π2 msig'))
+                                               then (ı1 (π2 skm))
+                                               else L_old [msig'])) in
+                 sig) : (corr (betaK) ? ((Public * Public) -> Public) : ((Data betaK * tau) -> Public)))
+    in
+    pack(Data betaK, pack(Public, ⟨sk, ⟨pk, (corr_case betaK in sign)⟩⟩))
+    ⊢
+    ∀ betaK ⊒ ⟨Owl.L.bot⟩ .
+    ∀ tau <: Public .
+    ∃ alpha <: Data betaK .
+    ∃ beta <: Public .
+    (alpha *
+    (beta *
+    (corr (betaK) ? ((Public * Public) -> Public) : ((alpha * tau) -> Public))))
+    ) :=
+    by
+    tc_man (
+      try simp
+      try auto_solve_fast
+    )
+
+    -- the issue here is that just because tau <: public, does that mean public <: tau?
