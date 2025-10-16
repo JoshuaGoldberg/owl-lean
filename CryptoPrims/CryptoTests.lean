@@ -105,7 +105,7 @@ theorem enc_i :
     pack (Data betaK, ⟨k, ⟨(corr_case betaK in enc'), (corr_case betaK in dec')⟩⟩)
     ⊢
     ∀ betaK ⊒ ⟨Owl.L.bot⟩ .
-    ∀ betaM ⊑ betaK .
+    ∀ betaM ⊏ betaK .
     ∀ tau <: Data betaM .
     (∃ alphaK <: (Data betaK) . (alphaK *
                                  ((corr (betaK) ? (Public * Public) -> Public : (alphaK * tau) -> Public) *
