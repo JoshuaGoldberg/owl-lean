@@ -184,7 +184,7 @@ theorem enc_sig :
     Λβ betaK .
     Λ tau .
     let sk = ⟨genSk⟩(["0"], ["0"]) in
-    let pk = ⟨pk_of_sk⟩(sk, ["0"]) in
+    let pk = ⟨pk_of_sk⟩(sk, ["0"]) in                          -- tau ?
     let L = (alloc (λ null . ı2 *) : Ref ((Public * Public) -> (Public + Unit))) in
     let sign = corr_case betaK in
                 ((λ skm .
