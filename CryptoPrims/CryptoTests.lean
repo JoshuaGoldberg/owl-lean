@@ -223,37 +223,24 @@ theorem enc_sig :
 
     -- the issue here is that just because tau <: public, does that mean public <: tau?
 
-theorem enc_layered23 :
-  ( (L_sec, L_low ⊒ L_sec, L_high ⊒ L_low) ; · ; (a <: Data L_sec, b <: Data L_low) ;
-    (x => (Data L_low)) ;
-    x
-    ⊢
-    (Data L_low)) :=
-    by
-    tc_man (
-      try simp
-      try auto_solve_fast
-    )
-
-
 theorem enc_layered2 :
   ( (L_sec, L_low ⊒ L_sec, L_high ⊒ L_low) ; · ; (a <: Data L_sec, b <: Data L_low) ;
   (E1 => (∃ alphaK <: (Data L_low) .
                         (alphaK *
                          ((corr (L_low) ? (Public * Public) -> Public : (alphaK * (Data L_sec)) -> Public) *
                           (corr (L_low) ? (Public * Public) -> Public : (alphaK * Public) -> (a + Unit))))),
-   E2 => (∃ betaK <: (Data L_high) .
-                        (betaK *
-                         ((corr (L_high) ? (Public * Public) -> Public : (betaK * Any) -> Public) *
-                          (corr (L_high) ? (Public * Public) -> Public : (betaK * Public) -> (b + Unit)))))) ;
+   E2 => (∃ alphaK <: (Data L_high) .
+                        (alphaK *
+                         ((corr (L_high) ? (Public * Public) -> Public : (alphaK * (Data L_low)) -> Public) *
+                          (corr (L_high) ? (Public * Public) -> Public : (alphaK * Public) -> (b + Unit)))))) ;
     (corr_case L_low in
       (corr_case L_high in
        unpack E1 as (alpha1, ked1) in
        unpack E2 as (alpha2, ked2) in
        ((λ x .
         let c1 = ((π1 (π2 ked1)) [⟨(π1 ked1), x⟩] : Public) in
-        let c2 = ((π1 (π2 ked2)) [⟨(π1 ked2), ((π1 ked1) : (Data L_low))⟩] : Public) in
-        ["0"]) : ((Data L_sec) -> Public))))
+        let c2 = ((π1 (π2 ked2)) [⟨(π1 ked2), (π1 ked1)⟩] : Public) in
+        ⟨combine⟩(c1, c2)) : ((Data L_sec) -> Public))))
     ⊢
     ((Data L_sec) -> Public)) :=
     by

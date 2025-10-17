@@ -142,15 +142,19 @@ def cons (x : X) (f : Fin n -> X) (m : Fin (n + 1)) : X :=
 def up_ren (xi : ren m n) : ren (m + 1) (n + 1) :=
   cons var_zero (funcomp shift xi)
 
+@[simp]
 def upRen_ty_label (xi : Fin m → Fin n) : Fin m → Fin n :=
   xi
 
+@[simp]
 def upRen_ty_ty (xi : Fin m → Fin n) : Fin (m + 1) → Fin (n + 1) :=
   up_ren xi
 
+@[simp]
 def upRen_label_label (xi : Fin m -> Fin n) : Fin (m + 1) -> Fin (n + 1) :=
   up_ren xi
 
+@[simp]
 def upRen_label_ty (xi : Fin m -> Fin n) : Fin m -> Fin n :=
   xi
 
@@ -207,20 +211,25 @@ def ren_ty
   | .Public => .Public
   | .default => .default
 
+@[simp]
 def upRen_tm_label (xi : Fin m -> Fin n) :
   Fin m -> Fin n :=
     xi
 
+@[simp]
 def upRen_tm_ty (xi : Fin m -> Fin n) : Fin m -> Fin n :=
     xi
 
+@[simp]
 def upRen_tm_tm (xi : Fin m -> Fin n) :
   Fin (m + 1) -> Fin (n + 1) :=
     (up_ren xi)
 
+@[simp]
 def upRen_ty_tm (xi : Fin m -> Fin n) : Fin m -> Fin n :=
     xi
 
+@[simp]
 def upRen_label_tm (xi : Fin m -> Fin n) :
   Fin m -> Fin n :=
     xi
