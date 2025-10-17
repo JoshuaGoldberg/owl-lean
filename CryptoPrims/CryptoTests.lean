@@ -265,5 +265,6 @@ theorem enc_layered2 :
     ((Data L_sec) -> Public)) :=
     by
     tc_man (
-
+      try simp
+      try auto_solve_fast
     )
