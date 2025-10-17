@@ -191,19 +191,18 @@ theorem enc_sig :
     Λ tau .
     let sk = ⟨genSk⟩(["0"], ["0"]) in
     let pk = ⟨pk_of_sk⟩(sk, ["0"]) in                          -- tau ?
-    let L = (alloc (λ null . ı2 *) : Ref ((Public * Public) -> (Public + Unit))) in
-    let sign = corr_case betaK in
-                ((λ skm .
+    let L = (alloc (λ null . ı2 *) : Ref ((Public * Public) -> (tau + Unit))) in
+    let sign =  ((λ skm .
                  let sig = (⟨rand⟩(π2 skm, ["0"]) : Public) in
                  let L_old = (! L) in
                  let action = (L := (λ msig' . if ⟨and_op⟩(⟨eq⟩((π2 skm), π2 msig'), ⟨eq⟩(sig, π2 msig'))
                                                then (ı1 (π2 skm))
-                                               else L_old [msig'])) in
-                 sig) : (corr (betaK) ? ((Public * Public) -> Public) : ((Data betaK * tau) -> Public)))
+                                               else L_old [msig']))
+                 in
+                 sig) : (((Data betaK * tau) -> Public)))
     in
-    let vrfy = corr_case betaK in ((λ vkmsig .
-                (! L) [⟨π1 (π2 vkmsig), π2 (π2 vkmsig)⟩]) :
-                ((Public * Public * Public) -> (Public + Unit))) in
+    let vrfy = ((λ vkmsig .
+                (! L) [⟨π1 (π2 vkmsig), π2 (π2 vkmsig)⟩]) : ((Public * Public * Public) -> (tau + Unit))) in
     pack(Data betaK, pack(Public, ⟨sk, ⟨pk, ⟨(corr_case betaK in sign), (corr_case betaK in vrfy)⟩⟩⟩))
     ⊢
     ∀ betaK ⊒ ⟨Owl.L.bot⟩ .
@@ -212,8 +211,8 @@ theorem enc_sig :
     ∃ beta <: Public .
     (alpha *
     (beta *
-    ((corr (betaK) ? ((Public * Public) -> Public) : ((alpha * tau) -> Public)) *
-     (corr (betaK) ? ((Public * Public * Public) -> (Public + Unit)) : ((beta * Public * Public) -> (Public + Unit))))))
+    ((((alpha * tau) -> Public)) *
+     (((beta * Public * Public) -> (tau + Unit))))))
     ) :=
     by
     tc_man (
