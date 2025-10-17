@@ -22,28 +22,28 @@ define EncInner [betaK, betaM, tau] :=  -- Close to done/done
 
 
 |- EncI := -- Close to done/done
-    Lam betaK. Lam betaM. Lam tau. 
-        let k : Data betaK = genkey () in 
-        let L : ref (Public -> tau + Unit) = ref (fun _ -> inr ()) in 
-        let enc = fun k m. 
+    Lam betaK. Lam betaM. Lam tau.
+        let k : Data betaK = genkey () in
+        let L : ref (Public -> tau + Unit) = ref (fun _ -> inr ()) in
+        let enc = fun k m.
             if corr(betaK) then [[enc]](k, m)
-            else 
-                let c = randenc(zero m) in 
-                let L_old = !L in 
-                L := (fun y -> if y = c then inl m else L_old y) in 
+            else
+                let c = randenc(zero m) in
+                let L_old = !L in
+                L := (fun y -> if y = c then inl m else L_old y) in
                 c
         in
-        let dec = fun k c -> 
+        let dec = fun k c ->
             if corr(betaK) then [[dec]](k, c) else (!L)(m)
-        in  
+        in
         pack <Data betaK, (k, enc, dec)>
 
 - It's always true that |- EncI : Enc
 
 
 |- EncR :=
-    Lam betaK. Lam betaM. Lam tau. 
-        let k : Data betaK = genkey () in 
+    Lam betaK. Lam betaM. Lam tau.
+        let k : Data betaK = genkey () in
         pack<Data betaK, (k, (fun k m -> [[enc]](k, m)), (fun k c -> [[dec]](k, c)))>
 
 
@@ -52,11 +52,11 @@ define EncInner [betaK, betaM, tau] :=  -- Close to done/done
 
 --------------
 
-Encryption protocol 1: just encrypt a message under the encryption module 
+Encryption protocol 1: just encrypt a message under the encryption module
 
-E : EncInner[betaK, betaM, tau], x : tau |- 
-    unpack E as <alpha, (K, encK, decK)> in 
-    let c = encK(K, x) in 
+E : EncInner[betaK, betaM, tau], x : tau |-
+    unpack E as <alpha, (K, encK, decK)> in
+    let c = encK(K, x) in
     sync c
 
 ------
@@ -65,10 +65,10 @@ Encryption protocol 1: given a higher and a lower encryption module, encrypt the
 
 betaH > betaM > betaL
 
-E1 : EncInner[betaH, betaM, tau1], 
+E1 : EncInner[betaH, betaM, tau1],
 E2 : EncInner[betaM, betaL, tau2] |-
-    unpack <alpha1, (K1, enc1, dec1)> in 
-    unpack <alpha2, (K2, enc2, dec2)> in 
+    unpack <alpha1, (K1, enc1, dec1)> in
+    unpack <alpha2, (K2, enc2, dec2)> in
     enc1(K1, K2)
 
 
@@ -88,21 +88,24 @@ E2 : EncInner[betaM, betaL, tau2] |-
 
 SigI :=
     Lam betaK.
-        Lam tau. 
-            // Uninterpreted functions
-            let sk = genSK () in 
-            let pk = pk_of_sk sk in 
-
-            let L : ref (Public -> Public -> tau + Unit) := ref (fun _ -> inr ()) in  // Mutable map like in EncI
-            let sign = fun sk m -> 
-                let sig = [[rand_sign]](m)
-                let L_old = !L in 
-                L := (fun m' sig' -> if m = m' && sig = sig' then inl m else L_old m' sig');
-                sig
-            let vrfy = fun vk m sig -> 
-                (!L) m sig
-    
-
-
-
-
+        Lam tau.
+            if corr(betaK) then
+                // Uninterpreted functions
+                let sk = genSK () in
+                let vk = vk_of_sk sk in
+                pack<Public, pack <Public, (sk, vk,
+                    (fun (x, y) -> [[sign]](x, y)),
+                    (fun (x, y) -> [[vrfy]](x, y)))>>
+            else
+                let L : ref (Public -> Public -> tau + Unit) := ref (fun _ -> inr ()) in  // Mutable map like in EncI
+                let sk = genSK () in
+                let vk = gen_fresh_VK () in // TODO: this is weird. but do this for now
+                let sign = fun sk m ->
+                    let sig = [[rand_sign]](m)
+                    let L_old = !L in
+                    L := (fun m' sig' -> if m = m' && sig = sig' then inl m else L_old m' sig');
+                    sig
+                let vrfy = fun vk m sig ->
+                    (!L) m sig
+                in
+                pack<Data betaK, pack <Public, (sk, vk, sign, vrfy)>>
