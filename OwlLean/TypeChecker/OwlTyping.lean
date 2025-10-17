@@ -334,6 +334,10 @@ inductive has_type : (Phi : phi_context l) -> (Psi : psi_context l) -> (Delta : 
   has_type Phi ((.corr lab) :: Psi) Delta Gamma e t ->
   has_type Phi ((.not_corr lab) :: Psi) Delta Gamma e t ->
   has_type Phi Psi Delta Gamma (.corr_case lab e) t
+| T_CorrCase2 : forall lab e t,
+  has_type Phi ((.corr lab) :: Psi) Delta Gamma e t ->
+  has_type Phi ((.not_corr lab) :: Psi) Delta Gamma e t ->
+  has_type Phi Psi Delta Gamma e t
 | T_Annot : forall e t,
   has_type Phi Psi Delta Gamma e t ->
   has_type Phi Psi Delta Gamma (.annot e t) t
@@ -348,6 +352,48 @@ theorem simple_var_typing :
 
 theorem concrete_typing : @has_type 0 0 0  empty_phi (empty_psi 0) empty_delta empty_gamma .skip .Unit :=
   has_type.T_IUnit
+
+theorem derived_if_typing : forall lab e1 e2,
+  has_type Phi ((.corr lab) :: Psi) Delta Gamma e1 t1 ->
+  has_type Phi ((.not_corr lab) :: Psi) Delta Gamma e2 t2 ->
+  has_type Phi Psi Delta Gamma (.if_c lab e1 e2)  (.t_if lab t1 t2) := by
+  intro lab e1 e2 h1 h2
+  apply has_type.T_CorrCase2 lab (.if_c lab e1 e2)  (.t_if lab t1 t2)
+  apply has_type.T_Sub (.if_c lab e1 e2) t1 (.t_if lab t1 t2)
+  apply subtype.ST_RIf1 lab t1 t1 t2
+  unfold phi_psi_entail_corr
+  intro pm C vpm Csp
+  (repeat constructor)
+  cases Csp with
+  | psi_corr psi C' l $Csp:ident Csp' =>
+      exact Csp'
+  try simp
+  apply subtype.ST_Refl
+  apply has_type.T_IfCorr2 lab t1 e1 e2
+  intro pm C vpm Csp
+  (repeat constructor)
+  cases Csp with
+  | psi_corr psi C' l $Csp:ident Csp' =>
+      exact Csp'
+  try simp
+  exact h1
+  apply has_type.T_Sub (.if_c lab e1 e2) t2 (.t_if lab t1 t2)
+  apply subtype.ST_RIf2 lab t2 t1 t2
+  intro pm C vpm Csp
+  (repeat constructor)
+  cases Csp with
+  | psi_not_corr psi C' l $Csp:ident Csp' =>
+      exact Csp'
+  try simp
+  apply subtype.ST_Refl
+  apply has_type.T_IfCorr1 lab t2 e1 e2
+  intro pm C vpm Csp
+  (repeat constructor)
+  cases Csp with
+  | psi_not_corr psi C' l $Csp:ident Csp' =>
+      exact Csp'
+  try simp
+  exact h2
 
 -- NEEDED TACTICS
 -- has_type
