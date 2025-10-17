@@ -76,11 +76,24 @@ def pk_of_sk : Owl.op :=
   fun (_ _ : Owl.binary) =>
     Owl.Dist.ret (Owl.binary.bend)
 
+-- non functional
+def vk_of_sk : Owl.op :=
+  fun (_ _ : Owl.binary) =>
+    Owl.Dist.ret (Owl.binary.bend)
+
 def and_op : Owl.op :=
   fun (_ _ : Owl.binary) =>
     Owl.Dist.ret (Owl.binary.bend)
 
 def combine : Owl.op :=
+  fun (_ _ : Owl.binary) =>
+    Owl.Dist.ret (Owl.binary.bend)
+
+def sign : Owl.op :=
+  fun (_ _ : Owl.binary) =>
+    Owl.Dist.ret (Owl.binary.bend)
+
+def vrfy : Owl.op :=
   fun (_ _ : Owl.binary) =>
     Owl.Dist.ret (Owl.binary.bend)
 
@@ -189,21 +202,29 @@ theorem enc_sig :
   ( · ; · ; · ; · ;
     Λβ betaK .
     Λ tau .
-    let sk = ⟨genSk⟩(["0"], ["0"]) in
-    let pk = ⟨pk_of_sk⟩(sk, ["0"]) in                          -- tau ?
-    let L = (alloc (λ null . ı2 *) : Ref ((Public * Public) -> (tau + Unit))) in
-    let sign =  ((λ skm .
-                 let sig = (⟨rand⟩(π2 skm, ["0"]) : Public) in
-                 let L_old = (! L) in
-                 let action = (L := (λ msig' . if ⟨and_op⟩(⟨eq⟩((π2 skm), π2 msig'), ⟨eq⟩(sig, π2 msig'))
-                                               then (ı1 (π2 skm))
-                                               else L_old [msig']))
-                 in
-                 sig) : (((Data betaK * tau) -> Public)))
-    in
-    let vrfy = ((λ vkmsig .
-                (! L) [⟨π1 (π2 vkmsig), π2 (π2 vkmsig)⟩]) : ((Public * Public * Public) -> (tau + Unit))) in
-    pack(Data betaK, pack(Public, ⟨sk, ⟨pk, ⟨(corr_case betaK in sign), (corr_case betaK in vrfy)⟩⟩⟩))
+    corr_case betaK in
+    (if corr (betaK) then
+      let sk = ⟨genSk⟩(["0"], ["0"]) in
+      let vk = ⟨vk_of_sk⟩(sk, ["0"]) in
+      pack(Public, pack (Public, ⟨sk, ⟨vk,
+                    ⟨((λ xy . ⟨sign⟩(π1 xy, π2 xy)) : (Public * Public) -> Public),
+                     ((λ xyz . ⟨vrfy⟩(π1 xyz, π1 (π2 xyz))) : (Public * (Public * Public)) -> Public)⟩⟩⟩))
+    else
+      let sk = ⟨genSk⟩(["0"], ["0"]) in
+      let pk = ⟨pk_of_sk⟩(sk, ["0"]) in
+      let L = (alloc (λ null . ı2 *) : Ref ((Public * Public) -> (tau + Unit))) in
+      let sign =  ((λ skm .
+                  let sig = (⟨rand⟩(π2 skm, ["0"]) : Public) in
+                  let L_old = (! L) in
+                  let action = (L := (λ msig' . if ⟨and_op⟩(⟨eq⟩((π2 skm), π2 msig'), ⟨eq⟩(sig, π2 msig'))
+                                                then (ı1 (π2 skm))
+                                                else L_old [msig']))
+                  in
+                  sig) : (((Data betaK * tau) -> Public)))
+      in
+      let vrfy = ((λ vkmsig .
+                  (! L) [⟨π1 (π2 vkmsig), π2 (π2 vkmsig)⟩]) : ((Public * (Public * Public)) -> (tau + Unit))) in
+      pack(Data betaK, pack(Public, ⟨sk, ⟨pk, ⟨(corr_case betaK in sign), (corr_case betaK in vrfy)⟩⟩⟩)))
     ⊢
     ∀ betaK ⊒ ⟨Owl.L.bot⟩ .
     ∀ tau <: Public .
@@ -211,8 +232,8 @@ theorem enc_sig :
     ∃ beta <: Public .
     (alpha *
     (beta *
-    ((((alpha * tau) -> Public)) *
-     (((beta * Public * Public) -> (tau + Unit))))))
+    ((corr (betaK) ? ((Public * Public) -> Public) : ((alpha * tau) -> Public)) *
+     (corr (betaK) ? ((Public * (Public * Public)) -> Public) : ((beta * (Public * Public)) -> (tau + Unit))))))
     ) :=
     by
     tc_man (
