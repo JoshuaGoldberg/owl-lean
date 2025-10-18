@@ -204,14 +204,20 @@ theorem enc_sig :
     Λ tau .
     corr_case betaK in
     (if corr (betaK) then
-      let sk = ⟨genSk⟩(["0"], ["0"]) in
+      ((let sk = ⟨genSk⟩(["0"], ["0"]) in
       let vk = ⟨vk_of_sk⟩(sk, ["0"]) in
       pack(Public, pack (Public, ⟨sk, ⟨vk,
                     ⟨((λ xy . ⟨sign⟩(π1 xy, π2 xy)) : (Public * Public) -> Public),
-                     ((λ xyz . ⟨vrfy⟩(π1 xyz, π1 (π2 xyz))) : (Public * (Public * Public)) -> Public)⟩⟩⟩))
+                     ((λ xyz . ⟨vrfy⟩(π1 xyz, π1 (π2 xyz))) : (Public * (Public * Public)) -> Public)⟩⟩⟩))) :
+                     ∃ alpha <: Data betaK .
+                     ∃ beta <: Public .
+                     (alpha *
+                     (beta *
+                     ((corr (betaK) ? ((Public * Public) -> Public) : ((alpha * tau) -> Public)) *
+                     (corr (betaK) ? ((Public * (Public * Public)) -> Public) : ((beta * (Public * Public)) -> (tau + Unit)))))))
     else
-      let sk = ⟨genSk⟩(["0"], ["0"]) in
-      let pk = ⟨pk_of_sk⟩(sk, ["0"]) in
+      ((let sk = ⟨genSk⟩(["0"], ["0"]) in
+      let pk = ⟨pk_of_sk⟩(["0"], ["0"]) in
       let L = (alloc (λ null . ı2 *) : Ref ((Public * Public) -> (tau + Unit))) in
       let sign =  ((λ skm .
                   let sig = (⟨rand⟩(π2 skm, ["0"]) : Public) in
@@ -224,7 +230,13 @@ theorem enc_sig :
       in
       let vrfy = ((λ vkmsig .
                   (! L) [⟨π1 (π2 vkmsig), π2 (π2 vkmsig)⟩]) : ((Public * (Public * Public)) -> (tau + Unit))) in
-      pack(Data betaK, pack(Public, ⟨sk, ⟨pk, ⟨(corr_case betaK in sign), (corr_case betaK in vrfy)⟩⟩⟩)))
+      pack(Data betaK, pack(Public, ⟨sk, ⟨pk, ⟨(corr_case betaK in sign), (corr_case betaK in vrfy)⟩⟩⟩))) :
+      ∃ alpha <: Data betaK .
+      ∃ beta <: Public .
+      (alpha *
+      (beta *
+      ((corr (betaK) ? ((Public * Public) -> Public) : ((alpha * tau) -> Public)) *
+       (corr (betaK) ? ((Public * (Public * Public)) -> Public) : ((beta * (Public * Public)) -> (tau + Unit))))))))
     ⊢
     ∀ betaK ⊒ ⟨Owl.L.bot⟩ .
     ∀ tau <: Public .
