@@ -122,6 +122,7 @@ deriving Repr
 
 def ren (m n : Nat) : Type := Fin m → Fin n
 
+@[simp]
 def shift : ren n (n + 1) :=
   fun x => Fin.succ x
 

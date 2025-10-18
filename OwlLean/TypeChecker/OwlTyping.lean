@@ -353,6 +353,35 @@ theorem simple_var_typing :
 theorem concrete_typing : @has_type 0 0 0  empty_phi (empty_psi 0) empty_delta empty_gamma .skip .Unit :=
   has_type.T_IUnit
 
+theorem derived_if_typing_annot : forall lab e,
+  has_type Phi ((.corr lab) :: Psi) Delta Gamma e t1 ->
+  has_type Phi ((.not_corr lab) :: Psi) Delta Gamma e t2 ->
+  has_type Phi Psi Delta Gamma e (.t_if lab t1 t2) := by
+  intro lab e h1 h2
+  apply has_type.T_CorrCase2 lab e (.t_if lab t1 t2)
+  apply has_type.T_Sub e t1 (.t_if lab t1 t2)
+  apply subtype.ST_RIf1 lab t1 t1 t2
+  unfold phi_psi_entail_corr
+  intro pm C vpm Csp
+  (repeat constructor)
+  cases Csp with
+  | psi_corr psi C' l $Csp:ident Csp' =>
+      exact Csp'
+  try simp
+  apply subtype.ST_Refl
+  exact h1
+  apply has_type.T_Sub e t2 (.t_if lab t1 t2)
+  apply subtype.ST_RIf2 lab t2 t1 t2
+  unfold phi_psi_entail_corr
+  intro pm C vpm Csp
+  (repeat constructor)
+  cases Csp with
+  | psi_not_corr psi C' l $Csp:ident Csp' =>
+      exact Csp'
+  try simp
+  apply subtype.ST_Refl
+  exact h2
+
 theorem derived_if_typing : forall lab e1 e2,
   has_type Phi ((.corr lab) :: Psi) Delta Gamma e1 t1 ->
   has_type Phi ((.not_corr lab) :: Psi) Delta Gamma e2 t2 ->
@@ -441,10 +470,8 @@ def check_subtype  (fuel : Nat) (Phi : phi_context l) (Psi : psi_context l) (Del
       | .Data l1, .Data l2 => .some ⟨(Phi |= (.condition .leq l1 l2)), fun sc => subtype.ST_Data l1 l2 sc⟩
       | .Data l1, .Public => .some ⟨( phi_psi_entail_corr Phi Psi (.corr l1)), fun sc => subtype.ST_LPublic l1 sc⟩
       | .var_ty x1, .var_ty x2 =>
-        .some ⟨(x1 = x2), by
-          intro h
-          cases h
-          exact (subtype.ST_Refl (.var_ty x1))⟩
+        .some ⟨(x1 = x2),
+              fun h => by subst h; exact (subtype.ST_Refl (.var_ty x1))⟩
       | .Public, .Public =>
         .some ⟨True, fun sc => subtype.ST_Refl .Public⟩
       | .var_ty x, t' =>
@@ -474,10 +501,8 @@ def check_subtype  (fuel : Nat) (Phi : phi_context l) (Psi : psi_context l) (Del
                 fun sc => subtype.ST_Sum t1 t1' t2 t2' (grind pf1) (grind pf2)⟩
         | _, _ => .none
       | .Ref u, .Ref v =>
-        .some ⟨(u = v), by
-          intro h
-          cases h
-          exact subtype.ST_Ref u⟩
+        .some ⟨(u = v),
+              fun h => h ▸ subtype.ST_Ref u⟩
       | .all t0 t, .all t0' t' =>
         match check_subtype n Phi Psi Delta t0 t0' with
         | .some sub_param =>
@@ -513,24 +538,23 @@ def check_subtype  (fuel : Nat) (Phi : phi_context l) (Psi : psi_context l) (Del
         match check_subtype n extended_phi extended_psi extended_delta t t' with
         | .some sub_body =>
           .some ⟨(cs = cs') /\ sub_body.side_condition /\ constraint_holds,
-                  by
-                  intro h1
-                  obtain ⟨h2, h3, h4⟩ := h1
-                  subst h2
-                  exact (subtype.ST_LatUniv cs lab lab' t t'
-                                            (by grind)
-                                            (grind sub_body))⟩
+                fun h1 =>
+                  match h1 with
+                  | ⟨rfl, h3, h4⟩ =>
+                    subtype.ST_LatUniv cs lab lab' t t'
+                      h4
+                      (sub_body.side_condition_sound h3)⟩
         | .none => .none
       | .t_if lab t1 t2, t' =>
         match check_subtype n Phi Psi Delta t1 t', check_subtype n Phi Psi Delta t2 t' with
         | .some pf1, .some pf2 =>
           let corr_cond := phi_psi_entail_corr Phi Psi (.corr lab)
           let not_corr_cond := phi_psi_entail_corr Phi Psi (.not_corr lab)
-          .some ⟨(pf1.side_condition /\ corr_cond) \/ (pf2.side_condition /\ not_corr_cond),
+          .some ⟨(corr_cond /\ pf1.side_condition) \/ (not_corr_cond /\pf2.side_condition),
             fun sc =>
               match sc with
-              | Or.inl h => subtype.ST_LIf1 lab t1 t2 t' h.right (grind pf1)
-              | Or.inr h => subtype.ST_LIf2 lab t1 t2 t' h.right (grind pf2)⟩
+              | Or.inl h => subtype.ST_LIf1 lab t1 t2 t' h.left (pf1.side_condition_sound h.right)
+              | Or.inr h => subtype.ST_LIf2 lab t1 t2 t' h.left (pf2.side_condition_sound h.right)⟩
         | .some pf1, .none =>
           .some ⟨pf1.side_condition /\ phi_psi_entail_corr Phi Psi (.corr lab),
                 fun sc => subtype.ST_LIf1 lab t1 t2 t' sc.right (grind pf1)⟩
@@ -543,11 +567,11 @@ def check_subtype  (fuel : Nat) (Phi : phi_context l) (Psi : psi_context l) (Del
         | .some pf1, .some pf2 =>
           let corr_cond := phi_psi_entail_corr Phi Psi (.corr lab)
           let not_corr_cond := phi_psi_entail_corr Phi Psi (.not_corr lab)
-          .some ⟨(pf1.side_condition /\ corr_cond) \/ (pf2.side_condition /\ not_corr_cond),
+          .some ⟨(corr_cond /\ pf1.side_condition) \/ (not_corr_cond /\ pf2.side_condition),
             fun sc =>
               match sc with
-              | Or.inl h => subtype.ST_RIf1 lab t t1' t2' h.right (grind pf1)
-              | Or.inr h => subtype.ST_RIf2 lab t t1' t2' h.right (grind pf2)⟩
+              | Or.inl h => subtype.ST_RIf1 lab t t1' t2' h.left (pf1.side_condition_sound h.right)
+              | Or.inr h => subtype.ST_RIf2 lab t t1' t2' h.left (pf2.side_condition_sound h.right)⟩
         | .some pf1, .none =>
           .some ⟨pf1.side_condition /\ phi_psi_entail_corr Phi Psi (.corr lab),
                 fun sc => subtype.ST_RIf1 lab t t1' t2' sc.right (grind pf1)⟩
@@ -556,10 +580,8 @@ def check_subtype  (fuel : Nat) (Phi : phi_context l) (Psi : psi_context l) (Del
                 fun sc => subtype.ST_RIf2 lab t t1' t2' sc.right (grind pf2)⟩
         | .none, .none => .none
       | x1, x2 =>
-        .some ⟨(x1 = x2), by
-          intro h
-          cases h
-          exact (subtype.ST_Refl x1)⟩
+        .some ⟨(x1 = x2),
+          fun h => h ▸ subtype.ST_Refl x1⟩
 
 -- Infer performs the dual roles of synthesis and checking
 -- This is controlled via the the "exp" argument
@@ -586,11 +608,7 @@ noncomputable def infer (Phi : phi_context l) (Psi : psi_context l) (Delta : del
       | .some es' =>
         .some ⟨es'.side_condition, fun sc => has_type.T_Sub (.var_tm x) et1 t (grind es') et2⟩
       | .none => .some ⟨(et1 = t),
-          by
-          intro h
-          subst h
-          subst et1
-          exact has_type.T_Var x⟩
+          fun h => h ▸ has_type.T_Var x⟩
   | .skip =>
     match exp with
     | .none => .some ⟨.Unit, ⟨True, fun _ => has_type.T_IUnit⟩⟩
@@ -1067,95 +1085,95 @@ noncomputable def infer (Phi : phi_context l) (Psi : psi_context l) (Delta : del
                     (has_type.T_ELUniv cs lab lab' e t (by grind) (grind pf))⟩
         | .none => .none
       | _ => .none
-  | .annot e t' =>
+  | .annot e t' => -- LONG CASE TO HANDLE IF CHECKING PROPERLY
     match exp with
-    | .none => -- synthesize a type
+    | .none =>
       match t' with
       | .t_if lab t1 t2 =>
-        match infer Phi Psi Delta Gamma e (.some t1), infer Phi Psi Delta Gamma e (.some t2) with
+        match infer Phi ((.corr lab) :: Psi) Delta Gamma e (.some t1),
+              infer Phi ((.not_corr lab) :: Psi) Delta Gamma e (.some t2) with
         | .some pf1, .some pf2 =>
-          let corr_cond := phi_psi_entail_corr Phi Psi (.corr lab)
-          let not_corr_cond := phi_psi_entail_corr Phi Psi (.not_corr lab)
-          .some ⟨(ty.t_if lab t1 t2), ⟨(pf1.side_condition /\ corr_cond) \/ (pf2.side_condition /\ not_corr_cond),
-                fun sc =>
-                  let base_proof := match sc with
-                    | Or.inl h =>
-                      has_type.T_Sub e t1 (ty.t_if lab t1 t2)
-                        (subtype.ST_RIf1 lab t1 t1 t2 h.right (subtype.ST_Refl t1))
-                        (pf1.side_condition_sound h.left)
-                    | Or.inr h =>
-                      has_type.T_Sub e t2 (ty.t_if lab t1 t2)
-                        (subtype.ST_RIf2 lab t2 t1 t2 h.right (subtype.ST_Refl t2))
-                        (pf2.side_condition_sound h.left)
-                  has_type.T_Annot e (ty.t_if lab t1 t2) base_proof⟩⟩
-        | .some pf1, .none =>
-          .some ⟨(ty.t_if lab t1 t2), ⟨pf1.side_condition /\ phi_psi_entail_corr Phi Psi (.corr lab),
-                fun sc =>
-                  has_type.T_Annot e (ty.t_if lab t1 t2)
-                    (has_type.T_Sub e t1 (ty.t_if lab t1 t2)
-                      (subtype.ST_RIf1 lab t1 t1 t2 sc.right (subtype.ST_Refl t1))
-                      (pf1.side_condition_sound sc.left))⟩⟩
-        | .none, .some pf2 =>
-          .some ⟨(ty.t_if lab t1 t2), ⟨pf2.side_condition /\ phi_psi_entail_corr Phi Psi (.not_corr lab),
-                fun sc =>
-                  has_type.T_Annot e (ty.t_if lab t1 t2)
-                    (has_type.T_Sub e t2 (ty.t_if lab t1 t2)
-                      (subtype.ST_RIf2 lab t2 t1 t2 sc.right (subtype.ST_Refl t2))
-                      (pf2.side_condition_sound sc.left))⟩⟩
-        | .none, .none => .none
-      | t =>
-        -- Normal case: annotation type is not t_if
+          .some ⟨ty.t_if lab t1 t2,
+                ⟨pf1.side_condition /\ pf2.side_condition,
+                 fun sc =>
+                   has_type.T_Annot e (ty.t_if lab t1 t2)
+                     (derived_if_typing_annot lab e
+                       (pf1.side_condition_sound sc.left)
+                       (pf2.side_condition_sound sc.right))⟩⟩
+        | _, _ =>
+          match infer Phi Psi Delta Gamma e (.some t1),
+                infer Phi Psi Delta Gamma e (.some t2) with
+          | .some pf1, .none =>
+            let corr_cond := phi_psi_entail_corr Phi Psi (.corr lab)
+            .some ⟨ty.t_if lab t1 t2,
+                  ⟨pf1.side_condition /\ corr_cond,
+                   fun sc =>
+                     has_type.T_Annot e (ty.t_if lab t1 t2)
+                       (has_type.T_Sub e t1 (ty.t_if lab t1 t2)
+                         (subtype.ST_RIf1 lab t1 t1 t2 sc.right (subtype.ST_Refl t1))
+                         (pf1.side_condition_sound sc.left))⟩⟩
+          | .none, .some pf2 =>
+            let not_corr_cond := phi_psi_entail_corr Phi Psi (.not_corr lab)
+            .some ⟨ty.t_if lab t1 t2,
+                  ⟨pf2.side_condition /\ not_corr_cond,
+                   fun sc =>
+                     has_type.T_Annot e (ty.t_if lab t1 t2)
+                       (has_type.T_Sub e t2 (ty.t_if lab t1 t2)
+                         (subtype.ST_RIf2 lab t2 t1 t2 sc.right (subtype.ST_Refl t2))
+                         (pf2.side_condition_sound sc.left))⟩⟩
+          | _, _ => .none
+      | t => -- NORMAL CASE FOR SYNTHESIZING
         match infer Phi Psi Delta Gamma e (.some t) with
         | .some pf => .some ⟨t, ⟨pf.side_condition, fun sc => has_type.T_Annot e t (pf.side_condition_sound sc)⟩⟩
         | .none => .none
-    | .some exp_ty => -- check the type of annotation
+    | .some exp_ty => -- Check the type of annotation
       match t' with
       | .t_if lab t1 t2 =>
-        match infer Phi Psi Delta Gamma e (.some t1), infer Phi Psi Delta Gamma e (.some t2) with
+        match infer Phi ((.corr lab) :: Psi) Delta Gamma e (.some t1),
+              infer Phi ((.not_corr lab) :: Psi) Delta Gamma e (.some t2) with
         | .some pf1, .some pf2 =>
-          let corr_cond := phi_psi_entail_corr Phi Psi (.corr lab)
-          let not_corr_cond := phi_psi_entail_corr Phi Psi (.not_corr lab)
           match check_subtype 99 Phi Psi Delta (ty.t_if lab t1 t2) exp_ty with
           | .some sub =>
-            .some ⟨sub.side_condition /\ ((pf1.side_condition /\ corr_cond) \/ (pf2.side_condition /\ not_corr_cond)),
+            .some ⟨pf1.side_condition /\ pf2.side_condition /\ sub.side_condition,
                   fun sc =>
-                    let base_proof := match sc.right with
-                      | Or.inl h =>
-                        has_type.T_Sub e t1 (ty.t_if lab t1 t2)
-                          (subtype.ST_RIf1 lab t1 t1 t2 (by grind) (subtype.ST_Refl t1))
-                          (pf1.side_condition_sound (by grind))
-                      | Or.inr h =>
-                        has_type.T_Sub e t2 (ty.t_if lab t1 t2)
-                          (subtype.ST_RIf2 lab t2 t1 t2 h.right (subtype.ST_Refl t2))
-                          (pf2.side_condition_sound (by grind))
                     has_type.T_Sub (.annot e (ty.t_if lab t1 t2)) (ty.t_if lab t1 t2) exp_ty
-                      (sub.side_condition_sound sc.left)
-                      (has_type.T_Annot e (ty.t_if lab t1 t2) base_proof)⟩
-          | .none => .none
-        | .some pf1, .none =>
-          match check_subtype 99 Phi Psi Delta (ty.t_if lab t1 t2) exp_ty with
-          | .some sub =>
-            .some ⟨sub.side_condition /\ pf1.side_condition /\ phi_psi_entail_corr Phi Psi (.corr lab),
-                  fun sc =>
-                    has_type.T_Sub (.annot e (ty.t_if lab t1 t2)) (ty.t_if lab t1 t2) exp_ty (grind sub)
+                      (sub.side_condition_sound sc.right.right)
                       (has_type.T_Annot e (ty.t_if lab t1 t2)
-                        (has_type.T_Sub e t1 (ty.t_if lab t1 t2)
-                          (subtype.ST_RIf1 lab t1 t1 t2 sc.right.right (subtype.ST_Refl t1))
-                          (grind pf1)))⟩
+                        (derived_if_typing_annot lab e
+                          (pf1.side_condition_sound sc.left)
+                          (pf2.side_condition_sound sc.right.left)))⟩
           | .none => .none
-        | .none, .some pf2 =>
-          match check_subtype 99 Phi Psi Delta (ty.t_if lab t1 t2) exp_ty with
-          | .some sub =>
-            .some ⟨sub.side_condition /\ pf2.side_condition /\ phi_psi_entail_corr Phi Psi (.not_corr lab),
-                  fun sc =>
-                    has_type.T_Sub (.annot e (ty.t_if lab t1 t2)) (ty.t_if lab t1 t2) exp_ty (grind sub)
-                      (has_type.T_Annot e (ty.t_if lab t1 t2)
-                        (has_type.T_Sub e t2 (ty.t_if lab t1 t2)
-                          (subtype.ST_RIf2 lab t2 t1 t2 sc.right.right (subtype.ST_Refl t2))
-                          (grind pf2)))⟩
-          | .none => .none
-        | _, _ => .none
-      | t =>
+        | _, _ =>
+          match infer Phi Psi Delta Gamma e (.some t1),
+                infer Phi Psi Delta Gamma e (.some t2) with
+          | .some pf1, .none =>
+            let corr_cond := phi_psi_entail_corr Phi Psi (.corr lab)
+            match check_subtype 99 Phi Psi Delta (ty.t_if lab t1 t2) exp_ty with
+            | .some sub =>
+              .some ⟨pf1.side_condition ∧ corr_cond ∧ sub.side_condition,
+                    fun sc =>
+                      has_type.T_Sub (.annot e (ty.t_if lab t1 t2)) (ty.t_if lab t1 t2) exp_ty
+                        (sub.side_condition_sound sc.right.right)
+                        (has_type.T_Annot e (ty.t_if lab t1 t2)
+                          (has_type.T_Sub e t1 (ty.t_if lab t1 t2)
+                            (subtype.ST_RIf1 lab t1 t1 t2 sc.right.left (subtype.ST_Refl t1))
+                            (pf1.side_condition_sound sc.left)))⟩
+            | .none => .none
+          | .none, .some pf2 =>
+            let not_corr_cond := phi_psi_entail_corr Phi Psi (.not_corr lab)
+            match check_subtype 99 Phi Psi Delta (ty.t_if lab t1 t2) exp_ty with
+            | .some sub =>
+              .some ⟨pf2.side_condition ∧ not_corr_cond ∧ sub.side_condition,
+                    fun sc =>
+                      has_type.T_Sub (.annot e (ty.t_if lab t1 t2)) (ty.t_if lab t1 t2) exp_ty
+                        (sub.side_condition_sound sc.right.right)
+                        (has_type.T_Annot e (ty.t_if lab t1 t2)
+                          (has_type.T_Sub e t2 (ty.t_if lab t1 t2)
+                            (subtype.ST_RIf2 lab t2 t1 t2 sc.right.left (subtype.ST_Refl t2))
+                            (pf2.side_condition_sound sc.left)))⟩
+            | .none => .none
+          | _, _ => .none
+      | t => -- NORMAL CASE FOR CHECKING
         match check_subtype 99 Phi Psi Delta t exp_ty with
         | .some sub =>
           match infer Phi Psi Delta Gamma e (.some t) with
@@ -1627,14 +1645,14 @@ macro_rules
       | solve_phi_validation_anon_no_simp
       | (left; auto_solve)
       | (right; auto_solve)
-      | (constructor; all_goals auto_solve))
+      | (apply And.intro; all_goals auto_solve))
 
 syntax "auto_solve_fast" : tactic
 macro_rules
 | `(tactic| auto_solve_fast) =>
   `(tactic| first
     | attempt_solve
-    | (constructor; all_goals auto_solve_fast)
+    | (apply And.intro; all_goals auto_solve_fast)
     | (left; auto_solve_fast)
     | (right; auto_solve_fast)
     | solve_phi_validation_anon

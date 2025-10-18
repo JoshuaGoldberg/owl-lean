@@ -130,7 +130,7 @@ theorem enc_i :
     by
     tc_man (
       try simp
-      auto_solve_fast
+      auto_solve
     )
 
 theorem enc_ty2 :
@@ -140,6 +140,18 @@ theorem enc_ty2 :
       (∃ alphaK <: Unit . alphaK)) :=
     by
     tc_man (
+      try simp
+      try auto_solve
+    )
+
+theorem enc_ty_contra :
+  ((betaK, betaM ⊑ betaK, betaC ⊒ betaK) ; (corr(betaK)) ; · ; · ;
+      (if corr (betaK) then ((λ x . *) : Public -> Unit) else ((λ x . x) : Data betaC -> Data betaC))
+      ⊢
+      (Public -> Unit)) :=
+    by
+    tc_man (
+      try simp
       auto_solve
     )
 
@@ -155,7 +167,7 @@ theorem enc_r :
     by
     tc_man (
       try simp
-      auto_solve_fast
+      try auto_solve
     )
 
 theorem enc_unpack :
@@ -172,7 +184,7 @@ theorem enc_unpack :
     by
     tc_man (
       try simp
-      try auto_solve_fast
+      try auto_solve
     )
 
 theorem enc_layered :
@@ -278,5 +290,5 @@ theorem enc_layered2 :
     by
     tc_man (
       try simp
-      try auto_solve_fast
+      auto_solve_fast
     )
