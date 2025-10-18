@@ -104,20 +104,20 @@ theorem enc_i :
     Λβ betaM .
     Λ tau .
     let k = (⟨genKey⟩ (["0"], ["0"]) : Data betaK) in
-    let L = (alloc (λ null . ı2 *) : Ref (Public -> (tau + Unit))) in
+    let L = alloc (λ null : (Public -> (tau + Unit)) . ı2 *) in
     let enc' = (corr_case betaK in
                 (if corr ( betaK )
-                  then ((λx . ⟨enc⟩ (π1 x, π2 x)) : (Public * Public) -> Public)
+                  then (λx : ((Public * Public) -> Public) . ⟨enc⟩ (π1 x, π2 x))
                   else
-                    (λx .
+                    λx : ((Data betaK * tau) -> Public).
                     let c = ⟨rand⟩ (zero ((π2 x) : Data betaM), ["0"]) in
                     let L_old = (! L) in
-                    let sc = L := (λ y . if ⟨eq⟩(y, c) then ı1 (π2 x) else L_old [y]) in
-                    c : (Data betaK * tau) -> Public)))
+                    let sc = L := (λ y : (Public -> (tau + Unit)). if ⟨eq⟩(y, c) then ı1 (π2 x) else L_old [y]) in
+                    c))
     in
     let dec' = (corr_case betaK in
-               (if corr (betaK) then (λ x . ⟨dec⟩(π1 x, π2 x) : (Public * Public) -> Public)
-                else (λ x . (!L) [π2 x] : (Data betaK * Public) -> (tau + Unit))))
+               (if corr (betaK) then λ x : ((Public * Public) -> Public). ⟨dec⟩(π1 x, π2 x)
+                else λ x : ((Data betaK * Public) -> (tau + Unit)). (!L) [π2 x]))
     in
     pack (Data betaK, ⟨k, ⟨(corr_case betaK in enc'), (corr_case betaK in dec')⟩⟩)
     ⊢
@@ -146,8 +146,8 @@ theorem enc_ty2 :
 theorem enc_r :
   ( (betaK, betaM) ; (corr(betaK)) ; (tau <: Data betaM) ; · ;
     let k = (⟨genKey⟩ (["0"], ["0"]) : Data betaK) in
-    pack (Data betaK, ⟨k, ⟨(λ x . ⟨enc⟩ (π1 x, π2 x) : (Public * Public) -> Public),
-                          (λ y . ⟨dec⟩ (π1 y, π2 y) : (Public * Public) -> Public)⟩⟩)
+    pack (Data betaK, ⟨k, ⟨λ x : ((Public * Public) -> Public) . ⟨enc⟩ (π1 x, π2 x),
+                           λ y : ((Public * Public) -> Public) . ⟨dec⟩ (π1 y, π2 y)⟩⟩)
     ⊢
     (∃ alphaK <: (Data betaK) . (alphaK *
                                  ((corr (betaK) ? (Public * Public) -> Public : (alphaK * (Data betaM)) -> Public) *
