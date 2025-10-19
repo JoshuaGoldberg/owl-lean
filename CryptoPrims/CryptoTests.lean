@@ -12,7 +12,7 @@ set_option pp.fullNames false
 set_option pp.universes false
 set_option pp.proofs false
 
-notation:50 Φ ", " Ψ " ⊨ " co => phi_psi_entail_corr Φ Ψ co
+notation:50 "<" Φ ", " Ψ " ⊨ " co ">" => phi_psi_entail_corr Φ Ψ co
 notation h "::" t => pcons h t
 notation "Ψ∅" => empty_phi 0
 notation "Φ∅" => empty_psi 0
@@ -155,6 +155,27 @@ theorem enc_ty_contra :
       auto_solve
     )
 
+theorem enc_length_test :
+  ( (betaK, betaM ⊑ betaK, betaC ⊒ betaK) ; (corr(betaK)) ; · ; · ;
+      λ x . λ x . λ x . λ x . λ x . λ x . λ x . λ x . λ x . λ x . λ a . λ x . λ x . λ b .
+      λ x . λ x . λ y . λ x . λ h . λ x . λ a . λ x . λ x . λ x . λ x . λ x . λ x . λ x .
+      λ x . λ x . λ x . λ x . λ x . λ x . λ x . λ x . λ z . λ x . λ x . λ x . λ x . λ x . ⟨a, ⟨x, ⟨x, ⟨x, ⟨x, ⟨x, ⟨x, ⟨x, ⟨x, ⟨z, x⟩⟩⟩⟩⟩⟩⟩⟩⟩⟩
+      ⊢
+      (Data betaM -> Data betaM -> Data betaM -> Data betaM -> Data betaM -> Data betaM -> Data betaM ->
+       Data betaM -> Data betaM -> Data betaM -> Data betaM -> Data betaM -> Data betaM -> Data betaM ->
+       Data betaM -> Data betaM -> Data betaM -> Data betaM -> Data betaM -> Data betaM -> Data betaM ->
+       Data betaM -> Data betaM -> Data betaM -> Data betaM -> Data betaM -> Data betaM -> Data betaM ->
+       Data betaM -> Data betaM -> Data betaM -> Data betaM -> Data betaM -> Data betaM -> Data betaM ->
+       Data betaM -> Data betaM -> Data betaM -> Data betaM -> Data betaM -> Data betaM -> Data betaM ->
+
+       ((Public * (Public * (Public * (Public * (Public * (Public * (Public * (Public * (Public * (Public * Public))))))))))))) :=
+    by
+    tc_man (
+      try simp
+      auto_solve
+    )
+
+
 theorem enc_r :
   ( (betaK, betaM) ; (corr(betaK)) ; (tau <: Data betaM) ; · ;
     let k = (⟨genKey⟩ (["0"], ["0"]) : Data betaK) in
@@ -167,7 +188,7 @@ theorem enc_r :
     by
     tc_man (
       try simp
-      try auto_solve
+      auto_solve
     )
 
 theorem enc_unpack :
@@ -184,7 +205,7 @@ theorem enc_unpack :
     by
     tc_man (
       try simp
-      try auto_solve
+      auto_solve
     )
 
 theorem enc_layered :
@@ -206,7 +227,7 @@ theorem enc_layered :
     by
     tc_man (
       try simp
-      try auto_solve_fast
+      auto_solve_fast
     )
 
 -- partial
@@ -242,7 +263,7 @@ theorem enc_sig :
       in
       let vrfy = ((λ vkmsig .
                   (! L) [⟨π1 (π2 vkmsig), π2 (π2 vkmsig)⟩]) : ((Public * (Public * Public)) -> (tau + Unit))) in
-      pack(Data betaK, pack(Public, ⟨sk, ⟨pk, ⟨(corr_case betaK in sign), (corr_case betaK in vrfy)⟩⟩⟩))) :
+      pack(Data betaK, pack(Public, ⟨sk, ⟨pk, ⟨sign, vrfy⟩⟩⟩))) :
       ∃ alpha <: Data betaK .
       ∃ beta <: Public .
       (alpha *
@@ -262,12 +283,12 @@ theorem enc_sig :
     by
     tc_man (
       try simp
-      try auto_solve_fast
+      auto_solve_fast
     )
 
     -- the issue here is that just because tau <: public, does that mean public <: tau?
 
-theorem enc_layered2 :
+theorem enc_layered2_high_low :
   ( (L_sec, L_low ⊒ L_sec, L_high ⊒ L_low) ; · ; (a <: Data L_sec, b <: Data L_low) ;
   (E1 => (∃ alphaK <: (Data L_low) .
                         (alphaK *

@@ -231,6 +231,10 @@ inductive is_value : tm l d m -> Prop where
     phi_psi_entail_corr Phi Psi (.not_corr lab) ->
     subtype Phi Psi Delta t2 t2' ->
     subtype Phi Psi Delta t2 (.t_if lab t1' t2')
+  | ST_Corr : forall lab t1 t2,
+    subtype Phi ((.corr lab) :: Psi) Delta t1 t2 ->
+    subtype Phi ((.not_corr lab) :: Psi) Delta t1 t2 ->
+    subtype Phi Psi Delta t1 t2
   | ST_Refl : forall x,
     subtype Phi Psi Delta x x
 
@@ -424,6 +428,54 @@ theorem derived_if_typing : forall lab e1 e2,
   try simp
   exact h2
 
+theorem derived_if_subtyping : forall lab t1 t2 t',
+  subtype Phi ((.corr lab) :: Psi) Delta t1 t' ->
+  subtype Phi ((.not_corr lab) :: Psi) Delta t2 t' ->
+  subtype Phi Psi Delta (.t_if lab t1 t2) t' :=
+  by
+  intro lab t1 t2 t' h1 h2
+  apply subtype.ST_Corr
+  apply subtype.ST_LIf1
+  intro pm C vpm Csp
+  (repeat constructor)
+  cases Csp with
+  | psi_corr psi C' l $Csp:ident Csp' =>
+      exact Csp'
+  try simp
+  exact h1
+  apply subtype.ST_LIf2
+  intro pm C vpm Csp
+  (repeat constructor)
+  cases Csp with
+  | psi_not_corr psi C' l $Csp:ident Csp' =>
+      exact Csp'
+  try simp
+  exact h2
+
+theorem derived_if_subtyping_right : forall lab t t1' t2',
+  subtype Phi ((.corr lab) :: Psi) Delta t t1' ->
+  subtype Phi ((.not_corr lab) :: Psi) Delta t t2' ->
+  subtype Phi Psi Delta t (.t_if lab t1' t2') :=
+  by
+  intro lab t1 t2 t' h1 h2
+  apply subtype.ST_Corr
+  apply subtype.ST_RIf1
+  intro pm C vpm Csp
+  (repeat constructor)
+  cases Csp with
+  | psi_corr psi C' l $Csp:ident Csp' =>
+      exact Csp'
+  try simp
+  exact h1
+  apply subtype.ST_RIf2
+  intro pm C vpm Csp
+  (repeat constructor)
+  cases Csp with
+  | psi_not_corr psi C' l $Csp:ident Csp' =>
+      exact Csp'
+  try simp
+  exact h2
+
 -- NEEDED TACTICS
 -- has_type
 -- subtype
@@ -546,42 +598,49 @@ def check_subtype  (fuel : Nat) (Phi : phi_context l) (Psi : psi_context l) (Del
                       (sub_body.side_condition_sound h3)⟩
         | .none => .none
       | .t_if lab t1 t2, t' =>
-        match check_subtype n Phi Psi Delta t1 t', check_subtype n Phi Psi Delta t2 t' with
+        match check_subtype n Phi ((.corr lab) :: Psi) Delta t1 t',
+              check_subtype n Phi ((.not_corr lab) :: Psi) Delta t2 t' with
         | .some pf1, .some pf2 =>
-          let corr_cond := phi_psi_entail_corr Phi Psi (.corr lab)
-          let not_corr_cond := phi_psi_entail_corr Phi Psi (.not_corr lab)
-          .some ⟨(corr_cond /\ pf1.side_condition) \/ (not_corr_cond /\pf2.side_condition),
+          .some ⟨pf1.side_condition /\ pf2.side_condition ,
             fun sc =>
-              match sc with
-              | Or.inl h => subtype.ST_LIf1 lab t1 t2 t' h.left (pf1.side_condition_sound h.right)
-              | Or.inr h => subtype.ST_LIf2 lab t1 t2 t' h.left (pf2.side_condition_sound h.right)⟩
-        | .some pf1, .none =>
-          .some ⟨pf1.side_condition /\ phi_psi_entail_corr Phi Psi (.corr lab),
-                fun sc => subtype.ST_LIf1 lab t1 t2 t' sc.right (grind pf1)⟩
-        | .none, .some pf2 =>
-          .some ⟨pf2.side_condition /\ phi_psi_entail_corr Phi Psi (.not_corr lab),
-                fun sc => subtype.ST_LIf2 lab t1 t2 t' sc.right (grind pf2)⟩
-        | .none, .none => .none
+              derived_if_subtyping lab t1 t2 t'
+                (pf1.side_condition_sound sc.left)
+                (pf2.side_condition_sound sc.right)⟩
+        | _, _ =>
+          match check_subtype n Phi Psi Delta t1 t',
+                check_subtype n Phi Psi Delta t2 t' with
+          | .some pf1, .none =>
+            .some ⟨pf1.side_condition /\ phi_psi_entail_corr Phi Psi (.corr lab),
+                  fun sc => subtype.ST_LIf1 lab t1 t2 t' sc.right (grind pf1)⟩
+          | .none, .some pf2 =>
+            .some ⟨pf2.side_condition /\ phi_psi_entail_corr Phi Psi (.not_corr lab),
+                  fun sc => subtype.ST_LIf2 lab t1 t2 t' sc.right (grind pf2)⟩
+          | _, _ => .none
       | t, .t_if lab t1' t2' =>
-        match check_subtype n Phi Psi Delta t t1', check_subtype n Phi Psi Delta t t2' with
+        match check_subtype n Phi ((.corr lab) :: Psi) Delta t t1',
+              check_subtype n Phi ((.not_corr lab) :: Psi) Delta t t2' with
         | .some pf1, .some pf2 =>
-          let corr_cond := phi_psi_entail_corr Phi Psi (.corr lab)
-          let not_corr_cond := phi_psi_entail_corr Phi Psi (.not_corr lab)
-          .some ⟨(corr_cond /\ pf1.side_condition) \/ (not_corr_cond /\ pf2.side_condition),
-            fun sc =>
-              match sc with
-              | Or.inl h => subtype.ST_RIf1 lab t t1' t2' h.left (pf1.side_condition_sound h.right)
-              | Or.inr h => subtype.ST_RIf2 lab t t1' t2' h.left (pf2.side_condition_sound h.right)⟩
-        | .some pf1, .none =>
-          .some ⟨pf1.side_condition /\ phi_psi_entail_corr Phi Psi (.corr lab),
-                fun sc => subtype.ST_RIf1 lab t t1' t2' sc.right (grind pf1)⟩
-        | .none, .some pf2 =>
-          .some ⟨pf2.side_condition /\ phi_psi_entail_corr Phi Psi (.not_corr lab),
-                fun sc => subtype.ST_RIf2 lab t t1' t2' sc.right (grind pf2)⟩
-        | .none, .none => .none
+          .some ⟨pf1.side_condition /\ pf2.side_condition,
+                fun sc =>
+                  derived_if_subtyping_right lab t t1' t2'
+                    (pf1.side_condition_sound sc.left)
+                    (pf2.side_condition_sound sc.right)⟩
+        | _, _ =>
+          match check_subtype n Phi Psi Delta t t1',
+                check_subtype n Phi Psi Delta t t2' with
+          | .some pf1, .none =>
+            .some ⟨pf1.side_condition /\ phi_psi_entail_corr Phi Psi (.corr lab),
+                  fun sc => subtype.ST_RIf1 lab t t1' t2' sc.right (grind pf1)⟩
+          | .none, .some pf2 =>
+            .some ⟨pf2.side_condition /\ phi_psi_entail_corr Phi Psi (.not_corr lab),
+                  fun sc => subtype.ST_RIf2 lab t t1' t2' sc.right (grind pf2)⟩
+          | .some pf1, .some pf2 =>
+            let corr_cond := phi_psi_entail_corr Phi Psi (.corr lab)
+            .some ⟨pf1.side_condition /\ corr_cond,
+                  fun sc => subtype.ST_RIf1 lab t t1' t2' sc.right (grind pf1)⟩
+          | .none, .none => .none
       | x1, x2 =>
-        .some ⟨(x1 = x2),
-          fun h => h ▸ subtype.ST_Refl x1⟩
+        .none
 
 -- Infer performs the dual roles of synthesis and checking
 -- This is controlled via the the "exp" argument
@@ -1468,7 +1527,6 @@ macro_rules
           first
           | cases $H:ident with
             | phi_empty_valid =>
-              try simp [cons]
               try grind [interp_lattice]
           | cases $H:ident with
             | phi_cons $(lId):ident $(pmPrevId):ident $(pctxPrevId):ident $(phiEqId):ident
@@ -1499,14 +1557,11 @@ macro_rules
               have $(hId):ident := congrArg (fun f => f $prevKValSyntax) $A:ident
               simp [lift_phi, cons] at $(hId):ident
               try obtain ⟨sym_eq, $(labeqId):ident⟩ := $(hId):ident
-              simp at $(headHoldsId):ident
               unfold phi_map_holds at $(headHoldsId):ident
               unfold valid_constraint at $(headHoldsId):ident
               try all_ren $(labeqId):ident $(headHoldsId):ident 0 $prevKValSyntax:num
-              try all_ren $(hId):ident $(headHoldsId):ident 0 $prevKValSyntax:num
               try simp [ren_label, shift, cons, subst_label ,Owl.ren_label] at $(headHoldsId):ident
               simp [var_zero] at $(headHoldsId):ident
-              try simp [cons] at $(prevHold):ident
               try case_phi $(tailId):ident $(A):ident $(headHoldsId):ident $newKSyntax $newIterSyntax
         )
   | `(tactic| case_phi_corr $H:ident $A:ident $prevHold:ident $Csp:ident $k:num $iter:num) => do
@@ -1643,8 +1698,6 @@ macro_rules
       | attempt_solve
       | solve_phi_validation_anon
       | solve_phi_validation_anon_no_simp
-      | (left; auto_solve)
-      | (right; auto_solve)
       | (apply And.intro; all_goals auto_solve))
 
 syntax "auto_solve_fast" : tactic
@@ -1653,8 +1706,6 @@ macro_rules
   `(tactic| first
     | attempt_solve
     | (apply And.intro; all_goals auto_solve_fast)
-    | (left; auto_solve_fast)
-    | (right; auto_solve_fast)
     | solve_phi_validation_anon
     | solve_phi_validation_anon_no_simp
     | (intro pm C vpm Csp; check_corr vpm C Csp))
@@ -1939,7 +1990,6 @@ theorem test_latt_manual (l1 l2 l3 : L.labels) (pf1 : L.leq l1 l2 = true) :
       simp at h_holds2
       unfold phi_map_holds at h_holds2
       unfold valid_constraint at h_holds2
-      all_ren lab_eq h_holds2 0 1
       try simp [ren_label, cons, subst_label] at h_holds2
       simp [var_zero] at h_holds2
       try simp [cons] at h_holds1
@@ -1954,7 +2004,6 @@ theorem test_latt_manual (l1 l2 l3 : L.labels) (pf1 : L.leq l1 l2 = true) :
         simp at h_holds3
         unfold phi_map_holds at h_holds3
         unfold valid_constraint at h_holds3
-        all_ren lab_eq h_holds3 0 2
         try simp [ren_label, cons, subst_label] at h_holds3
         simp [var_zero] at h_holds3
         try simp [cons] at h_holds2
