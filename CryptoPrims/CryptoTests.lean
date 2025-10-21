@@ -144,6 +144,19 @@ theorem enc_ty2 :
       try auto_solve
     )
 
+theorem test_let :
+  ( · ; · ; · ; · ;
+      let (x, y) = ⟨* , *⟩ in
+      y
+      ⊢
+      Unit) :=
+    by
+    tc_man (
+      try simp
+      try auto_solve
+    )
+
+
 theorem enc_ty_contra :
   ((betaK, betaM ⊑ betaK, betaC ⊒ betaK) ; (corr(betaK)) ; · ; · ;
       (if corr (betaK) then ((λ x => *) : Public -> Unit) else ((λ x => x) : Data betaC -> Data betaC))

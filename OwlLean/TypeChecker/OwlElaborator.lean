@@ -521,6 +521,19 @@ partial def elabTm_closed : Syntax → TermElabM Expr
     let unused := "unused variable"
     let lambda <- mkAppM ``SExpr.fixlam #[mkStrLit unused, mkStrLit id1.getId.toString, elab_b]
     mkAppM ``SExpr.app #[lambda, elab_e]
+  | `(owl_tm| let ($id1:ident, $id2:ident) = $e:owl_tm  in $b:owl_tm) => do
+    let elab_e <- elabTm_closed e
+    let elab_b <- elabTm_closed b
+    let unused := "unused variable"
+    let var <- mkAppM ``SExpr.var_tm #[mkStrLit "e_prime"]
+    let left <- mkAppM ``SExpr.left_tm #[var]
+    let right <- mkAppM ``SExpr.right_tm #[var]
+    let lambda1 <- mkAppM ``SExpr.fixlam #[mkStrLit unused, mkStrLit id2.getId.toString, elab_b]
+    let app1 <- mkAppM ``SExpr.app #[lambda1, left]
+    let lambda2 <- mkAppM ``SExpr.fixlam #[mkStrLit unused, mkStrLit id1.getId.toString, app1]
+    let app2 <- mkAppM ``SExpr.app #[lambda2, right]
+    let lambda3 <- mkAppM ``SExpr.fixlam #[mkStrLit unused, mkStrLit "e_prime", app2]
+    mkAppM ``SExpr.app #[lambda3, elab_e]
   | `(owl_tm| λ ($id:ident : $t1:owl_type) : $t2:owl_type => $e:owl_tm) => do
     let elab_e <- elabTm_closed e
     let elab_t1 <- elabType_closed t1
