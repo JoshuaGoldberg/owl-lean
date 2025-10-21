@@ -198,6 +198,7 @@ syntax "if" "corr" "(" owl_label ")" "then" owl_tm "else" owl_tm : owl_tm
 syntax "sync" owl_tm : owl_tm
 syntax "let" ident "=" owl_tm "in" owl_tm : owl_tm
 syntax "let" "(" ident "," ident ")" "=" owl_tm "in" owl_tm : owl_tm
+syntax "let" "(" ident "," ident "," ident ")" "=" owl_tm "in" owl_tm : owl_tm
 syntax "λ" "(" ident ":" owl_type ")" ":" owl_type "=>" owl_tm : owl_tm
 syntax "λ" ident "=>" owl_tm : owl_tm
 syntax "$" term : owl_tm
@@ -321,9 +322,26 @@ partial def elabTm : Syntax → TermElabM Expr
     let left <- mkAppM ``SExpr.left_tm #[var]
     let right <- mkAppM ``SExpr.right_tm #[var]
     let lambda1 <- mkAppM ``SExpr.fixlam #[mkStrLit unused, mkStrLit id2.getId.toString, elab_b]
-    let app1 <- mkAppM ``SExpr.app #[lambda1, left]
+    let app1 <- mkAppM ``SExpr.app #[lambda1, right]
     let lambda2 <- mkAppM ``SExpr.fixlam #[mkStrLit unused, mkStrLit id1.getId.toString, app1]
-    let app2 <- mkAppM ``SExpr.app #[lambda2, right]
+    let app2 <- mkAppM ``SExpr.app #[lambda2, left]
+    let lambda3 <- mkAppM ``SExpr.fixlam #[mkStrLit unused, mkStrLit "e_prime", app2]
+    mkAppM ``SExpr.app #[lambda3, elab_e]
+  | `(owl_tm| let ($id1:ident, $id2:ident, $id3:ident) = $e:owl_tm  in $b:owl_tm) => do
+    let elab_e <- elabTm e
+    let elab_b <- elabTm b
+    let unused := "unused variable"
+    let var <- mkAppM ``SExpr.var_tm #[mkStrLit "e_prime"]
+    let first <- mkAppM ``SExpr.left_tm #[var]
+    let split_second <- mkAppM ``SExpr.right_tm #[var]
+    let second <- mkAppM ``SExpr.left_tm #[split_second]
+    let third <- mkAppM ``SExpr.right_tm #[split_second]
+    let lambda0 <- mkAppM ``SExpr.fixlam #[mkStrLit unused, mkStrLit id3.getId.toString, elab_b]
+    let app0 <- mkAppM ``SExpr.app #[lambda0, third]
+    let lambda1 <- mkAppM ``SExpr.fixlam #[mkStrLit unused, mkStrLit id2.getId.toString, app0]
+    let app1 <- mkAppM ``SExpr.app #[lambda1, second]
+    let lambda2 <- mkAppM ``SExpr.fixlam #[mkStrLit unused, mkStrLit id1.getId.toString, app1]
+    let app2 <- mkAppM ``SExpr.app #[lambda2, first]
     let lambda3 <- mkAppM ``SExpr.fixlam #[mkStrLit unused, mkStrLit "e_prime", app2]
     mkAppM ``SExpr.app #[lambda3, elab_e]
   | `(owl_tm| λ ($id:ident : $t1:owl_type) : $t2:owl_type => $e:owl_tm) => do
@@ -532,6 +550,23 @@ partial def elabTm_closed : Syntax → TermElabM Expr
     let app1 <- mkAppM ``SExpr.app #[lambda1, left]
     let lambda2 <- mkAppM ``SExpr.fixlam #[mkStrLit unused, mkStrLit id1.getId.toString, app1]
     let app2 <- mkAppM ``SExpr.app #[lambda2, right]
+    let lambda3 <- mkAppM ``SExpr.fixlam #[mkStrLit unused, mkStrLit "e_prime", app2]
+    mkAppM ``SExpr.app #[lambda3, elab_e]
+  | `(owl_tm| let ($id1:ident, $id2:ident, $id3:ident) = $e:owl_tm  in $b:owl_tm) => do
+    let elab_e <- elabTm_closed e
+    let elab_b <- elabTm_closed b
+    let unused := "unused variable"
+    let var <- mkAppM ``SExpr.var_tm #[mkStrLit "e_prime"]
+    let first <- mkAppM ``SExpr.left_tm #[var]
+    let split_second <- mkAppM ``SExpr.right_tm #[var]
+    let second <- mkAppM ``SExpr.left_tm #[split_second]
+    let third <- mkAppM ``SExpr.right_tm #[split_second]
+    let lambda0 <- mkAppM ``SExpr.fixlam #[mkStrLit unused, mkStrLit id3.getId.toString, elab_b]
+    let app0 <- mkAppM ``SExpr.app #[lambda0, third]
+    let lambda1 <- mkAppM ``SExpr.fixlam #[mkStrLit unused, mkStrLit id2.getId.toString, app0]
+    let app1 <- mkAppM ``SExpr.app #[lambda1, second]
+    let lambda2 <- mkAppM ``SExpr.fixlam #[mkStrLit unused, mkStrLit id1.getId.toString, app1]
+    let app2 <- mkAppM ``SExpr.app #[lambda2, first]
     let lambda3 <- mkAppM ``SExpr.fixlam #[mkStrLit unused, mkStrLit "e_prime", app2]
     mkAppM ``SExpr.app #[lambda3, elab_e]
   | `(owl_tm| λ ($id:ident : $t1:owl_type) : $t2:owl_type => $e:owl_tm) => do

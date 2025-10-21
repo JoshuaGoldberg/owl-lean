@@ -144,18 +144,29 @@ theorem enc_ty2 :
       try auto_solve
     )
 
-theorem test_let :
+theorem test_let_2 :
   ( · ; · ; · ; · ;
-      let (x, y) = ⟨* , *⟩ in
+      let (x, y) = ⟨* , ["0"]⟩ in
       y
       ⊢
-      Unit) :=
+      Public) :=
     by
     tc_man (
       try simp
       try auto_solve
     )
 
+theorem test_let_3 :
+  ( · ; · ; · ; · ;
+      let (x, y, z) = ⟨* , ⟨*, ["0"]⟩⟩ in
+      z
+      ⊢
+      Public) :=
+    by
+    tc_man (
+      try simp
+      try auto_solve
+    )
 
 theorem enc_ty_contra :
   ((betaK, betaM ⊑ betaK, betaC ⊒ betaK) ; (corr(betaK)) ; · ; · ;
