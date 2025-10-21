@@ -158,7 +158,7 @@ theorem test_let_2 :
 
 theorem test_let_3 :
   ( · ; · ; · ; · ;
-      let (x, y, z) = ⟨* , ⟨*, ["0"]⟩⟩ in
+      let (x, y, z) = ⟨⟨* , *⟩ , ⟨*, ["0"]⟩⟩ in
       z
       ⊢
       Public) :=
