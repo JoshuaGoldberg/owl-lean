@@ -197,8 +197,8 @@ syntax "if" owl_tm "then" owl_tm "else" owl_tm : owl_tm
 syntax "if" "corr" "(" owl_label ")" "then" owl_tm "else" owl_tm : owl_tm
 syntax "sync" owl_tm : owl_tm
 syntax "let" ident "=" owl_tm "in" owl_tm : owl_tm
-syntax "λ" ident ":" "(" owl_type ")" "." owl_tm : owl_tm
-syntax "λ" ident "." owl_tm : owl_tm
+syntax "λ" "(" ident ":" owl_type ")" ":" owl_type "=>" owl_tm : owl_tm
+syntax "λ" ident "=>" owl_tm : owl_tm
 syntax "$" term : owl_tm
 syntax "corr_case" owl_label "in" owl_tm : owl_tm
 syntax "(" owl_tm ":" owl_type ")" : owl_tm
@@ -306,13 +306,15 @@ partial def elabTm : Syntax → TermElabM Expr
     let unused := "unused variable"
     let lambda <- mkAppM ``SExpr.fixlam #[mkStrLit unused, mkStrLit id1.getId.toString, elab_b]
     mkAppM ``SExpr.app #[lambda, elab_e]
-  | `(owl_tm| λ $id:ident : ( $t:owl_type ). $e:owl_tm) => do
+  | `(owl_tm| λ ($id:ident : $t1:owl_type) : $t2:owl_type => $e:owl_tm) => do
     let elab_e <- elabTm e
-    let elab_t <- elabType t
+    let elab_t1 <- elabType t1
+    let elab_t2 <- elabType t2
     let unused := "unused variable"
     let lambda <- mkAppM ``SExpr.fixlam #[mkStrLit unused, mkStrLit id.getId.toString, elab_e]
-    mkAppM ``SExpr.annot #[lambda, elab_t]
-  | `(owl_tm| λ $id:ident . $e:owl_tm) => do
+    let arr <- mkAppM ``STy.arr #[elab_t1, elab_t2]
+    mkAppM ``SExpr.annot #[lambda, arr]
+  | `(owl_tm| λ $id:ident => $e:owl_tm) => do
     let elab_e <- elabTm e
     let unused := "unused variable"
     mkAppM ``SExpr.fixlam #[mkStrLit unused, mkStrLit id.getId.toString, elab_e]
@@ -499,13 +501,15 @@ partial def elabTm_closed : Syntax → TermElabM Expr
     let unused := "unused variable"
     let lambda <- mkAppM ``SExpr.fixlam #[mkStrLit unused, mkStrLit id1.getId.toString, elab_b]
     mkAppM ``SExpr.app #[lambda, elab_e]
-  | `(owl_tm| λ $id:ident : ( $t:owl_type ). $e:owl_tm) => do
+  | `(owl_tm| λ ($id:ident : $t1:owl_type) : $t2:owl_type => $e:owl_tm) => do
     let elab_e <- elabTm_closed e
-    let elab_t <- elabType_closed t
+    let elab_t1 <- elabType_closed t1
+    let elab_t2 <- elabType_closed t2
     let unused := "unused variable"
     let lambda <- mkAppM ``SExpr.fixlam #[mkStrLit unused, mkStrLit id.getId.toString, elab_e]
-    mkAppM ``SExpr.annot #[lambda, elab_t]
-  | `(owl_tm| λ $id:ident . $e:owl_tm) => do
+    let arr <- mkAppM ``STy.arr #[elab_t1, elab_t2]
+    mkAppM ``SExpr.annot #[lambda, arr]
+  | `(owl_tm| λ $id:ident => $e:owl_tm) => do
     let elab_e <- elabTm_closed e
     let unused := "unused variable"
     mkAppM ``SExpr.fixlam #[mkStrLit unused, mkStrLit id.getId.toString, elab_e]

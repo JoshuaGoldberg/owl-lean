@@ -104,20 +104,20 @@ theorem enc_i :
     Λβ betaM .
     Λ tau .
     let k = (⟨genKey⟩ (["0"], ["0"]) : Data betaK) in
-    let L = alloc (λ null : (Public -> (tau + Unit)) . ı2 *) in
+    let L = alloc (λ (null : Public) : (tau + Unit) => ı2 *) in
     let enc' = (corr_case betaK in
                 (if corr ( betaK )
-                  then (λx : ((Public * Public) -> Public) . ⟨enc⟩ (π1 x, π2 x))
+                  then (λ (x : (Public * Public)) : Public => ⟨enc⟩ (π1 x, π2 x))
                   else
-                    λx : ((Data betaK * tau) -> Public).
+                    λ (x : (Data betaK * tau)) : Public =>
                     let c = ⟨rand⟩ (zero ((π2 x) : Data betaM), ["0"]) in
                     let L_old = (! L) in
-                    let sc = L := (λ y : (Public -> (tau + Unit)). if ⟨eq⟩(y, c) then ı1 (π2 x) else L_old [y]) in
+                    let sc = L := (λ (y : Public) : (tau + Unit) => if ⟨eq⟩(y, c) then ı1 (π2 x) else L_old [y]) in
                     c))
     in
     let dec' = (corr_case betaK in
-               (if corr (betaK) then λ x : ((Public * Public) -> Public). ⟨dec⟩(π1 x, π2 x)
-                else λ x : ((Data betaK * Public) -> (tau + Unit)). (!L) [π2 x]))
+               (if corr (betaK) then λ (x : (Public * Public)) : Public => ⟨dec⟩(π1 x, π2 x)
+                else λ (x : (Data betaK * Public)) : (tau + Unit) => (!L) [π2 x]))
     in
     pack (Data betaK, ⟨k, ⟨(corr_case betaK in enc'), (corr_case betaK in dec')⟩⟩)
     ⊢
@@ -146,7 +146,7 @@ theorem enc_ty2 :
 
 theorem enc_ty_contra :
   ((betaK, betaM ⊑ betaK, betaC ⊒ betaK) ; (corr(betaK)) ; · ; · ;
-      (if corr (betaK) then ((λ x . *) : Public -> Unit) else ((λ x . x) : Data betaC -> Data betaC))
+      (if corr (betaK) then ((λ x => *) : Public -> Unit) else ((λ x => x) : Data betaC -> Data betaC))
       ⊢
       (Public -> Unit)) :=
     by
@@ -157,9 +157,9 @@ theorem enc_ty_contra :
 
 theorem enc_length_test :
   ( (betaK, betaM ⊑ betaK, betaC ⊒ betaK) ; (corr(betaK)) ; · ; · ;
-      λ x . λ x . λ x . λ x . λ x . λ x . λ x . λ x . λ x . λ x . λ a . λ x . λ x . λ b .
-      λ x . λ x . λ y . λ x . λ h . λ x . λ a . λ x . λ x . λ x . λ x . λ x . λ x . λ x .
-      λ x . λ x . λ x . λ x . λ x . λ x . λ x . λ x . λ z . λ x . λ x . λ x . λ x . λ x . ⟨a, ⟨x, ⟨x, ⟨x, ⟨x, ⟨x, ⟨x, ⟨x, ⟨x, ⟨z, x⟩⟩⟩⟩⟩⟩⟩⟩⟩⟩
+      λ x => λ x => λ x => λ x => λ x => λ x => λ x => λ x => λ x => λ x => λ a => λ x => λ x => λ b =>
+      λ x => λ x => λ y => λ x => λ h => λ x => λ a => λ x => λ x => λ x => λ x => λ x => λ x => λ x =>
+      λ x => λ x => λ x => λ x => λ x => λ x => λ x => λ x => λ z => λ x => λ x => λ x => λ x => λ x => ⟨a, ⟨x, ⟨x, ⟨x, ⟨x, ⟨x, ⟨x, ⟨x, ⟨x, ⟨z, x⟩⟩⟩⟩⟩⟩⟩⟩⟩⟩
       ⊢
       (Data betaM -> Data betaM -> Data betaM -> Data betaM -> Data betaM -> Data betaM -> Data betaM ->
        Data betaM -> Data betaM -> Data betaM -> Data betaM -> Data betaM -> Data betaM -> Data betaM ->
@@ -179,8 +179,8 @@ theorem enc_length_test :
 theorem enc_r :
   ( (betaK, betaM) ; (corr(betaK)) ; (tau <: Data betaM) ; · ;
     let k = (⟨genKey⟩ (["0"], ["0"]) : Data betaK) in
-    pack (Data betaK, ⟨k, ⟨λ x : ((Public * Public) -> Public) . ⟨enc⟩ (π1 x, π2 x),
-                           λ y : ((Public * Public) -> Public) . ⟨dec⟩ (π1 y, π2 y)⟩⟩)
+    pack (Data betaK, ⟨k, ⟨λ (x : (Public * Public)) : Public => ⟨enc⟩ (π1 x, π2 x),
+                           λ (y : (Public * Public)) : Public => ⟨dec⟩ (π1 y, π2 y)⟩⟩)
     ⊢
     (∃ alphaK <: (Data betaK) . (alphaK *
                                  ((corr (betaK) ? (Public * Public) -> Public : (alphaK * (Data betaM)) -> Public) *
@@ -240,8 +240,8 @@ theorem enc_sig :
       ((let sk = ⟨genSk⟩(["0"], ["0"]) in
       let vk = ⟨vk_of_sk⟩(sk, ["0"]) in
       pack(Public, pack (Public, ⟨sk, ⟨vk,
-                    ⟨((λ xy . ⟨sign⟩(π1 xy, π2 xy)) : (Public * Public) -> Public),
-                     ((λ xyz . ⟨vrfy⟩(π1 xyz, π1 (π2 xyz))) : (Public * (Public * Public)) -> Public)⟩⟩⟩))) :
+                    ⟨((λ xy => ⟨sign⟩(π1 xy, π2 xy)) : (Public * Public) -> Public),
+                     ((λ xyz => ⟨vrfy⟩(π1 xyz, π1 (π2 xyz))) : (Public * (Public * Public)) -> Public)⟩⟩⟩))) :
                      ∃ alpha <: Data betaK .
                      ∃ beta <: Public .
                      (alpha *
@@ -251,17 +251,17 @@ theorem enc_sig :
     else
       ((let sk = ⟨genSk⟩(["0"], ["0"]) in
       let pk = ⟨pk_of_sk⟩(["0"], ["0"]) in
-      let L = (alloc (λ null . ı2 *) : Ref ((Public * Public) -> (tau + Unit))) in
-      let sign =  ((λ skm .
+      let L = (alloc (λ null => ı2 *) : Ref ((Public * Public) -> (tau + Unit))) in
+      let sign =  ((λ skm =>
                   let sig = (⟨rand⟩(π2 skm, ["0"]) : Public) in
                   let L_old = (! L) in
-                  let action = (L := (λ msig' . if ⟨and_op⟩(⟨eq⟩((π2 skm), π2 msig'), ⟨eq⟩(sig, π2 msig'))
+                  let action = (L := (λ msig' => if ⟨and_op⟩(⟨eq⟩((π2 skm), π2 msig'), ⟨eq⟩(sig, π2 msig'))
                                                 then (ı1 (π2 skm))
                                                 else L_old [msig']))
                   in
                   sig) : (((Data betaK * tau) -> Public)))
       in
-      let vrfy = ((λ vkmsig .
+      let vrfy = ((λ vkmsig =>
                   (! L) [⟨π1 (π2 vkmsig), π2 (π2 vkmsig)⟩]) : ((Public * (Public * Public)) -> (tau + Unit))) in
       pack(Data betaK, pack(Public, ⟨sk, ⟨pk, ⟨sign, vrfy⟩⟩⟩))) :
       ∃ alpha <: Data betaK .
@@ -302,7 +302,7 @@ theorem enc_layered2_high_low :
       (corr_case L_high in
        unpack E1 as (alpha1, ked1) in
        unpack E2 as (alpha2, ked2) in
-       ((λ x .
+       ((λ x =>
         let c1 = ((π1 (π2 ked1)) [⟨(π1 ked1), x⟩] : Public) in
         let c2 = ((π1 (π2 ked2)) [⟨(π1 ked2), (π1 ked1)⟩] : Public) in
         ⟨combine⟩(c1, c2)) : ((Data L_sec) -> Public))))
