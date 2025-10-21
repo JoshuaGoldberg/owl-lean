@@ -203,6 +203,12 @@ syntax "$" term : owl_tm
 syntax "corr_case" owl_label "in" owl_tm : owl_tm
 syntax "(" owl_tm ":" owl_type ")" : owl_tm
 
+-- ALLOW : let (x , y) = e in ...
+-- expands to :
+-- let e' = e in
+-- let x = π1 e' in
+-- let y = π2 e' in ...
+
 partial def elabTm : Syntax → TermElabM Expr
   | `(owl_tm| ( $e:owl_tm)) => elabTm e
   | `(owl_tm| $id:ident) =>

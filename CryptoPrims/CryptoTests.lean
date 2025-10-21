@@ -255,7 +255,7 @@ theorem enc_sig :
       let sign =  ((λ skm =>
                   let sig = (⟨rand⟩(π2 skm, ["0"]) : Public) in
                   let L_old = (! L) in
-                  let action = (L := (λ msig' => if ⟨and_op⟩(⟨eq⟩((π2 skm), π2 msig'), ⟨eq⟩(sig, π2 msig'))
+                  let action =  (L := (λ msig' => if ⟨and_op⟩(⟨eq⟩((π2 skm), π2 msig'), ⟨eq⟩(sig, π2 msig'))
                                                 then (ı1 (π2 skm))
                                                 else L_old [msig']))
                   in
