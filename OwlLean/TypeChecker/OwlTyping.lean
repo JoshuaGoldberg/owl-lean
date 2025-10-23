@@ -1701,14 +1701,21 @@ macro_rules
       | (apply And.intro; all_goals auto_solve))
 
 syntax "auto_solve_fast" : tactic
-macro_rules
-| `(tactic| auto_solve_fast) =>
-  `(tactic| first
-    | attempt_solve
-    | (apply And.intro; all_goals auto_solve_fast)
-    | solve_phi_validation_anon
-    | solve_phi_validation_anon_no_simp
-    | (intro pm C vpm Csp; check_corr vpm C Csp))
+
+elab "auto_solve_fast" : tactic => do
+  let goal ← getMainGoal
+  let goalType ← goal.getType'
+
+  if goalType.isAppOfArity ``phi_entails_c 2 then
+    evalTactic (← `(tactic| first
+      | attempt_solve
+      | solve_phi_validation_anon
+      | solve_phi_validation_anon_no_simp))
+  else if goalType.isAppOfArity ``phi_psi_entail_corr 3 then
+    evalTactic (← `(tactic| (intro pm C vpm Csp; check_corr vpm C Csp)))
+  else
+    evalTactic (← `(tactic| first
+      | (apply And.intro; all_goals auto_solve)))
 
 macro_rules
   | `(tactic| tc_full $Phi $Psi $Delta $Gamma $e $t $k) => `(tactic|
