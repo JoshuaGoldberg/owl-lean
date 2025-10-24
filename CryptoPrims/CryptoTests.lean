@@ -337,3 +337,10 @@ theorem enc_layered2_high_low :
       try simp
       auto_solve_fast
     )
+
+noncomputable def ENC (betaK betaM betaC tau : String) :=
+  OwlTy [betaK, betaM, betaC] [tau] {
+    ∃ alphaK <: (Data betaK) . (alphaK * ((corr ( betaK ) ? (Public * Public) -> Public : (alphaK * Data betaM) -> Public)
+                                          *
+                                          (corr ( betaK ) ? (Public * Public) -> Public : ((Data betaK) * (Data betaM)) -> Public)))
+  }

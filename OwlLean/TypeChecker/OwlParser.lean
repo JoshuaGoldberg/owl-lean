@@ -52,12 +52,19 @@ def SLabel.elab (s : SLabel) (P : TCtx) : Option (Owl.label P.length) :=
       match (SLabel.elab l2 P) with
       | .none => .none
       | .some l2' => .some (label.ljoin l1' l2')
-  | .embedlabel len l xs => do
-      let elab_xs <- xs.mapM (fun x => SLabel.elab x P)
-      if h : len = elab_xs.length then do
-        let l' := subst_label (list_to_finmap elab_xs) (h ▸ l)
-        .some l'
-      else .none
+  | @embedlabel len l xs =>
+      let rec go : List SLabel → Option (List (label P.length))
+        | [] => some []
+        | x::xs => do
+            let res ← SLabel.elab x P
+            let rest ← go xs
+            some (res :: rest)
+      match go xs with
+      | none => none
+      | some elab_xs =>
+          if h : len = elab_xs.length then
+            some (subst_label (list_to_finmap elab_xs) (h ▸ l))
+          else none
   | .default => .some label.default
 
 @[simp]
@@ -488,6 +495,13 @@ def elabHelperTy (s : STy) (lvars : List String) (tvars : List String) : ty lvar
   | .none => ty.Any --default value
 
 @[simp]
+def elabHelperLabel (s : SLabel) (lvars : List String) : label lvars.length :=
+  match SLabel.elab s lvars with
+  | .some e => e
+  | .none => label.default --default value
+
+
+@[simp]
 def elabHelperConstr (s : SConstr) (lvars : List String) : constr lvars.length :=
   match SConstr.elab s lvars with
   | .some e => e
@@ -649,6 +663,22 @@ elab "OwlTy" "[" lvars:ident,* "]" "[" tvars:ident,* "]" "{" p:owl_type "}" : te
   match STy.elab sVal lvarList tvarList with
   | .none => throwError "owl: ill-formed term"
   | .some _ => mkAppM ``elabHelperTy #[sexprTerm, lvarEListExpr, tvarEListExpr]
+
+@[simp]
+elab "OwlLabel" "[" lvars:ident,* "]" "{" p:owl_label "}" : term => do
+  let lvarNames := lvars.getElems.map (fun id => id.getId.toString)
+  let lvarList := lvarNames.toList
+
+  let lvarEList ← lvarNames.mapM (fun s => return mkStrLit s)
+  let lvarEListExpr ← mkListLit (mkConst ``String) lvarEList.toList
+
+  let sexprTerm ← elabLabel p
+  let sexprTerm2 ← elabLabel_closed p
+
+  let sVal : SLabel ← unsafe do Meta.evalExpr SLabel (mkConst ``SLabel) sexprTerm2
+  match SLabel.elab sVal lvarList with
+  | .none => throwError "owl: ill-formed term"
+  | .some _ => mkAppM ``elabHelperLabel #[sexprTerm, lvarEListExpr]
 
 -- For easier usage of the has_type inductive
 @[simp]
