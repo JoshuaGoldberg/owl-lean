@@ -126,7 +126,7 @@ syntax "∃" owl_type "<:" owl_type "." owl_type : owl_type
 syntax "∀" owl_label owl_cond_sym owl_label "." owl_type : owl_type
 syntax "corr" "(" owl_label ")" "?" owl_type ":" owl_type : owl_type
 syntax "Public" : owl_type
-syntax "$" term : owl_type
+syntax "$" term:max "[" owl_label,* "]" "[" owl_type,* "]" : owl_type
 
 partial def elabType : Syntax → MetaM Expr
   | `(owl_type| ( $e:owl_type)) => elabType e
@@ -171,10 +171,14 @@ partial def elabType : Syntax → MetaM Expr
     let elab_t2 <- elabType t2
     let elab_c <- elabLabel c
     mkAppM ``STy.t_if #[elab_c, elab_t1, elab_t2]
-  | `(owl_type| $ $t:term) => do
+  | `(owl_type| $ $t:term [ $ls:owl_label,* ] [$ts:owl_type,* ]) => do
+    let ls' <- ls.getElems.mapM elabLabel
+    let ts' <- ts.getElems.mapM elabType
+    let ls_list <- mkListLit (mkConst ``SLabel) ls'.toList
+    let ts_list <- mkListLit (mkConst ``STy) ts'.toList
     let t' ← Term.TermElabM.run' do
         Term.elabTerm t (mkConst ``Owl.ty)
-    mkAppM ``STy.embedty #[t']
+    mkAppM ``STy.embedty #[t', ls_list, ts_list]
   | _ => throwUnsupportedSyntax
 
 -- syntax for terms
@@ -456,7 +460,7 @@ partial def elabType_closed : Syntax → MetaM Expr
     let elab_t2 <- elabType_closed t2
     let elab_c <- elabLabel_closed c
     mkAppM ``STy.t_if #[elab_c, elab_t1, elab_t2]
-  | `(owl_type| $ $_:term) => mkAppM ``STy.default #[]
+  | `(owl_type| $ $_:term [$_:owl_label,* ] [$_:owl_type,*]) => mkAppM ``STy.default #[]
   | _ => throwUnsupportedSyntax
 
 partial def elabTm_closed : Syntax → TermElabM Expr
