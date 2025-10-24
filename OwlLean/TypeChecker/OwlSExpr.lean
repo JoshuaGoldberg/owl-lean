@@ -15,7 +15,7 @@ inductive SLabel : Type
 | latl : Owl.Lcarrier -> SLabel
 | ljoin : SLabel -> SLabel -> SLabel
 | lmeet : SLabel -> SLabel -> SLabel
-| embedlabel : Owl.label 0 -> SLabel
+| embedlabel : forall l, Owl.label l -> List SLabel -> SLabel
 | default : SLabel
 deriving Repr
 

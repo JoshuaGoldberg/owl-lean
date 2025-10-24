@@ -24,8 +24,10 @@ syntax ident : owl_label
 syntax "⟨" term "⟩"  : owl_label
 syntax owl_label "⊔" owl_label : owl_label
 syntax owl_label "⊓" owl_label : owl_label
-syntax "$" term : owl_label
+syntax "^" num term owl_label,* : owl_label
 syntax "(" owl_label ")" : owl_label
+
+
 
 partial def elabLabel : Syntax → MetaM Expr
   | `(owl_label| ( $e:owl_label)) => elabLabel e
@@ -43,10 +45,14 @@ partial def elabLabel : Syntax → MetaM Expr
       mkAppM ``SLabel.lmeet #[elab_e1, elab_e2]
   | `(owl_label| $id:ident) =>
     mkAppM ``SLabel.var_label #[mkStrLit id.getId.toString]
-  | `(owl_label| $ $l:term) => do
-    let l' ← Term.TermElabM.run' do
+  | `(owl_label| ^ $n:num $l:term  $xs:owl_label,* ) => do
+      let xs' <- xs.getElems.mapM elabLabel
+      let xs_list <- mkListLit (mkConst ``SLabel) xs'.toList
+      let l' ← Term.TermElabM.run' do
         Term.elabTerm l (mkConst ``Owl.label)
-    mkAppM ``SLabel.embedlabel #[l']
+      mkAppM ``SLabel.embedlabel #[mkNatLit n.getNat, l', xs_list]
+    -- TODO: THIS WILL FAIL
+    -- mkAppM ``SLabel.embedlabel #[l']
   | _ => throwUnsupportedSyntax
 
 -- syntax for cond symbols
@@ -381,7 +387,12 @@ partial def elabLabel_closed : Syntax → MetaM Expr
       mkAppM ``SLabel.lmeet #[elab_e1, elab_e2]
   | `(owl_label| $id:ident) =>
     mkAppM ``SLabel.var_label #[mkStrLit id.getId.toString]
-  | `(owl_label| $ $_:term) => mkAppM ``SLabel.default #[]
+  | `(owl_label| ^ $n:num $l:term  $xs:owl_label,* ) => do
+      let xs' <- xs.getElems.mapM elabLabel_closed
+      let xs_list <- mkListLit (mkConst ``SLabel) xs'.toList
+      let l' ← Term.TermElabM.run' do
+        Term.elabTerm l (mkConst ``Owl.label)
+      mkAppM ``SLabel.embedlabel #[mkNatLit n.getNat, l', xs_list]
   | _ => throwUnsupportedSyntax
 
 partial def elabConstr_closed : Syntax → MetaM Expr

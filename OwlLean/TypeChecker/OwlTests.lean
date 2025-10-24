@@ -144,7 +144,15 @@ def rand : Owl.op :=
 theorem gen_key_ht (l1 : Owl.L.labels):
   (· ; · ; · ; · ; (⟨genKey⟩ (["000"], ["000"])) ⊢ (Data ⟨l1⟩)) :=
     by
-    tc (try grind)
+     apply infer_sound
+     dsimp [infer, SLabel.elab, check_subtype]
+     simp at *
+
+
+
+
+
+
 
 theorem gen_key_pack_ht (l1 l2 : Owl.L.labels) (pf : Owl.L.leq l1 l2 = true):
   (· ; · ; · ; · ; (pack ((Data ⟨l1⟩), ⟨genKey⟩ (["000"], ["000"]))) ⊢ (∃ alphaK <: (Data ⟨l2⟩) . alphaK)) :=

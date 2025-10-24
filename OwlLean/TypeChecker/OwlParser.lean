@@ -27,6 +27,9 @@ def TCtx.lookup (t : TCtx) (s : String) : Option (Fin t.length) :=
 elab "label_parse" "(" p:owl_label ")" : term =>
     elabLabel p
 
+def list_to_finmap (xs : List t) : Fin xs.length -> t :=
+  fun i => xs.get i
+
 @[simp]
 def SLabel.elab (s : SLabel) (P : TCtx) : Option (Owl.label P.length) :=
   match s with
@@ -49,9 +52,12 @@ def SLabel.elab (s : SLabel) (P : TCtx) : Option (Owl.label P.length) :=
       match (SLabel.elab l2 P) with
       | .none => .none
       | .some l2' => .some (label.ljoin l1' l2')
-  | .embedlabel l => do
-    let l' := (ren_label (shift_bound_by P.length) l)
-    .some (Eq.symm (Nat.zero_add P.length) ▸ l')
+  | .embedlabel len l xs => do
+      let elab_xs <- xs.mapM (fun x => SLabel.elab x P)
+      if h : len = elab_xs.length then do
+        let l' := subst_label (list_to_finmap elab_xs) (h ▸ l)
+        .some l'
+      else .none
   | .default => .some label.default
 
 @[simp]
