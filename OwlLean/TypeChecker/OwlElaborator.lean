@@ -24,7 +24,8 @@ syntax ident : owl_label
 syntax "⟨" term "⟩"  : owl_label
 syntax owl_label "⊔" owl_label : owl_label
 syntax owl_label "⊓" owl_label : owl_label
-syntax "(" "$" term:max "[" owl_label,* "]" ")" : owl_label
+syntax "$" term:max "[" owl_label,* "]" : owl_label
+syntax "$" term:max : owl_label
 syntax "(" owl_label ")" : owl_label
 
 
@@ -45,12 +46,17 @@ partial def elabLabel : Syntax → MetaM Expr
       mkAppM ``SLabel.lmeet #[elab_e1, elab_e2]
   | `(owl_label| $id:ident) =>
     mkAppM ``SLabel.var_label #[mkStrLit id.getId.toString]
-  | `(owl_label| ( $ $l:term [ $xs:owl_label,* ] )  ) => do
+  | `(owl_label| $ $l:term [ $xs:owl_label,* ] ) => do
       let xs' <- xs.getElems.mapM elabLabel
       let xs_list <- mkListLit (mkConst ``SLabel) xs'.toList
       let l' ← Term.TermElabM.run' do
         Term.elabTerm l (mkConst ``Owl.label)
       mkAppM ``SLabel.embedlabel #[l', xs_list]
+  | `(owl_label| $ $l:term ) => do
+      let empty_list <- mkListLit (mkConst ``SLabel) []
+      let l' ← Term.TermElabM.run' do
+        Term.elabTerm l (mkConst ``Owl.label)
+      mkAppM ``SLabel.embedlabel #[l', empty_list]
   | _ => throwUnsupportedSyntax
 
 -- syntax for cond symbols
@@ -385,12 +391,17 @@ partial def elabLabel_closed : Syntax → MetaM Expr
       mkAppM ``SLabel.lmeet #[elab_e1, elab_e2]
   | `(owl_label| $id:ident) =>
     mkAppM ``SLabel.var_label #[mkStrLit id.getId.toString]
-  | `(owl_label| ( $ $l:term [ $xs:owl_label,* ] )  ) => do
+  | `(owl_label| $ $l:term [ $xs:owl_label,* ]  ) => do
       let xs' <- xs.getElems.mapM elabLabel_closed
       let xs_list <- mkListLit (mkConst ``SLabel) xs'.toList
       let l' ← Term.TermElabM.run' do
         Term.elabTerm l (mkConst ``Owl.label)
       mkAppM ``SLabel.embedlabel #[l', xs_list]
+  | `(owl_label| $ $l:term ) => do
+      let empty_list <- mkListLit (mkConst ``SLabel) []
+      let l' ← Term.TermElabM.run' do
+        Term.elabTerm l (mkConst ``Owl.label)
+      mkAppM ``SLabel.embedlabel #[l', empty_list]
   | _ => throwUnsupportedSyntax
 
 partial def elabConstr_closed : Syntax → MetaM Expr
