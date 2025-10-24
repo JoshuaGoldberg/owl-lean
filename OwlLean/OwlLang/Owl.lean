@@ -355,6 +355,7 @@ def up_label_ty
   (sigma : Fin m -> ty n_label n_ty) : Fin m -> ty (n_label + 1) n_ty :=
     (funcomp (ren_ty shift id) sigma)
 
+@[simp]
 def subst_ty
 (sigma_label : Fin m_label -> label n_label)
 (sigma_ty : Fin m_ty -> ty n_label n_ty) (s : ty m_label m_ty) :

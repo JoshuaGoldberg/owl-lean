@@ -91,10 +91,7 @@ def ENC :=
 theorem enc_layered2_high_low :
   ( (L_sec, L_low ⊒ L_sec, L_high ⊒ L_low) ; · ; (a <: Data L_sec, b <: Data L_low) ;
   (E1 => ($ ENC [L_sec, L_low] [a]),
-   E2 => (∃ alphaK <: (Data L_high) .
-                        (alphaK *
-                         ((corr (L_high) ? (Public * Public) -> Public : (alphaK * (Data L_low)) -> Public) *
-                          (corr (L_high) ? (Public * Public) -> Public : (alphaK * Public) -> (b + Unit)))))) ;
+   E2 =>  ($ ENC [L_low, L_high] [b])) ;
     (corr_case L_low in
       (corr_case L_high in
        unpack E1 as (alpha1, ked1) in
