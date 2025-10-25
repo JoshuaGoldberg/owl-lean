@@ -129,9 +129,11 @@ def shift : ren n (n + 1) :=
 def var_zero : Fin (n + 1) :=
   0
 
+@[simp]
 def funcomp (g : Y -> Z) (f : X -> Y) :=
   fun x => g (f x)
 
+@[simp]
 def cons (x : X) (f : Fin n -> X) (m : Fin (n + 1)) : X :=
   match m with
   | ⟨0,_⟩ => x
@@ -337,20 +339,24 @@ def subst_constr
       .condition s0 (subst_label sigma_label s1)
         (subst_label sigma_label s2)
 
+@[simp]
 def up_ty_label (sigma : Fin m -> label n_label)
   : Fin m -> label n_label :=
     (funcomp (ren_label id) sigma)
 
+@[simp]
 def up_ty_ty
   (sigma : Fin m -> ty n_label n_ty) : Fin (m + 1) -> ty n_label (n_ty + 1) :=
     (cons (.var_ty var_zero)
          (funcomp (ren_ty id shift) sigma))
 
+@[simp]
 def up_label_label
   (sigma : Fin m -> label n_label) : Fin (m + 1) -> label (n_label + 1) :=
     (cons (.var_label var_zero)
          (funcomp (ren_label shift) sigma))
 
+@[simp]
 def up_label_ty
   (sigma : Fin m -> ty n_label n_ty) : Fin m -> ty (n_label + 1) n_ty :=
     (funcomp (ren_ty shift id) sigma)

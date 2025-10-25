@@ -9,6 +9,7 @@ open Owl
 #check (tm.error : tm 0 0 0)
 #check (ty.Any : ty 0 0)
 
+
 def TCtx := List String
 
 @[simp]
@@ -27,8 +28,10 @@ def TCtx.lookup (t : TCtx) (s : String) : Option (Fin t.length) :=
 elab "label_parse" "(" p:owl_label ")" : term =>
     elabLabel p
 
-def list_to_finmap (xs : List t) : Fin xs.length -> t :=
-  fun i => xs.get i
+@[simp]
+def list_to_finmap : (xs : List t) → Fin xs.length → t
+  | [] => Fin.elim0
+  | x :: xs => cons x (list_to_finmap xs)
 
 @[simp]
 def SLabel.elab (s : SLabel) (P : TCtx) : Option (Owl.label P.length) :=

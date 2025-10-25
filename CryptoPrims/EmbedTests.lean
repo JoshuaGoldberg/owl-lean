@@ -84,14 +84,14 @@ def ENC :=
   OwlTy [L1, L2] [tau] {
     (∃ alphaK <: (Data L1) .
                   (alphaK *
-                   ((corr (L1) ? (Public * Public) -> Public : (alphaK * (Data L2)) -> Public) *
-                    (corr (L1) ? (Public * Public) -> Public : (alphaK * Public) -> (tau + Unit)))))
+                   ((corr (L1) ? ((Public * Public) -> Public) : ((alphaK * (Data L2)) -> Public)) *
+                    (corr (L1) ? ((Public * Public) -> Public) : ((alphaK * Public) -> (tau + Unit))))))
   }
 
 theorem enc_layered2_high_low :
   ( (L_sec, L_low ⊒ L_sec, L_high ⊒ L_low) ; · ; (a <: Data L_sec, b <: Data L_low) ;
-  (E1 => ($ ENC [L_sec, L_low] [a]),
-   E2 =>  ($ ENC [L_low, L_high] [b])) ;
+  (E1 => ($ ENC [L_low, L_sec] [a]),
+   E2 =>  ($ ENC [L_high,L_low] [b])) ;
     (corr_case L_low in
       (corr_case L_high in
        unpack E1 as (alpha1, ked1) in

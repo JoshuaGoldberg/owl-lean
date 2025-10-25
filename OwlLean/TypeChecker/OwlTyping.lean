@@ -1527,6 +1527,7 @@ macro_rules
           first
           | cases $H:ident with
             | phi_empty_valid =>
+              try simp at *
               try grind [interp_lattice]
           | cases $H:ident with
             | phi_cons $(lId):ident $(pmPrevId):ident $(pctxPrevId):ident $(phiEqId):ident
@@ -1547,7 +1548,7 @@ macro_rules
          first
           | cases $H:ident with
             | phi_empty_valid =>
-              try simp [cons] at *
+              try simp at *
               try grind [interp_lattice]
           | cases $H:ident with
             | phi_cons $(lId):ident $(pmPrevId):ident $(pctxPrevId):ident $(phiEqId):ident
@@ -1705,7 +1706,6 @@ syntax "auto_solve_fast" : tactic
 elab "auto_solve_fast" : tactic => do
   let goal ← getMainGoal
   let goalType ← goal.getType'
-
   if goalType.isAppOfArity ``phi_entails_c 2 then
     evalTactic (← `(tactic| first
       | attempt_solve
@@ -1715,7 +1715,10 @@ elab "auto_solve_fast" : tactic => do
     evalTactic (← `(tactic| (intro pm C vpm Csp; check_corr vpm C Csp)))
   else
     evalTactic (← `(tactic| first
-      | (apply And.intro; all_goals auto_solve)))
+      | (apply And.intro; all_goals auto_solve)
+      | attempt_solve
+      | solve_phi_validation_anon
+      | solve_phi_validation_anon_no_simp))
 
 macro_rules
   | `(tactic| tc_full $Phi $Psi $Delta $Gamma $e $t $k) => `(tactic|
@@ -1971,14 +1974,16 @@ theorem test_latt_mix2 (l1 l2 l3 : L.labels) :
     solve_phi_validation lemma_phi_mix
 
 -- Tedious example (non tactic)
-theorem test_latt_manual (l1 l2 l3 : L.labels) (pf1 : L.leq l1 l2 = true) :
-  lemma_phi_mix l1 l2 l3 |= (.condition .leq (.latl l1) (.latl l2)) := by
+theorem test_latt_manual :
+  lemma_phi |= (.condition .geq (.var_label ⟨0, by omega⟩) (.var_label ⟨2, by omega⟩)) := by
   intros pm vpm;
   have tester : forall l1 l2 l3, L.leq l1 l2 -> L.leq l2 l3 -> L.leq l1 l3 := L.leq_trans;
+  have tester' : forall l, L.leq L.bot l = true := L.bot_all;
+  have tester'' : forall l, L.leq l l = true := L.leq_refl;
   unfold phi_map_holds;
   unfold valid_constraint;
   simp [subst_label];
-  unfold lemma_phi_mix at vpm;
+  unfold lemma_phi at vpm;
   unfold pcons at vpm;
   cases vpm with
   | phi_cons l1 pm_prev1 phictx_prev1 phi_eq1 sym1 lab1 lab_val1 h_prev1 h_holds1 a1 =>
@@ -1988,6 +1993,8 @@ theorem test_latt_manual (l1 l2 l3 : L.labels) (pf1 : L.leq l1 l2 = true) :
     unfold phi_map_holds at h_holds1
     unfold valid_constraint at h_holds1
     rw [<- lab_eq] at h_holds1
+    try simp [ren_label, shift, cons, subst_label, Owl.ren_label] at h_holds1
+    simp [var_zero] at h_holds1
     cases h_prev1 with
     | phi_cons l2 pm_prev2 phictx_prev2 phi_eq2 sym2 lab2 lab_val2 h_prev2 h_holds2 a2 =>
       rw [a2] at a1
@@ -1997,11 +2004,9 @@ theorem test_latt_manual (l1 l2 l3 : L.labels) (pf1 : L.leq l1 l2 = true) :
       simp at h_holds2
       unfold phi_map_holds at h_holds2
       unfold valid_constraint at h_holds2
+      try all_ren lab_eq h_holds2 0 1
       try simp [ren_label, cons, subst_label] at h_holds2
       simp [var_zero] at h_holds2
-      try simp [cons] at h_holds1
-      try simp [cons]
-      try grind
       cases h_prev2 with
       | phi_cons l3 pm_prev3 phictx_prev3 phi_eq3 sym3 lab3 lab_val3 h_prev3 h_holds3 a3 =>
         rw [a3] at a1
@@ -2011,11 +2016,24 @@ theorem test_latt_manual (l1 l2 l3 : L.labels) (pf1 : L.leq l1 l2 = true) :
         simp at h_holds3
         unfold phi_map_holds at h_holds3
         unfold valid_constraint at h_holds3
-        try simp [ren_label, cons, subst_label] at h_holds3
+        try all_ren lab_eq h_holds2 0 2
+        try simp [cons, subst_label] at h_holds3
         simp [var_zero] at h_holds3
-        try simp [cons] at h_holds2
-        try simp [cons]
-        grind [interp_lattice]
+        cases h_prev3 with
+        | phi_cons l4 pm_prev4 phictx_prev4 phi_eq4 sym4 lab4 lab_val4 h_prev4 h_holds4 a4 =>
+          rw [a4] at a1
+          have h0 := congrArg (fun f => f 3) a1
+          simp [lift_phi, cons] at h0
+          obtain ⟨sym_eq, lab_eq⟩ := h0
+          simp at h_holds4
+          unfold phi_map_holds at h_holds4
+          unfold valid_constraint at h_holds4
+          try all_ren lab_eq h_holds2 0 3
+          try simp [cons, subst_label] at h_holds4
+          simp [var_zero] at h_holds4
+          simp at *
+          grind [interp_lattice]
+
 
 open Lean PrettyPrinter Delaborator SubExpr
 
