@@ -362,6 +362,34 @@ def up_label_ty
     (funcomp (ren_ty shift id) sigma)
 
 @[simp]
+def up_tm_label
+  (sigma : Fin m -> label n_label)
+  : Fin m -> label n_label :=
+  (funcomp (ren_label id) sigma)
+
+@[simp]
+def up_tm_ty
+  (sigma : Fin m -> ty n_label n_ty) : Fin m -> ty n_label n_ty :=
+  (funcomp (ren_ty id id) sigma)
+
+@[simp]
+def up_tm_tm
+  (sigma : Fin m -> tm n_label n_ty n_tm) :
+  Fin (m + 1) -> tm n_label n_ty (n_tm + 1) :=
+  (cons (tm.var_tm var_zero)
+    (funcomp (ren_tm id id shift) sigma))
+
+@[simp]
+def up_ty_tm
+  (sigma : Fin m -> tm n_label n_ty n_tm) : Fin m -> tm n_label (n_ty + 1) n_tm :=
+  (funcomp (ren_tm id shift id) sigma)
+
+@[simp]
+def up_label_tm
+  (sigma : Fin m -> tm n_label n_ty n_tm) : Fin m -> tm (n_label + 1) n_ty n_tm :=
+  (funcomp (ren_tm shift id id) sigma)
+
+@[simp]
 def subst_ty
 (sigma_label : Fin m_label -> label n_label)
 (sigma_ty : Fin m_ty -> ty n_label n_ty) (s : ty m_label m_ty) :
@@ -394,6 +422,93 @@ ty n_label n_ty :=
       .t_if (subst_label sigma_label s0)
         (subst_ty sigma_label sigma_ty s1) (subst_ty sigma_label sigma_ty s2)
   | .Public => .Public
+  | .default => .default
+
+@[simp]
+def subst_tm
+(sigma_label : Fin m_label -> label n_label)
+(sigma_ty : Fin m_ty -> ty n_label n_ty)
+(sigma_tm : Fin m_tm -> tm n_label n_ty n_tm) (s : tm m_label m_ty m_tm)
+: tm n_label n_ty n_tm :=
+  match s with
+  | .var_tm s0 => sigma_tm s0
+  | .error => .error
+  | .skip => .skip
+  | .bitstring s0 => .bitstring s0
+  | .loc s0 => .loc s0
+  | .fixlam s0 =>
+      .fixlam
+        (subst_tm (up_tm_label (up_tm_label sigma_label))
+           (up_tm_ty (up_tm_ty sigma_ty)) (up_tm_tm (up_tm_tm sigma_tm)) s0)
+  | .tlam s0 =>
+      .tlam
+        (subst_tm (up_ty_label sigma_label) (up_ty_ty sigma_ty)
+           (up_ty_tm sigma_tm) s0)
+  | .l_lam s0 =>
+      .l_lam
+        (subst_tm (up_label_label sigma_label) (up_label_ty sigma_ty)
+           (up_label_tm sigma_tm) s0)
+  | .Op s0 s1 s2 =>
+      .Op s0 (subst_tm sigma_label sigma_ty sigma_tm s1)
+        (subst_tm sigma_label sigma_ty sigma_tm s2)
+  | .zero s0 =>
+      .zero (subst_tm sigma_label sigma_ty sigma_tm s0)
+  | .app s0 s1 =>
+      .app (subst_tm sigma_label sigma_ty sigma_tm s0)
+        (subst_tm sigma_label sigma_ty sigma_tm s1)
+  | .alloc s0 =>
+      .alloc (subst_tm sigma_label sigma_ty sigma_tm s0)
+  | .dealloc s0 =>
+      .dealloc (subst_tm sigma_label sigma_ty sigma_tm s0)
+  | .assign s0 s1 =>
+      .assign (subst_tm sigma_label sigma_ty sigma_tm s0)
+        (subst_tm sigma_label sigma_ty sigma_tm s1)
+  | .tm_pair s0 s1 =>
+      .tm_pair (subst_tm sigma_label sigma_ty sigma_tm s0)
+        (subst_tm sigma_label sigma_ty sigma_tm s1)
+  | .left_tm s0 =>
+      .left_tm (subst_tm sigma_label sigma_ty sigma_tm s0)
+  | .right_tm s0 =>
+      .right_tm (subst_tm sigma_label sigma_ty sigma_tm s0)
+  | .inl s0 =>
+      .inl (subst_tm sigma_label sigma_ty sigma_tm s0)
+  | .inr s0 =>
+      .inr (subst_tm sigma_label sigma_ty sigma_tm s0)
+  | .case s0 s1 s2 =>
+      .case (subst_tm sigma_label sigma_ty sigma_tm s0)
+        (subst_tm (up_tm_label sigma_label) (up_tm_ty sigma_ty)
+           (up_tm_tm sigma_tm) s1)
+        (subst_tm (up_tm_label sigma_label) (up_tm_ty sigma_ty)
+           (up_tm_tm sigma_tm) s2)
+  | .tapp s0 s1 =>
+      .tapp (subst_tm sigma_label sigma_ty sigma_tm s0)
+        (subst_ty sigma_label sigma_ty s1)
+  | .lapp s0 s1 =>
+      .lapp (subst_tm sigma_label sigma_ty sigma_tm s0)
+        (subst_label sigma_label s1)
+  | .pack s0 s1 =>
+      .pack (subst_ty sigma_label sigma_ty s0)
+        (subst_tm sigma_label sigma_ty sigma_tm s1)
+  | .unpack s0 s1 =>
+      .unpack (subst_tm sigma_label sigma_ty sigma_tm s0)
+        (subst_tm (up_tm_label (up_ty_label sigma_label))
+           (up_tm_ty (up_ty_ty sigma_ty)) (up_tm_tm (up_ty_tm sigma_tm)) s1)
+  | .if_tm s0 s1 s2 =>
+      .if_tm (subst_tm sigma_label sigma_ty sigma_tm s0)
+        (subst_tm sigma_label sigma_ty sigma_tm s1)
+        (subst_tm sigma_label sigma_ty sigma_tm s2)
+  | .if_c s0 s1 s2 =>
+      .if_c (subst_label sigma_label s0)
+        (subst_tm sigma_label sigma_ty sigma_tm s1)
+        (subst_tm sigma_label sigma_ty sigma_tm s2)
+  | .sync s0 =>
+      .sync (subst_tm sigma_label sigma_ty sigma_tm s0)
+  | .corr_case s0 s =>
+      .corr_case (subst_label sigma_label s0)
+        (subst_tm sigma_label sigma_ty sigma_tm s)
+  | .annot s0 s1 =>
+      .annot (subst_tm sigma_label sigma_ty sigma_tm s0)
+        (subst_ty sigma_label sigma_ty s1)
   | .default => .default
 
 def shift_bound_by (shift_num : Nat) : Fin n -> Fin (n + shift_num) :=

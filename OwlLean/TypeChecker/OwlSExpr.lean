@@ -82,7 +82,7 @@ inductive SExpr : Type where
 | if_c :
     SLabel -> SExpr -> SExpr -> SExpr
 | sync : SExpr -> SExpr
-| embedtm : Owl.tm 0 0 0 -> SExpr
+| embedtm : Owl.tm l d m -> List SLabel -> List STy -> List SExpr -> SExpr
 | annot : SExpr -> STy -> SExpr
 | corr_case : SLabel -> SExpr -> SExpr
 | default : SExpr

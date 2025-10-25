@@ -88,18 +88,23 @@ def ENC :=
                     (corr (L1) ? ((Public * Public) -> Public) : ((alphaK * Public) -> (tau + Unit))))))
   }
 
-theorem enc_layered2_high_low :
-  ( (L_sec, L_low ⊒ L_sec, L_high ⊒ L_low) ; · ; (a <: Data L_sec, b <: Data L_low) ;
-  (E1 => ($ ENC [L_low, L_sec] [a]),
-   E2 =>  ($ ENC [L_high,L_low] [b])) ;
-    (corr_case L_low in
-      (corr_case L_high in
+def ENC_TM :=
+  Owl [L1, L2, L3] [] [E1, E2] {
+    (corr_case L2 in
+      (corr_case L3 in
        unpack E1 as (alpha1, ked1) in
        unpack E2 as (alpha2, ked2) in
        ((λ x =>
         let c1 = ((π1 (π2 ked1)) [⟨(π1 ked1), x⟩] : Public) in
         let c2 = ((π1 (π2 ked2)) [⟨(π1 ked2), (π1 ked1)⟩] : Public) in
-        ⟨combine⟩(c1, c2)) : ((Data L_sec) -> Public))))
+        ⟨combine⟩(c1, c2)) : ((Data L1) -> Public))))
+  }
+
+theorem enc_layered2_high_low :
+  ( (L_sec, L_low ⊒ L_sec, L_high ⊒ L_low) ; · ; (a <: Data L_sec, b <: Data L_low) ;
+    (E1 => ($ ENC [L_low, L_sec] [a]),
+     E2 =>  ($ ENC [L_high,L_low] [b])) ;
+    ($ ENC_TM [L_sec, L_low, L_high] [] [E1, E2])
     ⊢
     ((Data L_sec) -> Public)) :=
     by

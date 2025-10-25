@@ -254,11 +254,35 @@ def SExpr.elab (s : SExpr) (P : TCtx) (D : TCtx) (G : TCtx): Option (Owl.tm P.le
       match (SExpr.elab e2 P D G) with
       | .none => .none
       | .some e2' => .some (tm.Op op e1' e2')
-  | .embedtm e => do
-    let e' := (ren_tm (shift_bound_by P.length) (shift_bound_by D.length) (shift_bound_by G.length) e)
-    .some (Eq.symm (Nat.zero_add G.length) ▸
-          Eq.symm (Nat.zero_add D.length) ▸
-          Eq.symm (Nat.zero_add P.length) ▸ e')
+  | @embedtm llen tlen mlen e ls ts es => do
+    let rec go1 : List SLabel → Option (List (label P.length))
+        | [] => some []
+        | x::xs => do
+            let res ← SLabel.elab x P
+            let rest ← go1 xs
+            some (res :: rest)
+    let rec go2 : List STy → Option (List (ty P.length D.length))
+        | [] => some []
+        | x::xs => do
+            let res ← STy.elab x P D
+            let rest ← go2 xs
+            some (res :: rest)
+    let rec go3 : List SExpr → Option (List (tm P.length D.length G.length))
+        | [] => some []
+        | x::xs => do
+            let res ← SExpr.elab x P D G
+            let rest ← go3 xs
+            some (res :: rest)
+    match go1 ls, go2 ts, go3 es with
+    | .some elab_ls, .some elab_ts, .some elab_es =>
+      if h : llen = elab_ls.length then
+        if k : tlen = elab_ts.length then
+           if j : mlen = elab_es.length then
+            .some (subst_tm (list_to_finmap elab_ls) (list_to_finmap elab_ts) (list_to_finmap elab_es) (j ▸ (k ▸ (h ▸ e))))
+           else .none
+        else .none
+      else .none
+    | _, _, _ => .none
   | .zero e =>
     match (SExpr.elab e P D G) with
     | .none => .none
