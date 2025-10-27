@@ -5,7 +5,7 @@ import OwlLean.OwlLang.Owl
 import Lean
 import Std.Data.HashMap
 import OwlLean.TypeChecker.OwlParser
-import OwlLean.TypeChecker.OwlTyping
+import OwlLean.TypeChecker.OwlTypecheck
 
 open Lean PrettyPrinter Delaborator SubExpr
 
@@ -39,6 +39,10 @@ notation "↑" a => lift_psi a
 notation "[" a "]" => Owl.ren_label id a
 notation h "::" t => Owl.cons h t
 notation "⊥" => Owl.L.bot
+
+@[delab Owl.cond_sym.leq]
+def delabLeq : Delab := do
+  `("⊑")
 
 @[app_unexpander Owl.Lattice.bot]
 def unexpOwlBot : Unexpander
