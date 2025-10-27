@@ -70,9 +70,9 @@ def ENC :=
 
 def EncIdeal :=
   Owl [lK, lM] [tau] [] {
-    let k = (⟨genKey⟩ (["0"], ["0"])) in
+    let k = (⟨genKey⟩ (["0"], ["0"]) : Data lK) in
     let L = alloc (λ (null : Public) : (tau + Unit) => ı2 *) in
-    let enc' = (corr_case (lK) in if corr (lK) then
+    let enc' = (if corr (lK) then
                   (λ (x : Public * Public) : Public => ⟨enc⟩ (π1 x, π2 x))
                 else
                   λ (x : (Data lK * tau)) : Public =>
@@ -83,12 +83,12 @@ def EncIdeal :=
                     in
                     c)
     in
-    let dec' = (corr_case lK in if corr (lK) then
+    let dec' = (if corr (lK) then
                   λ (x : Public * Public) : Public => ⟨dec⟩ (π1 x, π2 x)
                 else
                   λ (x : (Data lK * Public)) : (tau + Unit) => (!L) [π2 x])
     in
-    pack (Data lK, ⟨k, ⟨(corr_case lK in enc'), (corr_case lK in dec')⟩⟩)
+    pack (Data lK, ⟨k, ⟨(enc'), (dec')⟩⟩)
   }
 
 theorem EncIdeal.wf :
@@ -100,4 +100,5 @@ theorem EncIdeal.wf :
     tc_man (
       try simp
       try auto_solve_fast
+
     )
