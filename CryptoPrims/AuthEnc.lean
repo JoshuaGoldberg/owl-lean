@@ -1,11 +1,4 @@
-import OwlLean.OwlLang.Owl
-import Lean
-import Std.Data.HashMap
-import OwlLean.TypeChecker.OwlParser
-import OwlLean.TypeChecker.OwlTyping
-open Lean PrettyPrinter Delaborator SubExpr
-
-set_option maxHeartbeats 1000000
+import OwlLean.TypeChecker.OwlComplete
 
 def genKey : Owl.op :=
   fun (_ _ : Owl.binary) =>

@@ -1,8 +1,4 @@
-import OwlLean.OwlLang.Owl
-import Lean
-import Std.Data.HashMap
-import OwlLean.TypeChecker.OwlParser
-import OwlLean.TypeChecker.OwlTyping
+import OwlLean.TypeChecker.OwlComplete
 
 set_option maxHeartbeats 1000000
 
