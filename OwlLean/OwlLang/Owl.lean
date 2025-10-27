@@ -184,6 +184,7 @@ def ren_corruption
   | .corr l1 => .corr (ren_label xi_label l1)
   | .not_corr l1 => .not_corr (ren_label xi_label l1)
 
+@[simp]
 def ren_ty
 (xi_label : Fin m_label -> Fin n_label) (xi_ty : Fin m_ty -> Fin n_ty)
 (s : ty m_label m_ty) : ty n_label n_ty :=
@@ -324,6 +325,7 @@ label n_label :=
       .lmeet (subst_label sigma_label s0) (subst_label sigma_label s1)
   | .default => .default
 
+@[simp]
 def subst_corruption
 (sigma_label : Fin m_label -> label n_label) (s : corruption m_label) :
 corruption n_label :=
@@ -331,6 +333,7 @@ corruption n_label :=
   | .corr l1 => .corr (subst_label sigma_label l1)
   | .not_corr l1 => .not_corr (subst_label sigma_label l1)
 
+@[simp]
 def subst_constr
   (sigma_label : Fin m_label -> label n_label) (s : constr m_label) :
   constr n_label :=
