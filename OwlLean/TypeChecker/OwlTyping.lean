@@ -1830,7 +1830,7 @@ theorem tc_ref_refl (Phi : phi_context l)
   tc (try grind)
 
 theorem tc_ref_refl2 (Phi : phi_context l)
-                    (Delta : delta_context l d) (l1 l2 : L.labels) :
+                    (Delta : delta_context l d) (l1 : L.labels) :
   has_type Phi Psi Delta (cons (.Ref (.Data (.latl l1))) empty_gamma)
     (tm.var_tm ⟨0, by omega⟩)
     (.Ref (.Data (.latl l1))) := by
@@ -1895,7 +1895,7 @@ theorem test_inject : (Phi |= constr.condition cond_sym.leq (label.latl L.bot) (
   dsimp
   unfold valid_constraint
   dsimp
-  simp [subst_label, interp_lattice]
+  simp [interp_lattice]
   have lp : forall (l : L.labels), (L.leq L.bot l) = true := L.bot_proof
   apply (lp l1)
   trivial
