@@ -2,61 +2,6 @@ import OwlLean.TypeChecker.OwlComplete
 
 set_option maxHeartbeats 1000000
 
--- non functional
-def genKey : Owl.op :=
-  fun (_ _ : Owl.binary) =>
-    Owl.Dist.ret (Owl.binary.bend)
-
--- non functional
-def enc : Owl.op :=
-  fun (_ _ : Owl.binary) =>
-    Owl.Dist.ret (Owl.binary.bend)
-
--- non functional
-def dec : Owl.op :=
-  fun (_ _ : Owl.binary) =>
-    Owl.Dist.ret (Owl.binary.bend)
-
--- non functional
-def rand : Owl.op :=
-  fun (_ _ : Owl.binary) =>
-    Owl.Dist.ret (Owl.binary.bend)
-
--- non functional
-def eq : Owl.op :=
-  fun (_ _ : Owl.binary) =>
-    Owl.Dist.ret (Owl.binary.bend)
-
--- non functional
-def genSk : Owl.op :=
-  fun (_ _ : Owl.binary) =>
-    Owl.Dist.ret (Owl.binary.bend)
-
--- non functional
-def pk_of_sk : Owl.op :=
-  fun (_ _ : Owl.binary) =>
-    Owl.Dist.ret (Owl.binary.bend)
-
--- non functional
-def vk_of_sk : Owl.op :=
-  fun (_ _ : Owl.binary) =>
-    Owl.Dist.ret (Owl.binary.bend)
-
-def and_op : Owl.op :=
-  fun (_ _ : Owl.binary) =>
-    Owl.Dist.ret (Owl.binary.bend)
-
-def combine : Owl.op :=
-  fun (_ _ : Owl.binary) =>
-    Owl.Dist.ret (Owl.binary.bend)
-
-def sign : Owl.op :=
-  fun (_ _ : Owl.binary) =>
-    Owl.Dist.ret (Owl.binary.bend)
-
-def vrfy : Owl.op :=
-  fun (_ _ : Owl.binary) =>
-    Owl.Dist.ret (Owl.binary.bend)
 
 -- "[0]" represents garbage values not needed for computation
 theorem enc_i :
@@ -64,20 +9,20 @@ theorem enc_i :
     Λβ betaK .
     Λβ betaM .
     Λ tau .
-    let k = (⟨genKey⟩ (["0"], ["0"]) : Data betaK) in
+    let k = (⟨"genKey"⟩ (["0"], ["0"]) : Data betaK) in
     let L = alloc (λ (null : Public) : (tau + Unit) => ı2 *) in
     let enc' = (corr_case betaK in
                 (if corr ( betaK )
-                  then (λ (x : (Public * Public)) : Public => ⟨enc⟩ (π1 x, π2 x))
+                  then (λ (x : (Public * Public)) : Public => ⟨"enc"⟩ (π1 x, π2 x))
                   else
                     λ (x : (Data betaK * tau)) : Public =>
-                    let c = ⟨rand⟩ (zero ((π2 x) : Data betaM), ["0"]) in
+                    let c = ⟨"rand"⟩ (zero ((π2 x) : Data betaM), ["0"]) in
                     let L_old = (! L) in
-                    let sc = L := (λ (y : Public) : (tau + Unit) => if ⟨eq⟩(y, c) then ı1 (π2 x) else L_old [y]) in
+                    let sc = L := (λ (y : Public) : (tau + Unit) => if ⟨"eq"⟩(y, c) then ı1 (π2 x) else L_old [y]) in
                     c))
     in
     let dec' = (corr_case betaK in
-               (if corr (betaK) then λ (x : (Public * Public)) : Public => ⟨dec⟩(π1 x, π2 x)
+               (if corr (betaK) then λ (x : (Public * Public)) : Public => ⟨"dec"⟩(π1 x, π2 x)
                 else λ (x : (Data betaK * Public)) : (tau + Unit) => (!L) [π2 x]))
     in
     pack (Data betaK, ⟨k, ⟨(corr_case betaK in enc'), (corr_case betaK in dec')⟩⟩)
@@ -163,9 +108,9 @@ theorem enc_length_test :
 
 theorem enc_r :
   ( (betaK, betaM) ; (corr(betaK)) ; (tau <: Data betaM) ; · ;
-    let k = (⟨genKey⟩ (["0"], ["0"]) : Data betaK) in
-    pack (Data betaK, ⟨k, ⟨λ (x : (Public * Public)) : Public => ⟨enc⟩ (π1 x, π2 x),
-                           λ (y : (Public * Public)) : Public => ⟨dec⟩ (π1 y, π2 y)⟩⟩)
+    let k = (⟨"genKey"⟩ (["0"], ["0"]) : Data betaK) in
+    pack (Data betaK, ⟨k, ⟨λ (x : (Public * Public)) : Public => ⟨"enc"⟩ (π1 x, π2 x),
+                           λ (y : (Public * Public)) : Public => ⟨"dec"⟩ (π1 y, π2 y)⟩⟩)
     ⊢
     (∃ alphaK <: (Data betaK) . (alphaK *
                                  ((corr (betaK) ? (Public * Public) -> Public : (alphaK * (Data betaM)) -> Public) *
@@ -222,11 +167,11 @@ theorem enc_sig :
     Λ tau .
     corr_case betaK in
     (if corr (betaK) then
-      ((let sk = ⟨genSk⟩(["0"], ["0"]) in
-      let vk = ⟨vk_of_sk⟩(sk, ["0"]) in
+      ((let sk = ⟨"genSK"⟩(["0"], ["0"]) in
+      let vk = ⟨"vk_of_sk"⟩(sk, ["0"]) in
       pack(Public, pack (Public, ⟨sk, ⟨vk,
-                    ⟨((λ xy => ⟨sign⟩(π1 xy, π2 xy)) : (Public * Public) -> Public),
-                     ((λ xyz => ⟨vrfy⟩(π1 xyz, π1 (π2 xyz))) : (Public * (Public * Public)) -> Public)⟩⟩⟩))) :
+                    ⟨((λ xy => ⟨"sign"⟩(π1 xy, π2 xy)) : (Public * Public) -> Public),
+                     ((λ xyz => ⟨"vrfy"⟩(π1 xyz, π1 (π2 xyz))) : (Public * (Public * Public)) -> Public)⟩⟩⟩))) :
                      ∃ alpha <: Data betaK .
                      ∃ beta <: Public .
                      (alpha *
@@ -234,13 +179,13 @@ theorem enc_sig :
                      ((corr (betaK) ? ((Public * Public) -> Public) : ((alpha * tau) -> Public)) *
                      (corr (betaK) ? ((Public * (Public * Public)) -> Public) : ((beta * (Public * Public)) -> (tau + Unit)))))))
     else
-      ((let sk = ⟨genSk⟩(["0"], ["0"]) in
-      let pk = ⟨pk_of_sk⟩(["0"], ["0"]) in
+      ((let sk = ⟨"genSK"⟩(["0"], ["0"]) in
+      let pk = ⟨"vk_of_sk"⟩(["0"], ["0"]) in
       let L = (alloc (λ null => ı2 *) : Ref ((Public * Public) -> (tau + Unit))) in
       let sign =  ((λ skm =>
-                  let sig = (⟨rand⟩(π2 skm, ["0"]) : Public) in
+                  let sig = (⟨"rand"⟩(π2 skm, ["0"]) : Public) in
                   let L_old = (! L) in
-                  let action =  (L := (λ msig' => if ⟨and_op⟩(⟨eq⟩((π2 skm), π2 msig'), ⟨eq⟩(sig, π2 msig'))
+                  let action =  (L := (λ msig' => if ⟨"and"⟩(⟨"eq"⟩((π2 skm), π2 msig'), ⟨"eq"⟩(sig, π2 msig'))
                                                 then (ı1 (π2 skm))
                                                 else L_old [msig']))
                   in
@@ -290,7 +235,7 @@ theorem enc_layered2_high_low :
        ((λ x =>
         let c1 = ((π1 (π2 ked1)) [⟨(π1 ked1), x⟩] : Public) in
         let c2 = ((π1 (π2 ked2)) [⟨(π1 ked2), (π1 ked1)⟩] : Public) in
-        ⟨combine⟩(c1, c2)) : ((Data L_sec) -> Public))))
+        ⟨"combine"⟩(c1, c2)) : ((Data L_sec) -> Public))))
     ⊢
     ((Data L_sec) -> Public)) :=
     by

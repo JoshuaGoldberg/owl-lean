@@ -251,7 +251,7 @@ partial def elabTm : Syntax → TermElabM Expr
     mkAppM ``SExpr.tm_pair #[elab_e1, elab_e2]
   | `(owl_tm| ⟨ $t:term ⟩ ( $e1:owl_tm , $e2:owl_tm )) => do
     let t' ← Term.TermElabM.run' do
-        Term.elabTerm t (mkConst ``Owl.op)
+        Term.elabTerm t (mkConst ``String)
     let elab_e1 <- elabTm e1
     let elab_e2 <- elabTm e2
     mkAppM ``SExpr.Op #[t', elab_e1, elab_e2]
@@ -495,7 +495,7 @@ partial def elabTm_closed : Syntax → TermElabM Expr
     mkAppM ``SExpr.tm_pair #[elab_e1, elab_e2]
   | `(owl_tm| ⟨ $t:term ⟩ ( $e1:owl_tm , $e2:owl_tm )) => do
     let t' ← Term.TermElabM.run' do
-        Term.elabTerm t (mkConst ``Owl.op)
+        Term.elabTerm t (mkConst ``String)
     let elab_e1 <- elabTm_closed e1
     let elab_e2 <- elabTm_closed e2
     mkAppM ``SExpr.Op #[t', elab_e1, elab_e2]

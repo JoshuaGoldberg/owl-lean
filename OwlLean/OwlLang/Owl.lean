@@ -73,11 +73,6 @@ inductive Dist (a : Type) : Type where
 | ret  : a -> Dist a
 | flip : (Bool -> Dist a) → Dist a
 
-abbrev op := binary -> binary -> Dist binary
-
-instance : Repr Owl.op where
-  reprPrec _ _ := "<Operation>"
-
 inductive tm : Nat -> Nat -> Nat -> Type where
 | var_tm : Fin n_tm -> tm n_label n_ty n_tm
 | error : tm n_label n_ty n_tm
@@ -87,7 +82,7 @@ inductive tm : Nat -> Nat -> Nat -> Type where
 | fixlam : tm n_label n_ty ((n_tm + 1) + 1) -> tm n_label n_ty n_tm
 | tlam : tm n_label (n_ty + 1) n_tm -> tm n_label n_ty n_tm
 | l_lam : tm (n_label + 1) n_ty n_tm -> tm n_label n_ty n_tm
-| Op : op -> tm n_label n_ty n_tm -> tm n_label n_ty n_tm -> tm n_label n_ty n_tm
+| Op : String -> tm n_label n_ty n_tm -> tm n_label n_ty n_tm -> tm n_label n_ty n_tm
 | zero : tm n_label n_ty n_tm -> tm n_label n_ty n_tm
 | app : tm n_label n_ty n_tm -> tm n_label n_ty n_tm -> tm n_label n_ty n_tm
 | alloc : tm n_label n_ty n_tm -> tm n_label n_ty n_tm

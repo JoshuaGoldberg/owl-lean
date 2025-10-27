@@ -1,67 +1,7 @@
-import OwlLean.OwlLang.Owl
-import Lean
-import Std.Data.HashMap
-import OwlLean.TypeChecker.OwlParser
-import OwlLean.TypeChecker.OwlTyping
-open Lean PrettyPrinter Delaborator SubExpr
+import OwlLean.TypeChecker.OwlComplete
 
 set_option maxHeartbeats 1000000
 
--- non functional
-def genKey : Owl.op :=
-  fun (_ _ : Owl.binary) =>
-    Owl.Dist.ret (Owl.binary.bend)
-
--- non functional
-def enc : Owl.op :=
-  fun (_ _ : Owl.binary) =>
-    Owl.Dist.ret (Owl.binary.bend)
-
--- non functional
-def dec : Owl.op :=
-  fun (_ _ : Owl.binary) =>
-    Owl.Dist.ret (Owl.binary.bend)
-
--- non functional
-def rand : Owl.op :=
-  fun (_ _ : Owl.binary) =>
-    Owl.Dist.ret (Owl.binary.bend)
-
--- non functional
-def eq : Owl.op :=
-  fun (_ _ : Owl.binary) =>
-    Owl.Dist.ret (Owl.binary.bend)
-
--- non functional
-def genSk : Owl.op :=
-  fun (_ _ : Owl.binary) =>
-    Owl.Dist.ret (Owl.binary.bend)
-
--- non functional
-def pk_of_sk : Owl.op :=
-  fun (_ _ : Owl.binary) =>
-    Owl.Dist.ret (Owl.binary.bend)
-
--- non functional
-def vk_of_sk : Owl.op :=
-  fun (_ _ : Owl.binary) =>
-    Owl.Dist.ret (Owl.binary.bend)
-
-def and_op : Owl.op :=
-  fun (_ _ : Owl.binary) =>
-    Owl.Dist.ret (Owl.binary.bend)
-
-def combine : Owl.op :=
-  fun (_ _ : Owl.binary) =>
-    Owl.Dist.ret (Owl.binary.bend)
-
-def sign : Owl.op :=
-  fun (_ _ : Owl.binary) =>
-    Owl.Dist.ret (Owl.binary.bend)
-
-def vrfy : Owl.op :=
-  fun (_ _ : Owl.binary) =>
-    Owl.Dist.ret (Owl.binary.bend)
 
 def test_label :=
   OwlLabel [x, y, z] {
@@ -97,7 +37,7 @@ def ENC_TM :=
        ((λ x =>
         let c1 = ((π1 (π2 ked1)) [⟨(π1 ked1), x⟩] : Public) in
         let c2 = ((π1 (π2 ked2)) [⟨(π1 ked2), (π1 ked1)⟩] : Public) in
-        ⟨combine⟩(c1, c2)) : ((Data L1) -> Public))))
+        ⟨"combine"⟩(c1, c2)) : ((Data L1) -> Public))))
   }
 
 theorem enc_layered2_high_low :

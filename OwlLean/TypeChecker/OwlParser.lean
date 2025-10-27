@@ -682,7 +682,7 @@ elab "Owl" "[" lvars:ident,* "]" "[" tvars:ident,* "]" "[" vars:ident,* "]" "{" 
 
   let sexprTerm ← elabTm p
   let sexprTerm2 ← elabTm_closed p
-  let sVal : SExpr ← unsafe do Meta.evalExpr SExpr (mkConst ``SExpr) sexprTerm2
+  let sVal : SExpr ← unsafe do Meta.evalExpr SExpr (mkConst ``SExpr) sexprTerm2 DefinitionSafety.unsafe
   match SExpr.elab sVal lvarList tvarList varList with
   | .none   => throwError "owl: ill-formed term"
   | .some _ => mkAppM ``elabHelper #[sexprTerm, lvarEListExpr, tvarEListExpr, varEListExpr]

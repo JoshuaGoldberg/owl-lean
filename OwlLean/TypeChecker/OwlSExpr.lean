@@ -61,7 +61,7 @@ inductive SExpr : Type where
 | fixlam : String -> String -> SExpr -> SExpr
 | tlam : String -> SExpr -> SExpr
 | l_lam : String -> SExpr -> SExpr
-| Op : Owl.op -> SExpr -> SExpr -> SExpr
+| Op : String -> SExpr -> SExpr -> SExpr
 | zero : SExpr -> SExpr
 | app : SExpr -> SExpr -> SExpr
 | alloc : SExpr -> SExpr
