@@ -35,8 +35,18 @@ theorem EncIdeal.wf :
   ( ( lK, lM ⊏ lK );
   · ;
   ( tau <: Data lM );
-  · ;
-   ($ EncIdeal [lK, lM] [tau] []) ⊢ ($ ENC [lK, lM] [tau])) := by
+  · ⊢
+   ($ EncIdeal [lK, lM] [tau] []) : ($ ENC [lK, lM] [tau])) := by
+   apply infer_sound
+   dsimp [infer, SExpr.elab.go1, SExpr.elab.go2, SExpr.elab.go3, EncIdeal]
+
+
+
+
+
+
+
+
     tc_man (
       try simp
       try auto_solve_fast

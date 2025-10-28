@@ -682,7 +682,7 @@ elab "Owl" "[" lvars:ident,* "]" "[" tvars:ident,* "]" "[" vars:ident,* "]" "{" 
 
   let sexprTerm ← elabTm p
   let sexprTerm2 ← elabTm_closed p
-  let sVal : SExpr ← unsafe do Meta.evalExpr SExpr (mkConst ``SExpr) sexprTerm2 DefinitionSafety.unsafe
+  let sVal : SExpr ← unsafe do Meta.evalExpr SExpr (mkConst ``SExpr) sexprTerm2
   match SExpr.elab sVal lvarList tvarList varList with
   | .none   => throwError "owl: ill-formed term"
   | .some _ => mkAppM ``elabHelper #[sexprTerm, lvarEListExpr, tvarEListExpr, varEListExpr]
@@ -726,7 +726,7 @@ elab "OwlLabel" "[" lvars:ident,* "]" "{" p:owl_label "}" : term => do
 
 -- For easier usage of the has_type inductive
 @[simp]
-elab "(" p:owl_phi ";" ps:owl_psi ";" d:owl_delta ";" g:owl_gamma ";" e:owl_tm "⊢" t:owl_type ")" : term => do
+elab "(" p:owl_phi ";" ps:owl_psi ";" d:owl_delta ";" g:owl_gamma "⊢" e:owl_tm ":" t:owl_type ")" : term => do
 
   let sphiExpr2 ← elabPhi_closed p
   let sphi : SPhi ← unsafe do Meta.evalExpr SPhi (mkConst ``SPhi) sphiExpr2

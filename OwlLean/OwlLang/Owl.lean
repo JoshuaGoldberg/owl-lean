@@ -66,6 +66,7 @@ inductive ty : Nat -> Nat-> Type where
 | all_l : cond_sym -> label n_label -> ty (n_label + 1) n_ty -> ty n_label n_ty
 | t_if : label n_label -> ty n_label n_ty -> ty n_label n_ty -> ty n_label n_ty
 | Public : ty n_label n_ty
+| Sing : binary -> ty n_label n_ty
 | default : ty n_label n_ty
 deriving Repr
 
@@ -184,6 +185,7 @@ def ren_ty
 (xi_label : Fin m_label -> Fin n_label) (xi_ty : Fin m_ty -> Fin n_ty)
 (s : ty m_label m_ty) : ty n_label n_ty :=
   match s with
+  | .Sing s => .Sing s
   | .var_ty s0 => .var_ty (xi_ty s0)
   | .Any => .Any
   | .Unit => .Unit
@@ -393,6 +395,7 @@ def subst_ty
 (sigma_ty : Fin m_ty -> ty n_label n_ty) (s : ty m_label m_ty) :
 ty n_label n_ty :=
   match s with
+  | .Sing s => .Sing s
   | .var_ty s0 => sigma_ty s0
   | .Any => .Any
   | .Unit => .Unit

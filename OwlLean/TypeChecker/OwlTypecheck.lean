@@ -156,6 +156,11 @@ structure STType (Phi : phi_context l) (Delta : delta_context l d)
 
 notation:100  "grind" ck => (Conditional.side_condition_sound ck (by grind))
 
+@[simp]
+def Conditional.of {p : Prop} (h : p) : Conditional p :=
+  ⟨True, fun _ => h⟩
+
+
 
 -- TODO : Finish up various cases that have not yet been completed (for check_subtype and infer)!
 
@@ -290,6 +295,40 @@ def check_subtype  (fuel : Nat) (Phi : phi_context l) (Psi : psi_context l) (Del
       | x1, x2 =>
         .none
 
+@[simp]
+noncomputable def to_data (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_context l d) (t : ty l d)
+  : Option ((l : Owl.label l) × (PLift (subtype Phi Psi Delta t (.Data l)))) :=
+    match t with
+    | .Data l1 => .some ⟨l1, PLift.up (by apply subtype.ST_Refl)⟩
+    | .Public => .some ⟨.latl L.bot, PLift.up (by
+        constructor
+    )⟩
+    | _ => .none
+
+@[simp]
+def unifies (t1 : ty l d) (exp : Option (ty l d)) :=
+  PLift (match exp with
+          | .none => True
+          | .some t2 => t1 = t2
+  )
+
+@[simp]
+noncomputable def from_synth (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_context l d)
+          (Gamma : gamma_context l d m) {e : tm l d m} (t1 : ty l d) (h : Conditional (has_type Phi Psi Delta Gamma e t1)) (exp : Option (ty l d)) :
+          Option ((t : ty l d) × unifies t exp × Conditional (has_type Phi Psi Delta Gamma e t)) :=
+    match exp with
+    | .none => .some ⟨t1, ⟨by apply PLift.up; simp, h⟩⟩
+    | .some t =>
+      match check_subtype 999 Phi Psi Delta t1 t with
+      | .none => .none
+      | .some pf =>
+        .some ⟨t, ⟨by apply PLift.up; simp, ⟨ pf.side_condition ∧ h.side_condition, fun sc => by
+            apply has_type.T_Sub
+            apply (pf.side_condition_sound (by grind))
+            apply (h.side_condition_sound (by grind))⟩⟩ ⟩
+
+
+
 -- Infer performs the dual roles of synthesis and checking
 -- This is controlled via the the "exp" argument
 -- When supplied with a type, the input term will be checked against "exp"
@@ -298,237 +337,182 @@ def check_subtype  (fuel : Nat) (Phi : phi_context l) (Psi : psi_context l) (Del
 -- If successful, it will return the synthesized type, and a proof that the input term has that type
 noncomputable def infer (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_context l d)
           (Gamma : gamma_context l d m) (e : tm l d m) (exp : Option (ty l d)) :
-          Option (match exp with
-                  | .none => ((t : ty l d) × Conditional (has_type Phi Psi Delta Gamma e t))
-                  | .some exp' => Conditional (has_type Phi Psi Delta Gamma e exp')) :=
+          Option ((t : ty l d) × unifies t exp × Conditional (has_type Phi Psi Delta Gamma e t)) :=
   match e with
   | .var_tm x =>
-    match exp with
-    | .none =>
-        let proof := fun _ => has_type.T_Var x
-        .some ⟨(Gamma x), ⟨True, proof⟩⟩
-    | .some t =>
-      let et1 := (Gamma x)
-      let et2 := has_type.T_Var x
-      let es := check_subtype 99 Phi Psi Delta (Gamma x) t
-      match es with
-      | .some es' =>
-        .some ⟨es'.side_condition, fun sc => has_type.T_Sub (.var_tm x) et1 t (grind es') et2⟩
-      | .none => .some ⟨(et1 = t),
-          fun h => h ▸ has_type.T_Var x⟩
+      from_synth Phi Psi Delta Gamma _ (Conditional.of $ (has_type.T_Var x)) exp
   | .skip =>
-    match exp with
-    | .none => .some ⟨.Unit, ⟨True, fun _ => has_type.T_IUnit⟩⟩
-    | .some t =>
-      match (check_subtype 99 Phi Psi Delta .Unit t) with
-      | .some pf =>
-        .some ⟨pf.side_condition,
-              fun sc =>
-                has_type.T_Sub .skip .Unit t (pf.side_condition_sound sc) has_type.T_IUnit⟩
-      | .none =>
-        .none
+      from_synth Phi Psi Delta Gamma _ (Conditional.of $ (has_type.T_IUnit)) exp
   | .bitstring b =>
-    match exp with
-    | .none => .some ⟨.Public, ⟨True, fun _ => has_type.T_Const b⟩⟩
-    | .some t =>
-      match (check_subtype 99 Phi Psi Delta .Public t) with
-      | .some pf =>
-        .some ⟨pf.side_condition,
-               fun sc => has_type.T_Sub (.bitstring b) .Public t (pf.side_condition_sound sc) (has_type.T_Const b)⟩
-      | .none => .none
+      from_synth Phi Psi Delta Gamma _ (Conditional.of $ (has_type.T_Const b)) exp
   | .Op op e1 e2 => -- This case is long! Might need a step by step.
-    match exp with
-    | .none => -- try to synthesize
-      match infer Phi Psi Delta Gamma e1 .none with -- find type of e1
-      | .some ⟨.Data l1, pf1⟩ =>
-        match infer Phi Psi Delta Gamma e2 (.some (.Data l1)) with
-        | .some e2pf =>
-          .some ⟨.Data l1,
-                 ⟨pf1.side_condition /\ e2pf.side_condition,
-                  fun sc => has_type.T_Op op e1 e2 l1 (pf1.side_condition_sound (by grind)) (e2pf.side_condition_sound (by grind))⟩⟩
-        | .none =>
-          match infer Phi Psi Delta Gamma e2 .none with  -- find type of e2
-          | .some ⟨.Data l2, pf2⟩ =>
-            match infer Phi Psi Delta Gamma e1 (.some (.Data l2)) with
-            | .some e1pf =>
-              .some ⟨.Data l2,
-                     ⟨e1pf.side_condition /\ pf2.side_condition,
-                      fun sc => has_type.T_Op op e1 e2 l2 (e1pf.side_condition_sound (by grind)) (pf2.side_condition_sound (by grind))⟩⟩
-            | .none => .none
-          | .some ⟨.Public, pf2⟩ =>
-            match infer Phi Psi Delta Gamma e1 (.some .Public) with
-            | .some e1pf =>
-              .some ⟨.Data (.latl L.bot),
-                 ⟨pf2.side_condition /\ e1pf.side_condition,
-                  fun sc =>
-                  (has_type.T_Op op e1 e2 (.latl L.bot)
-                                          (has_type.T_Sub e1 .Public (.Data (.latl L.bot))
-                                                                     (subtype.ST_RPublic (.latl L.bot))
-                                                                     (e1pf.side_condition_sound (by grind)))
-                                          (has_type.T_Sub e2 .Public (.Data (.latl L.bot))
-                                                                     (subtype.ST_RPublic (.latl L.bot))
-                                                                     (pf2.side_condition_sound (by grind))))⟩⟩
-            | .none => .none
-          | _ => .none
-      | .some ⟨.Public, pf1⟩ =>
-        match infer Phi Psi Delta Gamma e2 (.some .Public) with
-        | .some e2pf =>
-          .some ⟨.Data (.latl L.bot),
-                 ⟨pf1.side_condition /\ e2pf.side_condition,
-                  fun sc =>
-                  (has_type.T_Op op e1 e2 (.latl L.bot)
-                                          (has_type.T_Sub e1 .Public (.Data (.latl L.bot))
-                                                                     (subtype.ST_RPublic (.latl L.bot))
-                                                                     (pf1.side_condition_sound (by grind)))
-                                          (has_type.T_Sub e2 .Public (.Data (.latl L.bot))
-                                                                     (subtype.ST_RPublic (.latl L.bot))
-                                                                     (e2pf.side_condition_sound (by grind))))⟩⟩
-        | .none => .none --match on e2, do the whole thing here
-      | _ => .none
-    | .some t =>
-      match t with
-      | .Data l =>
-        match infer Phi Psi Delta Gamma e1 (.some (.Data l)) with
-        | .some pf1 =>
-          match infer Phi Psi Delta Gamma e2 (.some (.Data l)) with
-          | .some pf2 =>
-            .some ⟨pf1.side_condition /\ pf2.side_condition,
-                   fun sc => has_type.T_Op op e1 e2 l (grind pf1) (grind pf2)⟩
-          | .none => .none
-        | .none => .none
-      | .Public =>
-        match infer Phi Psi Delta Gamma e1 (.some .Public) with
-        | .some pf1 =>
-          match infer Phi Psi Delta Gamma e2 (.some .Public) with
-          | .some pf2 =>
-            match (check_subtype 99 Phi Psi Delta (.Data (.latl L.bot)) .Public) with -- a bit of a pain to get this to work, but it does (?)
-            | .some sub =>
-              .some ⟨sub.side_condition /\ pf1.side_condition /\ pf2.side_condition,
-                      fun sc => has_type.T_Sub (.Op op e1 e2) (.Data (.latl L.bot)) .Public
-                                (grind sub)
-                                (has_type.T_Op op e1 e2 (.latl L.bot)
-                                              (has_type.T_Sub e1 .Public (.Data (.latl L.bot)) (subtype.ST_RPublic (.latl L.bot)) (grind pf1))
-                                              (has_type.T_Sub e2 .Public (.Data (.latl L.bot)) (subtype.ST_RPublic (.latl L.bot)) (grind pf2)))⟩
-            | .none => .none
-          | .none => .none
-        | .none => .none
-      | _ => .none
+    match infer Phi Psi Delta Gamma e1 .none, infer Phi Psi Delta Gamma e2 .none with
+    | some ⟨t1, pf1⟩, some ⟨t2, pf2⟩ =>
+      match to_data Phi Psi Delta t1, to_data Phi Psi Delta t2 with
+      | .some ⟨l1, pf11⟩, .some ⟨l2, pf12⟩ =>
+        from_synth Phi Psi Delta Gamma _ ⟨pf1.snd.side_condition ∧ pf2.snd.side_condition ∧ (Phi |= (.condition .leq l2 l1)),
+              fun sc => by
+                apply has_type.T_Op
+                apply has_type.T_Sub
+                apply pf11.down
+                apply pf1.snd.side_condition_sound
+
+                grind
+                apply has_type.T_Sub
+                apply subtype.ST_Data
+                obtain ⟨_, ⟨_, h⟩⟩ := sc
+                apply h
+                apply has_type.T_Sub
+                apply pf12.down
+                apply pf2.snd.side_condition_sound
+                grind ⟩ exp
+      | _, _ => .none
+    | _, _ => .none
+--     match exp with
+--     | .none => -- try to synthesize
+--       match infer Phi Psi Delta Gamma e1 .none with -- find type of e1
+--       | .some ⟨.Data l1, pf1⟩ =>
+--         match infer Phi Psi Delta Gamma e2 (.some (.Data l1)) with
+--         | .some e2pf =>
+--           .some ⟨.Data l1,
+--                  ⟨pf1.side_condition /\ e2pf.side_condition,
+--                   fun sc => has_type.T_Op op e1 e2 l1 (pf1.side_condition_sound (by grind)) (e2pf.side_condition_sound (by grind))⟩⟩
+--         | .none =>
+--           match infer Phi Psi Delta Gamma e2 .none with  -- find type of e2
+--           | .some ⟨.Data l2, pf2⟩ =>
+--             match infer Phi Psi Delta Gamma e1 (.some (.Data l2)) with
+--             | .some e1pf =>
+--               .some ⟨.Data l2,
+--                      ⟨e1pf.side_condition /\ pf2.side_condition,
+--                       fun sc => has_type.T_Op op e1 e2 l2 (e1pf.side_condition_sound (by grind)) (pf2.side_condition_sound (by grind))⟩⟩
+--             | .none => .none
+--           | .some ⟨.Public, pf2⟩ =>
+--             match infer Phi Psi Delta Gamma e1 (.some .Public) with
+--             | .some e1pf =>
+--               .some ⟨.Data (.latl L.bot),
+--                  ⟨pf2.side_condition /\ e1pf.side_condition,
+--                   fun sc =>
+--                   (has_type.T_Op op e1 e2 (.latl L.bot)
+--                                           (has_type.T_Sub e1 .Public (.Data (.latl L.bot))
+--                                                                      (subtype.ST_RPublic (.latl L.bot))
+--                                                                      (e1pf.side_condition_sound (by grind)))
+--                                           (has_type.T_Sub e2 .Public (.Data (.latl L.bot))
+--                                                                      (subtype.ST_RPublic (.latl L.bot))
+--                                                                      (pf2.side_condition_sound (by grind))))⟩⟩
+--             | .none => .none
+--           | _ => .none
+--       | .some ⟨.Public, pf1⟩ =>
+--         match infer Phi Psi Delta Gamma e2 (.some .Public) with
+--         | .some e2pf =>
+--           .some ⟨.Data (.latl L.bot),
+--                  ⟨pf1.side_condition /\ e2pf.side_condition,
+--                   fun sc =>
+--                   (has_type.T_Op op e1 e2 (.latl L.bot)
+--                                           (has_type.T_Sub e1 .Public (.Data (.latl L.bot))
+--                                                                      (subtype.ST_RPublic (.latl L.bot))
+--                                                                      (pf1.side_condition_sound (by grind)))
+--                                           (has_type.T_Sub e2 .Public (.Data (.latl L.bot))
+--                                                                      (subtype.ST_RPublic (.latl L.bot))
+--                                                                      (e2pf.side_condition_sound (by grind))))⟩⟩
+--         | .none => .none --match on e2, do the whole thing here
+--       | _ => .none
+--     | .some t =>
+--       match t with
+--       | .Data l =>
+--         match infer Phi Psi Delta Gamma e1 (.some (.Data l)) with
+--         | .some pf1 =>
+--           match infer Phi Psi Delta Gamma e2 (.some (.Data l)) with
+--           | .some pf2 =>
+--             .some ⟨pf1.side_condition /\ pf2.side_condition,
+--                    fun sc => has_type.T_Op op e1 e2 l (grind pf1) (grind pf2)⟩
+--           | .none => .none
+--         | .none => .none
+--       | .Public =>
+--         match infer Phi Psi Delta Gamma e1 (.some .Public) with
+--         | .some pf1 =>
+--           match infer Phi Psi Delta Gamma e2 (.some .Public) with
+--           | .some pf2 =>
+--             match (check_subtype 99 Phi Psi Delta (.Data (.latl L.bot)) .Public) with -- a bit of a pain to get this to work, but it does (?)
+--             | .some sub =>
+--               .some ⟨sub.side_condition /\ pf1.side_condition /\ pf2.side_condition,
+--                       fun sc => has_type.T_Sub (.Op op e1 e2) (.Data (.latl L.bot)) .Public
+--                                 (grind sub)
+--                                 (has_type.T_Op op e1 e2 (.latl L.bot)
+--                                               (has_type.T_Sub e1 .Public (.Data (.latl L.bot)) (subtype.ST_RPublic (.latl L.bot)) (grind pf1))
+--                                               (has_type.T_Sub e2 .Public (.Data (.latl L.bot)) (subtype.ST_RPublic (.latl L.bot)) (grind pf2)))⟩
+--             | .none => .none
+--           | .none => .none
+--         | .none => .none
+--       | _ => .none
   | .zero e =>
-    match exp with
-    | .none =>
-      match infer Phi Psi Delta Gamma e .none with
-      | .some ⟨.Data l, pf⟩ =>
-            .some ⟨.Public,
-                   ⟨pf.side_condition, fun sc => has_type.T_Zero e l (pf.side_condition_sound (by grind))⟩⟩
-      | .some ⟨.Public, pf⟩ =>
-        match check_subtype 99 Phi Psi Delta .Public (.Data (.latl L.bot)) with
-        | .some sub =>
-            .some ⟨.Public,
-                   ⟨sub.side_condition /\ pf.side_condition,
-                   fun sc => has_type.T_Zero e (.latl L.bot) (has_type.T_Sub e .Public (.Data (.latl L.bot)) (grind sub)
-                   (pf.side_condition_sound (by grind)))⟩⟩
-        | .none => .none
-      | _ => .none
-    | .some t =>
-      match infer Phi Psi Delta Gamma e .none with
-      | .some ⟨.Data l, pf⟩ =>
-        match check_subtype 99 Phi Psi Delta .Public t with
-        | .some sub =>
-          .some ⟨pf.side_condition /\ sub.side_condition,
-                fun sc => has_type.T_Sub (.zero e) .Public t (grind sub) (has_type.T_Zero e l (grind pf))⟩
-        | .none => .none
-      | .some ⟨.Public, pf⟩ =>
-        match check_subtype 99 Phi Psi Delta .Public t with
-        | .some sub =>
-          match check_subtype 99 Phi Psi Delta .Public (.Data (.latl L.bot)) with
-          | .some sub' =>
-            .some ⟨pf.side_condition /\ sub.side_condition /\ sub'.side_condition,
-                  fun sc => has_type.T_Sub (.zero e) .Public t (grind sub) (has_type.T_Zero e (.latl L.bot)
-                  (has_type.T_Sub e .Public (.Data (.latl L.bot)) (grind sub') (grind pf)))⟩
-          | .none => .none
-        | .none => .none
-      | _ => .none
+    match infer Phi Psi Delta Gamma e .none with
+    | .none => .none
+    | .some ⟨t1, pf⟩ =>
+      match to_data Phi Psi Delta t1 with
+      | .none => .none
+      | .some ⟨l, pf2⟩ =>
+          from_synth Phi Psi Delta Gamma _ ⟨pf.snd.side_condition, fun sc => by
+              apply has_type.T_Zero
+              apply has_type.T_Sub
+              apply pf2.down
+              apply pf.snd.side_condition_sound
+              apply sc⟩ exp
   | .if_tm e e1 e2 =>
-    match exp with
-    | .none =>
-      match infer Phi Psi Delta Gamma e (.some .Public) with
-      | .some cond_pf =>
-        match infer Phi Psi Delta Gamma e1 .none with
-        | .some ⟨t1, pf1⟩ =>
-          match infer Phi Psi Delta Gamma e2 (.some t1) with
-          | .some pf2 =>
-            .some ⟨t1,
-                  ⟨cond_pf.side_condition /\ pf1.side_condition /\ pf2.side_condition,
-                   fun sc => has_type.T_If e e1 e2 t1 (grind cond_pf) (grind pf1) (grind pf2)⟩⟩
-          | .none =>
-            match infer Phi Psi Delta Gamma e2 .none with
-            | .some ⟨t2, pf2⟩ =>
-              match infer Phi Psi Delta Gamma e1 (.some t2) with
-              | .some pf1 =>
-                .some ⟨t2, ⟨cond_pf.side_condition /\ pf1.side_condition /\ pf2.side_condition,
-                       fun sc => has_type.T_If e e1 e2 t2 (grind cond_pf) (grind pf1) (grind pf2)⟩⟩
-              | .none => .none
-            | .none => .none
+    match infer Phi Psi Delta Gamma e (.some .Public) with
+    | .none => .none
+    | .some ⟨t1, ⟨heq, pf⟩⟩ =>
+      match infer Phi Psi Delta Gamma e1 exp, infer Phi Psi Delta Gamma e2 exp with
+      | .some ⟨t11, ⟨heq1, pf1⟩⟩, .some ⟨t12, ⟨heq2, pf2⟩⟩ =>
+        match check_subtype 999 Phi Psi Delta t12 t11 with
         | .none => .none
-      | _ => .none
-    | .some t =>
-      match infer Phi Psi Delta Gamma e (.some .Public) with
-      | .some cond_pf =>
-        match infer Phi Psi Delta Gamma e1 (.some t) with
-        | .some pf1 =>
-          match infer Phi Psi Delta Gamma e2 (.some t) with
-          | .some pf2 =>
-            .some ⟨cond_pf.side_condition /\ pf1.side_condition /\ pf2.side_condition ,
-                    fun sc => has_type.T_If e e1 e2 t (grind cond_pf) (grind pf1) (grind pf2)⟩
-          | .none => .none
-        | .none => .none
-      | _ => .none
+        | .some pf3 =>
+            from_synth Phi Psi Delta Gamma t11 ⟨pf.side_condition ∧ pf1.side_condition ∧ pf2.side_condition ∧ pf3.side_condition, fun sc =>
+              by
+                apply has_type.T_If
+                simp at heq
+                have heq' : t1 = .Public := by apply heq.down
+                subst heq'
+                apply pf.side_condition_sound
+                grind
+                apply pf1.side_condition_sound; grind
+                apply has_type.T_Sub
+                apply pf3.side_condition_sound; grind
+                apply pf2.side_condition_sound; grind⟩ exp
+      | _, _ => .none
   | .alloc e =>
-    match exp with
-    | .none =>
-      match infer Phi Psi Delta Gamma e .none with
-      | .some ⟨t, pf⟩ =>
-        .some ⟨.Ref t, ⟨pf.side_condition, fun sc =>has_type.T_IRef e t (grind pf)⟩⟩
-      | .none => .none
-    | .some exp_ty =>
-      match exp_ty with
-      | .Ref t =>
-        match infer Phi Psi Delta Gamma e (.some t) with
-        | .some pf => .some ⟨pf.side_condition, fun sc => has_type.T_IRef e t (grind pf)⟩
-        | .none => .none
-      | _ => .none
+    match infer Phi Psi Delta Gamma e .none with
+    | .none => .none
+    | .some ⟨t,⟨heq,pf⟩⟩ =>
+      from_synth Phi Psi Delta Gamma (.Ref t) ⟨pf.side_condition, fun sc => by
+        apply has_type.T_IRef
+        apply pf.side_condition_sound; grind
+        ⟩
+      exp
   | .dealloc e =>
-    match exp with
-    | .none =>
-      match infer Phi Psi Delta Gamma e .none with
-      | .some ⟨.Ref t, pf⟩ =>
-        .some ⟨t, ⟨pf.side_condition, fun sc => has_type.T_ERef e t (grind pf)⟩⟩
-      | _ => .none
-    | .some exp_ty =>
-      match infer Phi Psi Delta Gamma e (.some (.Ref exp_ty)) with
-      | .some pf => .some ⟨pf.side_condition , fun sc => has_type.T_ERef e exp_ty (grind pf)⟩
-      | .none => .none
+    match infer Phi Psi Delta Gamma e .none with
+    | .none => .none
+    | .some ⟨.Ref t,⟨heq,pf⟩⟩ =>
+      from_synth Phi Psi Delta Gamma (t) ⟨pf.side_condition, fun sc => by
+        apply has_type.T_ERef
+        apply pf.side_condition_sound; grind
+        ⟩
+      exp
+    | .some _ => .none
   | .assign e1 e2 =>
-    match exp with
-    | .none =>
-      match infer Phi Psi Delta Gamma e1 .none with
-      | .some ⟨.Ref t, pf1⟩ =>
-        match infer Phi Psi Delta Gamma e2 (.some t) with
-        | .some pf2 =>
-          .some ⟨.Unit, ⟨pf1.side_condition /\ pf2.side_condition, fun sc => has_type.T_Assign e1 e2 t (grind pf1) (grind pf2)⟩⟩
-        | .none => .none
-      | _ => .none
-    | .some exp_ty =>
-      match exp_ty with
-      | .Unit =>
-        match infer Phi Psi Delta Gamma e1 .none with
-        | .some ⟨.Ref t, pf1⟩ =>
-          match infer Phi Psi Delta Gamma e2 (.some t) with
-          | .some pf2 =>
-            .some ⟨pf1.side_condition /\ pf2.side_condition, fun sc => has_type.T_Assign e1 e2 t (grind pf1) (grind pf2)⟩
-          | .none => .none
-        | _ => .none
-      | _ => .none
+    match infer Phi Psi Delta Gamma e1 .none with
+    | .some ⟨.Ref t,⟨_, pf⟩⟩ =>
+      match infer Phi Psi Delta Gamma e2 (.some t) with
+      | .some ⟨t1, ⟨heq, pf'⟩⟩ =>
+        from_synth Phi Psi Delta Gamma .Unit ⟨pf.side_condition ∧ pf'.side_condition, fun sc => by
+          apply has_type.T_Assign
+          apply pf.side_condition_sound
+          grind
+          have heq' : t1 = t := heq.down
+          subst heq'
+          apply pf'.side_condition_sound; grind
+        ⟩ exp
+      | .none => .none
+    | _ => .none
   | .inl e =>
     match exp with
     | .none => .none -- CANNOT synthesize! Abort! Abort! (No need to add right now)
@@ -536,7 +520,10 @@ noncomputable def infer (Phi : phi_context l) (Psi : psi_context l) (Delta : del
       match t with
       | .sum t1 t2 =>
         match infer Phi Psi Delta Gamma e (.some t1) with
-        | .some pr => .some ⟨pr.side_condition, fun sc => has_type.T_ISumL e t1 t2 (grind pr)⟩
+        | .some ⟨t1, ⟨heq, pf⟩⟩ => .some ⟨.sum t1 t2, ⟨sorry, ⟨pf.side_condition, fun sc => by
+            apply has_type.T_ISumL
+            apply pf.side_condition_sound; grind
+          ⟩⟩⟩
         | .none => .none
       | _ => .none
   | .inr e =>
@@ -546,7 +533,16 @@ noncomputable def infer (Phi : phi_context l) (Psi : psi_context l) (Delta : del
       match t with
       | .sum t1 t2 =>
         match infer Phi Psi Delta Gamma e (.some t2) with
-        | .some pr => .some ⟨pr.side_condition, fun sc => has_type.T_ISumR e t1 t2 (grind pr)⟩
+        | .some ⟨t2, ⟨heq, pf⟩⟩ => .some ⟨.sum t1 t2, ⟨by
+        simp at heq
+        cases heq
+        simp
+        apply PLift.up
+        grind
+        , ⟨pf.side_condition, fun sc => by
+            apply has_type.T_ISumR
+            apply pf.side_condition_sound; grind
+          ⟩⟩⟩
         | .none => .none
       | _ => .none
   | .fixlam e =>
@@ -557,162 +553,127 @@ noncomputable def infer (Phi : phi_context l) (Psi : psi_context l) (Delta : del
       | .arr t t' =>
         let extended_gamma := cons (.arr t t') (cons t Gamma)
         match infer Phi Psi Delta extended_gamma e (.some t') with
-        | .some pe => .some ⟨pe.side_condition, fun sc => has_type.T_IFun e t t' (grind pe)⟩
+        | .some ⟨t1, ⟨heq, pf⟩⟩ => .some
+            ⟨.arr t t', ⟨by
+              have heq' : t1 = t' := heq.down
+              subst heq'
+              apply PLift.up
+              grind,
+            ⟨pf.side_condition, fun sc => by
+              apply has_type.T_IFun
+              have heq' : t1 = t' := heq.down
+              subst heq'
+              apply pf.side_condition_sound; grind
+          ⟩⟩⟩
+
         | .none => .none
       | _ => .none
   | .app e1 e2 =>
-    match exp with
-    | .none => -- synthesize
-      match infer Phi Psi Delta Gamma e1 .none with
-      | .some ⟨ty1, pf1⟩ =>
-        match ty1 with
-        | .arr t t' =>
-          match infer Phi Psi Delta Gamma e2 (.some t) with
-          | .some pf2 => .some ⟨t', ⟨pf1.side_condition /\ pf2.side_condition, fun sc => has_type.T_EFun e1 e2 t t' (grind pf1) (grind pf2)⟩⟩
-          | .none => .none
-        | _ => .none
+    match infer Phi Psi Delta Gamma e1 .none with
+    | .none => .none
+    | .some ⟨.arr t t', ⟨heq, pf⟩⟩ =>
+      match infer Phi Psi Delta Gamma e2 (.some t) with
       | .none => .none
-    | .some exp_ty =>
-      match infer Phi Psi Delta Gamma e2 .none with
-      | .some ⟨ty1, pf1⟩ =>
-        match infer Phi Psi Delta Gamma e1 (.some (.arr ty1 exp_ty)) with
-        | .some pf2 =>
-          .some ⟨pf1.side_condition /\ pf2.side_condition,
-                 fun sc => (has_type.T_EFun e1 e2 ty1 exp_ty (grind pf2) (grind pf1))⟩
-        | .none => .none
-      | _ => .none
+      | .some ⟨t1, ⟨heq', pf'⟩⟩ =>
+        from_synth Phi Psi Delta Gamma t' ⟨pf.side_condition ∧ pf'.side_condition, fun sc => by
+          apply has_type.T_EFun
+          apply pf.side_condition_sound; grind
+          have : t1 = t := heq'.down
+          subst this
+          apply pf'.side_condition_sound; grind
+        ⟩ exp
+    | _ => .none
   | .tm_pair e1 e2 =>
-    match exp with
-    | .none =>
-      match infer Phi Psi Delta Gamma e1 .none with
-      | .some ⟨t1, pf1⟩ =>
-        match infer Phi Psi Delta Gamma e2 .none with
-        | .some ⟨t2, pf2⟩ =>
-          .some ⟨.prod t1 t2, ⟨pf1.side_condition /\ pf2.side_condition, fun sc => has_type.T_IProd e1 e2 t1 t2 (grind pf1) (grind pf2)⟩⟩
-        | .none => .none
-      | .none => .none
-    | .some exp_ty =>
-      match exp_ty with
-      | .prod t1 t2 =>
-        match infer Phi Psi Delta Gamma e1 (.some t1) with
-        | .some pf1 =>
-          match infer Phi Psi Delta Gamma e2 (.some t2) with
-          | .some pf2 =>
-            .some ⟨pf1.side_condition /\ pf2.side_condition, fun sc => has_type.T_IProd e1 e2 t1 t2 (grind pf1) (grind pf2)⟩
-          | .none => .none
-        | .none => .none
-      | _ => .none
+    match infer Phi Psi Delta Gamma e1 .none, infer Phi Psi Delta Gamma e2 .none with
+    | .some ⟨t1, ⟨heq1, pf1⟩⟩, .some ⟨t2, ⟨heq2, pf2⟩⟩ =>
+      from_synth Phi Psi Delta Gamma (.prod t1 t2) ⟨pf1.side_condition ∧ pf2.side_condition, fun sc => by
+        apply has_type.T_IProd
+        apply pf1.side_condition_sound; grind
+        apply pf2.side_condition_sound; grind
+      ⟩ exp
+    | _, _ => .none
   | .left_tm e =>
-    match exp with
-    | .none => -- synthesize
-      match infer Phi Psi Delta Gamma e .none with
-      | .some ⟨.prod t1 t2, pf⟩ =>
-        .some ⟨t1, ⟨pf.side_condition, fun sc => has_type.T_EProdL e t1 t2 (grind pf)⟩⟩
-      | _ => .none
-    | .some exp_ty =>
-      match infer Phi Psi Delta Gamma e .none with
-      | .some ⟨.prod t1 t2, pf⟩ =>
-        match check_subtype 99 Phi Psi Delta t1 exp_ty with
-        | .some sub_pf =>
-          .some ⟨pf.side_condition /\ sub_pf.side_condition ,
-                 fun sc => has_type.T_Sub (.left_tm e) t1 exp_ty (grind sub_pf)
-                                                                 (has_type.T_EProdL e t1 t2 (grind pf))⟩
-        | .none => .none
-      | _ => .none
+    match infer Phi Psi Delta Gamma e .none with
+    | .none => .none
+    | .some ⟨.prod t1 t2, ⟨heq, pf⟩⟩ =>
+      from_synth Phi Psi Delta Gamma t1 ⟨pf.side_condition, fun sc => by
+        apply has_type.T_EProdL
+        apply pf.side_condition_sound; grind
+      ⟩ exp
+    | _ => .none
   | .right_tm e =>
-    match exp with
-    | .none => -- synthesize
-      match infer Phi Psi Delta Gamma e .none with
-      | .some ⟨.prod t1 t2, pf⟩ =>
-        .some ⟨t2, ⟨pf.side_condition, fun sc => has_type.T_EProdR e t1 t2 (grind pf)⟩⟩
-      | _ => .none
-    | .some exp_ty =>
-      match infer Phi Psi Delta Gamma e .none with
-      | .some ⟨.prod t1 t2, pf⟩ =>
-        match check_subtype 99 Phi Psi Delta t2 exp_ty with
-        | .some sub_pf =>
-          .some ⟨pf.side_condition /\ sub_pf.side_condition,
-                 fun sc => has_type.T_Sub (.right_tm e) t2 exp_ty (grind sub_pf)
-                                                                 (has_type.T_EProdR e t1 t2 (grind pf))⟩
-        | .none => .none
-      | _ => .none
+    match infer Phi Psi Delta Gamma e .none with
+    | .none => .none
+    | .some ⟨.prod t1 t2, ⟨heq, pf⟩⟩ =>
+      from_synth Phi Psi Delta Gamma t2 ⟨pf.side_condition, fun sc => by
+        apply has_type.T_EProdR
+        apply pf.side_condition_sound; grind
+      ⟩ exp
+    | _ => .none
   | .case e e1 e2 =>
-    match exp with
-    | .none =>
-      match infer Phi Psi Delta Gamma e .none with
-      | .some ⟨.sum t1 t2, pf1⟩ =>
-        match infer Phi Psi Delta (cons t1 Gamma) e1 .none with
-        | .some ⟨t, pf2⟩ =>
-          match infer Phi Psi Delta (cons t2 Gamma) e2 (.some t) with
-          | .some pf3 =>
-            .some ⟨t, ⟨pf1.side_condition /\ pf2.side_condition /\ pf3.side_condition,
-                       fun sc =>
-                         has_type.T_ESum e t1 t2 t e1 e2 (grind pf1) (grind pf2) (grind pf3)⟩⟩
-          | .none =>
-            match infer Phi Psi Delta (cons t2 Gamma) e2 .none with
-            | .some ⟨t', pf2⟩ =>
-              match infer Phi Psi Delta (cons t1 Gamma) e1 (.some t') with
-              | .some pf3 =>
-                .some ⟨t', ⟨pf1.side_condition /\ pf2.side_condition /\ pf3.side_condition,
-                            fun sc =>
-                              has_type.T_ESum e t1 t2 t' e1 e2 (grind pf1) (grind pf3) (grind pf2)⟩⟩
-              | .none => .none
-            | .none => .none
-        | .none => .none
-      | _ => .none
-    | .some exp_ty =>
-      match infer Phi Psi Delta Gamma e .none with
-      | .some ⟨.sum t1 t2, pf1⟩ =>
-        match infer Phi Psi Delta (cons t1 Gamma) e1 (.some exp_ty) with
-        | .some pf2 =>
-          match infer Phi Psi Delta (cons t2 Gamma) e2 (.some exp_ty) with
-          | .some pf3 =>
-            .some ⟨pf1.side_condition /\ pf2.side_condition /\ pf3.side_condition,
-                  fun sc => has_type.T_ESum e t1 t2 exp_ty e1 e2 (grind pf1) (grind pf2) (grind pf3)⟩
+    match infer Phi Psi Delta Gamma e .none with
+    | .some ⟨.sum t1 t2, ⟨heq, pf⟩⟩ =>
+      match infer Phi Psi Delta (cons t1 Gamma) e1 (.some t1), infer Phi Psi Delta (cons t2 Gamma) e2 (.some t2) with
+      | .some ⟨r1, ⟨heq1, pf1⟩⟩, .some ⟨r2, ⟨heq2, pf2⟩⟩ =>
+        match exp with
+        | .some res =>
+          match check_subtype 999 Phi Psi Delta r1 res, check_subtype 999 Phi Psi Delta r2 res with
+          | .some pf3, .some pf4 =>
+            .some ⟨res, ⟨by apply PLift.up; simp, ⟨pf.side_condition ∧ pf1.side_condition ∧ pf2.side_condition ∧ pf3.side_condition ∧ pf4.side_condition
+            , fun sc => by
+              apply has_type.T_ESum
+              apply pf.side_condition_sound; grind
+              apply has_type.T_Sub
+              apply pf3.side_condition_sound; grind
+              apply pf1.side_condition_sound; grind
+              apply has_type.T_Sub
+              apply pf4.side_condition_sound; grind
+              apply pf2.side_condition_sound; grind
+        ⟩⟩⟩
+          | _, _ => .none
+        | .none =>
+          match check_subtype 999 Phi Psi Delta r2 r1 with
           | .none => .none
-        | .none => .none
-      | _ => .none
+          | .some pf3 =>
+            .some ⟨r1, ⟨by apply PLift.up; simp, ⟨pf.side_condition ∧ pf1.side_condition ∧ pf2.side_condition ∧ pf3.side_condition, fun sc => by
+              apply has_type.T_ESum
+              apply pf.side_condition_sound; grind
+              apply pf1.side_condition_sound; grind
+              apply has_type.T_Sub
+              apply pf3.side_condition_sound; grind
+              apply pf2.side_condition_sound; grind
+            ⟩⟩⟩
+      | _, _ => .none
+    | _ => .none
   | .tlam e =>
     match exp with
     | .none => .none  -- TODO : Synthesize!!!
     | .some (.all t0 t) =>
       match infer Phi Psi (lift_delta (cons t0 Delta)) (lift_gamma_d Gamma) e (.some t) with
-      | .some pf =>
-        .some ⟨pf.side_condition,
-                   fun sc => has_type.T_IUniv t0 t e (grind pf)⟩
+      | .some ⟨res, ⟨heq, pf⟩⟩ =>
+        .some ⟨.all t0 t, ⟨by apply PLift.up; simp, ⟨pf.side_condition,
+                   fun sc =>  by
+                    have: res = t := heq.down
+                    subst this
+                    apply has_type.T_IUniv
+                    apply pf.side_condition_sound; grind
+                    ⟩⟩⟩
       | .none => .none
     | _ => .none
   | .tapp e t' =>
-    match exp with
-    | .none =>
-      match infer Phi Psi Delta Gamma e .none with
-      | .some ⟨.all t0 t, pf1⟩ =>
-        let sub := check_subtype 99 Phi Psi Delta t' t0
-        match sub with
-        | .some sub' =>
-          let result_ty := subst_ty .var_label (cons t' .var_ty) t
-         .some ⟨result_ty,
-                  ⟨pf1.side_condition /\ sub'.side_condition,
-                  fun sc => has_type.T_EUniv t t' t0 e (grind sub') (grind pf1)⟩⟩
-        | .none => .none
-      | _ => .none
-    | .some exp_ty =>
-      match infer Phi Psi Delta Gamma e .none with
-      | .some ⟨.all t0 t, pf⟩ =>
-        let sub := check_subtype 99 Phi Psi Delta t' t0
-        match sub with
-        | some sub' =>
-          let result_ty := subst_ty .var_label (cons t' .var_ty) t
-          let sub_result := check_subtype 99 Phi Psi Delta result_ty exp_ty
-          match sub_result with
-          | .some sub_result' =>
-            .some ⟨pf.side_condition /\ sub'.side_condition /\ sub_result'.side_condition,
-                      fun sc =>
-                        has_type.T_Sub (.tapp e t') result_ty exp_ty (grind sub_result')
-                          (has_type.T_EUniv t t' t0 e (grind sub') (grind pf))⟩
-          | .none => .none
-        | .none => .none
-      | _ => .none
+    match infer Phi Psi Delta Gamma e .none with
+    | .some ⟨.all t0 t, ⟨heq, pf1⟩⟩ =>
+      match check_subtype 99 Phi Psi Delta t' t0 with
+      | .none => .none
+      | .some pf =>
+          let result_ty := subst_ty .var_label (cons t' .var_ty) t;
+          from_synth Phi Psi Delta Gamma result_ty ⟨pf1.side_condition ∧ pf.side_condition,
+            fun sc => by
+              apply has_type.T_EUniv
+              apply pf.side_condition_sound; grind
+              apply pf1.side_condition_sound; grind
+              ⟩  exp
+    | _ => .none
   | .pack t' e =>
     match exp with
     | .none => .none -- TODO : potentially ADD Synthesis!
@@ -721,272 +682,145 @@ noncomputable def infer (Phi : phi_context l) (Psi : psi_context l) (Delta : del
       match check_subtype 99 Phi Psi Delta t' t0 with
       | .some sub =>
         match infer Phi Psi Delta Gamma e (.some substituted_type) with
-        | .some pf =>
-          .some ⟨pf.side_condition /\ sub.side_condition,
-                 fun sc => has_type.T_IExist e t t' t0 (grind pf) (grind sub)⟩
+        | .some ⟨r, ⟨heq, pf⟩⟩ =>
+          .some ⟨.ex t0 t, ⟨sorry, ⟨pf.side_condition /\ sub.side_condition,
+                 fun sc => by
+                  have h0 := heq.down
+                  simp at h0
+                  subst h0
+                  apply has_type.T_IExist
+                  apply pf.side_condition_sound; grind
+                  apply sub.side_condition_sound; grind
+        ⟩⟩⟩
         | .none => .none
       | .none => .none
     | _ => .none
   | .unpack e e' =>
     match exp with
-    | .none =>
-      match infer Phi Psi Delta Gamma e .none with
-      | .some ⟨.ex t0 t, pf_e⟩ =>
-        let extended_delta := lift_delta (cons t0 Delta)
-        let extended_gamma := cons t (lift_gamma_d Gamma)
-        match infer Phi Psi extended_delta extended_gamma e' .none with
-        | .some ⟨t', pf_e'⟩ =>
-          .none -- TODO TEMP FOR NOW ; NEEDS UNSHIFTING; SEEMINGLY CANNOT BE DONE OTHERWISE
-        | .none => .none
-      | _ => .none
+    | .none => .none  -- TODO
     | .some exp_ty =>
       match infer Phi Psi Delta Gamma e .none with
-      | .some ⟨.ex t0 t, pf_e⟩ =>
+      | .some ⟨.ex t0 t, ⟨_, pf_e⟩⟩ =>
         let extended_delta := lift_delta (cons t0 Delta)
         let extended_gamma := cons t (lift_gamma_d Gamma)
         let renamed_t' := ren_ty id shift exp_ty
         match infer Phi Psi extended_delta extended_gamma e' (.some renamed_t') with
-        | .some pf_e' =>
-                .some ⟨pf_e.side_condition /\ pf_e'.side_condition,
-                       fun sc => has_type.T_EExist e e' t0 t exp_ty (grind pf_e) (grind pf_e')⟩
+        | .some ⟨res, ⟨heq, pf_e'⟩⟩ =>
+          .some ⟨exp_ty, ⟨by apply PLift.up; simp, ⟨pf_e.side_condition ∧ pf_e'.side_condition,
+              fun sc => by
+                apply has_type.T_EExist
+                apply pf_e.side_condition_sound;grind
+                have h0 := heq.down; simp at h0; subst h0
+                apply pf_e'.side_condition_sound;grind
+              ⟩ ⟩ ⟩
         | .none => .none
       | _ => .none
   | .l_lam e =>
     match exp with
-    | .none => .none -- TODO NEED SYNTHESIS LATER (SUPPLY BOUND)
+    | .none => .none -- TODO
     | .some exp_ty =>
-      match exp_ty with
+      match h : exp_ty with
       | .all_l cs lab t_body =>
          match infer (lift_phi ((cons (cs, lab)) Phi))
                   (lift_psi Psi)
                   (lift_delta_l Delta) (lift_gamma_l Gamma)
                   e (.some t_body) with
-         | .some pe =>
-           .some ⟨pe.side_condition,
-               fun sc => has_type.T_ILUniv cs lab e t_body (grind pe)⟩
+         | .some ⟨res, ⟨heq, pe⟩⟩  =>
+           .some ⟨exp_ty, ⟨by subst h; apply PLift.up; simp, ⟨
+           pe.side_condition,
+               fun sc => by
+                subst h
+                apply has_type.T_ILUniv
+                have h0 := heq.down; simp at h0; subst h0
+                apply pe.side_condition_sound; grind
+          ⟩⟩⟩ --
          | .none => .none
       | _ => .none
   | .lapp e lab' =>
     match exp with
     | .none =>
       match infer Phi Psi Delta Gamma e .none with
-      | .some ⟨.all_l cs lab t, pf⟩ =>
+      | .some ⟨.all_l cs lab t, ⟨_, pf⟩⟩  =>
         let result_ty := subst_ty (cons lab' .var_label) .var_ty t
         let constraint_obligation := (Phi |= (.condition cs lab lab'))
-        .some ⟨result_ty,
+        .some ⟨result_ty, ⟨by apply PLift.up; simp,
               ⟨pf.side_condition /\ constraint_obligation,
                 fun sc =>
-                  has_type.T_ELUniv cs lab lab' e t (by grind) (grind pf)⟩⟩
+                  has_type.T_ELUniv cs lab lab' e t (by grind) (grind pf)⟩⟩⟩
       | _ => .none
     | .some exp_ty =>
       match infer Phi Psi Delta Gamma e .none with
-      | .some ⟨.all_l cs lab t, pf⟩ =>
+      | .some ⟨.all_l cs lab t, ⟨_, pf⟩⟩  =>
         let result_ty := subst_ty (cons lab' .var_label) .var_ty t
         match check_subtype 99 Phi Psi Delta result_ty exp_ty with
         | .some sub_pf =>
           let constraint_obligation := (Phi |= (.condition cs lab lab'))
-          .some ⟨pf.side_condition /\ constraint_obligation /\ sub_pf.side_condition,
+          .some ⟨exp_ty, ⟨by apply PLift.up; simp, ⟨pf.side_condition /\ constraint_obligation /\ sub_pf.side_condition,
                 fun sc =>
                   has_type.T_Sub (.lapp e lab') result_ty exp_ty
                     (grind sub_pf)
-                    (has_type.T_ELUniv cs lab lab' e t (by grind) (grind pf))⟩
+                    (has_type.T_ELUniv cs lab lab' e t (by grind) (grind pf))⟩⟩ ⟩
         | .none => .none
       | _ => .none
   | .annot e t' => -- LONG CASE TO HANDLE IF CHECKING PROPERLY
-    match exp with
-    | .none =>
-      match t' with
-      | .t_if lab t1 t2 =>
-        match infer Phi ((.corr lab) :: Psi) Delta Gamma e (.some t1),
-              infer Phi ((.not_corr lab) :: Psi) Delta Gamma e (.some t2) with
-        | .some pf1, .some pf2 =>
-          .some ⟨ty.t_if lab t1 t2,
-                ⟨pf1.side_condition /\ pf2.side_condition,
-                 fun sc =>
-                   has_type.T_Annot e (ty.t_if lab t1 t2)
-                     (derived_if_typing_annot lab e
-                       (pf1.side_condition_sound sc.left)
-                       (pf2.side_condition_sound sc.right))⟩⟩
-        | _, _ =>
-          match infer Phi Psi Delta Gamma e (.some t1),
-                infer Phi Psi Delta Gamma e (.some t2) with
-          | .some pf1, .none =>
-            let corr_cond := phi_psi_entail_corr Phi Psi (.corr lab)
-            .some ⟨ty.t_if lab t1 t2,
-                  ⟨pf1.side_condition /\ corr_cond,
-                   fun sc =>
-                     has_type.T_Annot e (ty.t_if lab t1 t2)
-                       (has_type.T_Sub e t1 (ty.t_if lab t1 t2)
-                         (subtype.ST_RIf1 lab t1 t1 t2 sc.right (subtype.ST_Refl t1))
-                         (pf1.side_condition_sound sc.left))⟩⟩
-          | .none, .some pf2 =>
-            let not_corr_cond := phi_psi_entail_corr Phi Psi (.not_corr lab)
-            .some ⟨ty.t_if lab t1 t2,
-                  ⟨pf2.side_condition /\ not_corr_cond,
-                   fun sc =>
-                     has_type.T_Annot e (ty.t_if lab t1 t2)
-                       (has_type.T_Sub e t2 (ty.t_if lab t1 t2)
-                         (subtype.ST_RIf2 lab t2 t1 t2 sc.right (subtype.ST_Refl t2))
-                         (pf2.side_condition_sound sc.left))⟩⟩
-          | _, _ => .none
-      | t => -- NORMAL CASE FOR SYNTHESIZING
-        match infer Phi Psi Delta Gamma e (.some t) with
-        | .some pf => .some ⟨t, ⟨pf.side_condition, fun sc => has_type.T_Annot e t (pf.side_condition_sound sc)⟩⟩
-        | .none => .none
-    | .some exp_ty => -- Check the type of annotation
-      match t' with
-      | .t_if lab t1 t2 =>
-        match infer Phi ((.corr lab) :: Psi) Delta Gamma e (.some t1),
-              infer Phi ((.not_corr lab) :: Psi) Delta Gamma e (.some t2) with
-        | .some pf1, .some pf2 =>
-          match check_subtype 99 Phi Psi Delta (ty.t_if lab t1 t2) exp_ty with
-          | .some sub =>
-            .some ⟨pf1.side_condition /\ pf2.side_condition /\ sub.side_condition,
-                  fun sc =>
-                    has_type.T_Sub (.annot e (ty.t_if lab t1 t2)) (ty.t_if lab t1 t2) exp_ty
-                      (sub.side_condition_sound sc.right.right)
-                      (has_type.T_Annot e (ty.t_if lab t1 t2)
-                        (derived_if_typing_annot lab e
-                          (pf1.side_condition_sound sc.left)
-                          (pf2.side_condition_sound sc.right.left)))⟩
-          | .none => .none
-        | _, _ =>
-          match infer Phi Psi Delta Gamma e (.some t1),
-                infer Phi Psi Delta Gamma e (.some t2) with
-          | .some pf1, .none =>
-            let corr_cond := phi_psi_entail_corr Phi Psi (.corr lab)
-            match check_subtype 99 Phi Psi Delta (ty.t_if lab t1 t2) exp_ty with
-            | .some sub =>
-              .some ⟨pf1.side_condition ∧ corr_cond ∧ sub.side_condition,
-                    fun sc =>
-                      has_type.T_Sub (.annot e (ty.t_if lab t1 t2)) (ty.t_if lab t1 t2) exp_ty
-                        (sub.side_condition_sound sc.right.right)
-                        (has_type.T_Annot e (ty.t_if lab t1 t2)
-                          (has_type.T_Sub e t1 (ty.t_if lab t1 t2)
-                            (subtype.ST_RIf1 lab t1 t1 t2 sc.right.left (subtype.ST_Refl t1))
-                            (pf1.side_condition_sound sc.left)))⟩
-            | .none => .none
-          | .none, .some pf2 =>
-            let not_corr_cond := phi_psi_entail_corr Phi Psi (.not_corr lab)
-            match check_subtype 99 Phi Psi Delta (ty.t_if lab t1 t2) exp_ty with
-            | .some sub =>
-              .some ⟨pf2.side_condition ∧ not_corr_cond ∧ sub.side_condition,
-                    fun sc =>
-                      has_type.T_Sub (.annot e (ty.t_if lab t1 t2)) (ty.t_if lab t1 t2) exp_ty
-                        (sub.side_condition_sound sc.right.right)
-                        (has_type.T_Annot e (ty.t_if lab t1 t2)
-                          (has_type.T_Sub e t2 (ty.t_if lab t1 t2)
-                            (subtype.ST_RIf2 lab t2 t1 t2 sc.right.left (subtype.ST_Refl t2))
-                            (pf2.side_condition_sound sc.left)))⟩
-            | .none => .none
-          | _, _ => .none
-      | t => -- NORMAL CASE FOR CHECKING
-        match check_subtype 99 Phi Psi Delta t exp_ty with
-        | .some sub =>
-          match infer Phi Psi Delta Gamma e (.some t) with
-          | .some pf =>
-            .some ⟨sub.side_condition ∧ pf.side_condition,
-                  fun sc => has_type.T_Sub (.annot e t) t exp_ty (grind sub)
-                          (has_type.T_Annot e t (grind pf))⟩
-          | .none => .none
-        | .none => .none
+    match infer Phi Psi Delta Gamma e (.some t') with
+    | .none => .none
+    | .some ⟨res, ⟨heq, pf⟩⟩ =>
+      from_synth Phi Psi Delta Gamma res ⟨pf.side_condition, fun sc => by
+        have h0 := heq.down; simp at h0; subst h0
+        apply has_type.T_Annot
+        apply pf.side_condition_sound; grind
+      ⟩ exp
   | .if_c lab e1 e2 =>
-    -- synthesis
-    let synth :
-      Option ((t : ty l d) × Conditional (has_type Phi Psi Delta Gamma (.if_c lab e1 e2) t)) :=
       match infer Phi ((.corr lab) :: Psi) Delta Gamma e1 none,
             infer Phi ((.not_corr lab) :: Psi) Delta Gamma e2 none with
-      | some ⟨t1, pf1⟩, some ⟨t2, pf2⟩ =>
-          let t := ty.t_if lab t1 t2
-          some ⟨t,
-            ⟨pf1.side_condition /\ pf2.side_condition,
-              fun sc =>
-                derived_if_typing lab e1 e2
-                  (pf1.side_condition_sound sc.left)
-                  (pf2.side_condition_sound sc.right)⟩⟩
-      | _, _ =>
-        match infer Phi Psi Delta Gamma e1 none,
-              infer Phi Psi Delta Gamma e2 none with
-        | some ⟨t1, pf1⟩, none =>
-            let corr_cond := phi_psi_entail_corr Phi Psi (.corr lab)
-            some ⟨t1,
-                  ⟨pf1.side_condition /\ corr_cond,
-                  fun sc => has_type.T_IfCorr2 lab t1 e1 e2 sc.right
-                                              (pf1.side_condition_sound sc.left)⟩⟩
-        | none, some ⟨t2, pf2⟩ =>
-            let not_corr_cond := phi_psi_entail_corr Phi Psi (.not_corr lab)
-            some ⟨t2,
-                  ⟨pf2.side_condition /\ not_corr_cond,
-                  fun sc => has_type.T_IfCorr1 lab t2 e1 e2 sc.right
-                                              (pf2.side_condition_sound sc.left)⟩⟩
-        | _, _ => none
-    match exp, synth with
-    | none, r => r
-    | some t, some ⟨t', pft⟩ =>
-        match check_subtype 99 Phi Psi Delta t' t with
-        | some sub =>
-            some
-            ⟨pft.side_condition ∧ sub.side_condition,
-              fun sc =>
-                has_type.T_Sub (.if_c lab e1 e2) t' t
-                  (sub.side_condition_sound sc.right)
-                  (pft.side_condition_sound sc.left)⟩
-        | none => none
-    | _, _ => none
+      | some ⟨t1, ⟨_, pf1⟩⟩, some ⟨t2, ⟨_, pf2⟩⟩ =>
+        from_synth Phi Psi Delta Gamma (.t_if lab t1 t2) ⟨pf1.side_condition ∧  pf2.side_condition, fun sc => by
+          apply derived_if_typing
+          apply pf1.side_condition_sound; grind
+          apply pf2.side_condition_sound; grind
+        ⟩ exp
+      | _, _ => .none
   | .corr_case lab e =>
     match exp with
-    | .none => -- attempt synthesis
+    | .none =>
       let psi_corr := (.corr lab) :: Psi
       let psi_not_corr := (.not_corr lab) :: Psi
       match infer Phi psi_corr Delta Gamma e .none, infer Phi psi_not_corr Delta Gamma e .none with
-      | .some ⟨t1, pf1⟩, .some ⟨t2, pf2⟩ =>
-        match check_subtype 99 Phi psi_corr Delta t1 t2 with
-        | .some sub12 =>
-          .some ⟨t2, ⟨pf1.side_condition /\ pf2.side_condition /\ sub12.side_condition,
-                    fun sc =>
-                      has_type.T_CorrCase lab e t2
-                        (has_type.T_Sub e t1 t2 (grind sub12)
-                          (grind pf1))
-                          (grind pf2)⟩⟩
-        | .none =>
+      | .some ⟨t1, ⟨_, pf1⟩⟩, .some ⟨t2, ⟨_, pf2⟩⟩ =>
           match check_subtype 99 Phi psi_not_corr Delta t2 t1 with
-          | .some sub21 =>
-            .some ⟨t1, ⟨pf1.side_condition /\ pf2.side_condition /\ sub21.side_condition,
-                        fun sc =>
-                          has_type.T_CorrCase lab e t1
-                            (grind pf1)
-                            (has_type.T_Sub e t2 t1 (grind sub21)
-                              (grind pf2))⟩⟩
-          | .none => .none
+          | .some sub12 =>
+            .some ⟨t1, ⟨sorry, ⟨pf1.side_condition ∧ pf2.side_condition ∧ sub12.side_condition, fun sc => by
+              apply has_type.T_CorrCase
+              apply pf1.side_condition_sound; grind
+              apply has_type.T_Sub
+              apply sub12.side_condition_sound; grind
+              apply pf2.side_condition_sound; grind
+            ⟩⟩⟩
+          | .none => none
       | _, _ => .none
     | .some exp_ty =>
       let psi_corr := (.corr lab) :: Psi
       let psi_not_corr := (.not_corr lab) :: Psi
       match infer Phi psi_corr Delta Gamma e (.some exp_ty), infer Phi psi_not_corr Delta Gamma e (.some exp_ty) with
-      | .some pf1, .some pf2 =>
-        .some ⟨pf1.side_condition /\ pf2.side_condition,
-            fun sc =>
-              has_type.T_CorrCase lab e exp_ty
-                (grind pf1)
-                (grind pf2)⟩
+      | .some ⟨r1, ⟨heq1, pf1⟩⟩, .some ⟨r2, ⟨heq2, pf2⟩⟩  =>
+        .some ⟨exp_ty, ⟨by apply PLift.up; simp,
+        ⟨pf1.side_condition /\ pf2.side_condition,
+            fun sc => by
+              have h0 := heq1.down; simp at h0; subst h0
+              have h1 := heq2.down; simp at h1; subst h1
+              apply has_type.T_CorrCase
+              apply pf1.side_condition_sound; grind
+              apply pf2.side_condition_sound; grind
+          ⟩⟩⟩
       | _, _ => .none
   | .sync e =>
-    match exp with
-    | .none =>
       match infer Phi Psi Delta Gamma e (.some .Public) with
-      | .some pf1 =>
-        .some ⟨.Public, ⟨pf1.side_condition, fun sc => has_type.T_Sync e (grind pf1)⟩⟩
-      | .none => .none
-    | .some exp_ty =>
-      match infer Phi Psi Delta Gamma e (.some .Public) with
-      | .some pf1 =>
-        match check_subtype 99 Phi Psi Delta .Public exp_ty with
-        | .some sub =>
-          .some ⟨pf1.side_condition /\ sub.side_condition,
-                fun sc => has_type.T_Sub (.sync e) .Public exp_ty
-                (grind sub)
-                (has_type.T_Sync e (grind pf1))⟩
-        | .none => .none
+      | .some ⟨res, ⟨heq,  pf1⟩⟩ =>
+        from_synth Phi Psi Delta Gamma .Public
+          ⟨pf1.side_condition, fun sc => by
+            have h0 := heq.down; simp at h0; subst h0
+            apply has_type.T_Sync e (grind pf1)⟩ exp
       | .none => .none
   | _ =>
     match exp with
@@ -995,25 +829,24 @@ noncomputable def infer (Phi : phi_context l) (Psi : psi_context l) (Delta : del
   -- TODO CORR cases for infer and check_subtype (adding corruptions to justify types) (may be done)
 
 theorem infer_sound (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_context l d)
-          (Gamma : gamma_context l d m) (e : tm l d m) (t : ty l d) :
+          (Gamma : gamma_context l d m) (e : tm l d m) (t : ty l d) res heq :
           forall cond,
-           infer Phi Psi Delta Gamma e (some t) = some cond →
+           infer Phi Psi Delta Gamma e (some t) = some ⟨res, ⟨heq, cond⟩⟩ →
            cond.side_condition →
            has_type Phi Psi Delta Gamma e t := by
   intro cond h1 h2
-  simp at cond
-  have cond' := cond.side_condition_sound
-  apply cond'
+  have h0 := heq.down; simp at h0; subst h0
+  apply cond.side_condition_sound
   apply h2
 
 theorem infer_sound_none (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_context l d)
           (Gamma : gamma_context l d m) (e : tm l d m) :
   (forall result, infer Phi Psi Delta Gamma e none = some result ->
-          result.snd.side_condition ->
+          result.snd.snd.side_condition ->
           has_type Phi Psi Delta Gamma e result.fst) := by
   intros cond h1 h2
   simp at cond
-  have cond' := cond.snd.side_condition_sound
+  have cond' := cond.snd.snd.side_condition_sound
   apply cond'
   apply h2
 
@@ -1373,14 +1206,18 @@ macro_rules
       cases h : infer $Phi $Psi $Delta $Gamma $e (some $t) with
       | some result =>
           cases result with
-          | mk side_condition side_condition_sound =>
-            cases h
-            try dsimp at side_condition_sound
-            apply side_condition_sound
-            trace_state;
-            try auto_solve;
-            try simp;
-            $k
+          | mk resty result2 =>
+            cases result2 with
+            | mk heq result3 =>
+              cases result3 with
+                | mk side_condition side_condition_sound =>
+                  cases h
+                  try dsimp at side_condition_sound
+                  apply side_condition_sound
+                  trace_state;
+                  try auto_solve;
+                  try simp;
+                  $k
       | none =>
           dsimp [infer] at h
           cases h
@@ -1391,13 +1228,17 @@ macro_rules
       cases h : infer $Phi $Psi $Delta $Gamma $e (some $t) with
       | some result =>
           cases result with
-          | mk side_condition side_condition_sound =>
-            cases h
-            try dsimp at side_condition_sound
-            apply side_condition_sound
-            trace_state;
-            -- try simp;
-            $k
+          | mk resty result2 =>
+            cases result2 with
+            | mk heq result3 =>
+              cases result3 with
+                | mk side_condition side_condition_sound =>
+                  cases h
+                  try dsimp at side_condition_sound
+                  apply side_condition_sound
+                  trace_state;
+                  -- try simp;
+                  $k
       | none =>
           dsimp [infer] at h
           cases h
@@ -1444,20 +1285,6 @@ elab_rules : tactic
 
 #reduce infer empty_phi (empty_psi 0) empty_delta empty_gamma (.fixlam (.var_tm ⟨1, by omega⟩)) (.some (.arr .Unit .Unit))
 
-theorem skip_has_unit_type (Phi : phi_context l) (Delta : delta_context l d)
-                           (Gamma : gamma_context l d m) :
-                           has_type Phi Psi Delta Gamma .skip .Any := by
-  cases h : infer Phi Psi Delta Gamma .skip (.some .Any) with
-  | some result =>
-          dsimp [infer, check_subtype, cons] at h;
-          cases result with
-          | mk side_condition side_condition_sound =>
-            cases h;
-            apply side_condition_sound
-            grind
-  | none =>
-          dsimp [infer, check_subtype] at h
-          cases h
 
 def packed_unit : tm l d m := .pack .Unit .skip
 
