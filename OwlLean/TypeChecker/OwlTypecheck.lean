@@ -368,82 +368,6 @@ noncomputable def infer (Phi : phi_context l) (Psi : psi_context l) (Delta : del
                 grind ⟩ exp
       | _, _ => .none
     | _, _ => .none
---     match exp with
---     | .none => -- try to synthesize
---       match infer Phi Psi Delta Gamma e1 .none with -- find type of e1
---       | .some ⟨.Data l1, pf1⟩ =>
---         match infer Phi Psi Delta Gamma e2 (.some (.Data l1)) with
---         | .some e2pf =>
---           .some ⟨.Data l1,
---                  ⟨pf1.side_condition /\ e2pf.side_condition,
---                   fun sc => has_type.T_Op op e1 e2 l1 (pf1.side_condition_sound (by grind)) (e2pf.side_condition_sound (by grind))⟩⟩
---         | .none =>
---           match infer Phi Psi Delta Gamma e2 .none with  -- find type of e2
---           | .some ⟨.Data l2, pf2⟩ =>
---             match infer Phi Psi Delta Gamma e1 (.some (.Data l2)) with
---             | .some e1pf =>
---               .some ⟨.Data l2,
---                      ⟨e1pf.side_condition /\ pf2.side_condition,
---                       fun sc => has_type.T_Op op e1 e2 l2 (e1pf.side_condition_sound (by grind)) (pf2.side_condition_sound (by grind))⟩⟩
---             | .none => .none
---           | .some ⟨.Public, pf2⟩ =>
---             match infer Phi Psi Delta Gamma e1 (.some .Public) with
---             | .some e1pf =>
---               .some ⟨.Data (.latl L.bot),
---                  ⟨pf2.side_condition /\ e1pf.side_condition,
---                   fun sc =>
---                   (has_type.T_Op op e1 e2 (.latl L.bot)
---                                           (has_type.T_Sub e1 .Public (.Data (.latl L.bot))
---                                                                      (subtype.ST_RPublic (.latl L.bot))
---                                                                      (e1pf.side_condition_sound (by grind)))
---                                           (has_type.T_Sub e2 .Public (.Data (.latl L.bot))
---                                                                      (subtype.ST_RPublic (.latl L.bot))
---                                                                      (pf2.side_condition_sound (by grind))))⟩⟩
---             | .none => .none
---           | _ => .none
---       | .some ⟨.Public, pf1⟩ =>
---         match infer Phi Psi Delta Gamma e2 (.some .Public) with
---         | .some e2pf =>
---           .some ⟨.Data (.latl L.bot),
---                  ⟨pf1.side_condition /\ e2pf.side_condition,
---                   fun sc =>
---                   (has_type.T_Op op e1 e2 (.latl L.bot)
---                                           (has_type.T_Sub e1 .Public (.Data (.latl L.bot))
---                                                                      (subtype.ST_RPublic (.latl L.bot))
---                                                                      (pf1.side_condition_sound (by grind)))
---                                           (has_type.T_Sub e2 .Public (.Data (.latl L.bot))
---                                                                      (subtype.ST_RPublic (.latl L.bot))
---                                                                      (e2pf.side_condition_sound (by grind))))⟩⟩
---         | .none => .none --match on e2, do the whole thing here
---       | _ => .none
---     | .some t =>
---       match t with
---       | .Data l =>
---         match infer Phi Psi Delta Gamma e1 (.some (.Data l)) with
---         | .some pf1 =>
---           match infer Phi Psi Delta Gamma e2 (.some (.Data l)) with
---           | .some pf2 =>
---             .some ⟨pf1.side_condition /\ pf2.side_condition,
---                    fun sc => has_type.T_Op op e1 e2 l (grind pf1) (grind pf2)⟩
---           | .none => .none
---         | .none => .none
---       | .Public =>
---         match infer Phi Psi Delta Gamma e1 (.some .Public) with
---         | .some pf1 =>
---           match infer Phi Psi Delta Gamma e2 (.some .Public) with
---           | .some pf2 =>
---             match (check_subtype 99 Phi Psi Delta (.Data (.latl L.bot)) .Public) with -- a bit of a pain to get this to work, but it does (?)
---             | .some sub =>
---               .some ⟨sub.side_condition /\ pf1.side_condition /\ pf2.side_condition,
---                       fun sc => has_type.T_Sub (.Op op e1 e2) (.Data (.latl L.bot)) .Public
---                                 (grind sub)
---                                 (has_type.T_Op op e1 e2 (.latl L.bot)
---                                               (has_type.T_Sub e1 .Public (.Data (.latl L.bot)) (subtype.ST_RPublic (.latl L.bot)) (grind pf1))
---                                               (has_type.T_Sub e2 .Public (.Data (.latl L.bot)) (subtype.ST_RPublic (.latl L.bot)) (grind pf2)))⟩
---             | .none => .none
---           | .none => .none
---         | .none => .none
---       | _ => .none
   | .zero e =>
     match infer Phi Psi Delta Gamma e .none with
     | .none => .none
@@ -520,7 +444,10 @@ noncomputable def infer (Phi : phi_context l) (Psi : psi_context l) (Delta : del
       match t with
       | .sum t1 t2 =>
         match infer Phi Psi Delta Gamma e (.some t1) with
-        | .some ⟨t1, ⟨heq, pf⟩⟩ => .some ⟨.sum t1 t2, ⟨sorry, ⟨pf.side_condition, fun sc => by
+        | .some ⟨t1, ⟨heq, pf⟩⟩ => .some ⟨.sum t1 t2, ⟨by
+          simp at heq; cases heq; rename_i h; subst h
+          apply PLift.up; simp
+        , ⟨pf.side_condition, fun sc => by
             apply has_type.T_ISumL
             apply pf.side_condition_sound; grind
           ⟩⟩⟩
@@ -569,20 +496,38 @@ noncomputable def infer (Phi : phi_context l) (Psi : psi_context l) (Delta : del
         | .none => .none
       | _ => .none
   | .app e1 e2 =>
-    match infer Phi Psi Delta Gamma e1 .none with
-    | .none => .none
-    | .some ⟨.arr t t', ⟨heq, pf⟩⟩ =>
-      match infer Phi Psi Delta Gamma e2 (.some t) with
+    match exp with
+    | .none =>
+      match infer Phi Psi Delta Gamma e1 .none with
       | .none => .none
-      | .some ⟨t1, ⟨heq', pf'⟩⟩ =>
-        from_synth Phi Psi Delta Gamma t' ⟨pf.side_condition ∧ pf'.side_condition, fun sc => by
-          apply has_type.T_EFun
-          apply pf.side_condition_sound; grind
-          have : t1 = t := heq'.down
-          subst this
-          apply pf'.side_condition_sound; grind
-        ⟩ exp
-    | _ => .none
+      | .some ⟨.arr t t', ⟨heq, pf⟩⟩ =>
+        match infer Phi Psi Delta Gamma e2 (.some t) with
+        | .none => .none
+        | .some ⟨t1, ⟨heq', pf'⟩⟩ =>
+          from_synth Phi Psi Delta Gamma t' ⟨pf.side_condition ∧ pf'.side_condition, fun sc => by
+            apply has_type.T_EFun
+            apply pf.side_condition_sound; grind
+            have : t1 = t := heq'.down
+            subst this
+            apply pf'.side_condition_sound; grind
+          ⟩ .none
+      | _ => .none
+    | .some expected =>
+      match infer Phi Psi Delta Gamma e2 .none with
+      | .none => .none
+      | .some ⟨t1, ⟨_, pf⟩⟩ =>
+        match infer Phi Psi Delta Gamma e1 (.some (.arr t1 expected)) with
+        | .none => .none
+        | .some ⟨tres, ⟨heq, pf2⟩⟩ =>
+          .some ⟨expected, ⟨by apply PLift.up; simp, ⟨pf.side_condition ∧ pf2.side_condition, fun sc => by
+              apply has_type.T_EFun
+              simp at heq
+              cases heq
+              rename_i h
+              subst h
+              apply pf2.side_condition_sound; grind
+              apply pf.side_condition_sound; grind
+              ⟩⟩⟩
   | .tm_pair e1 e2 =>
     match infer Phi Psi Delta Gamma e1 .none, infer Phi Psi Delta Gamma e2 .none with
     | .some ⟨t1, ⟨heq1, pf1⟩⟩, .some ⟨t2, ⟨heq2, pf2⟩⟩ =>
@@ -683,7 +628,10 @@ noncomputable def infer (Phi : phi_context l) (Psi : psi_context l) (Delta : del
       | .some sub =>
         match infer Phi Psi Delta Gamma e (.some substituted_type) with
         | .some ⟨r, ⟨heq, pf⟩⟩ =>
-          .some ⟨.ex t0 t, ⟨sorry, ⟨pf.side_condition /\ sub.side_condition,
+          .some ⟨.ex t0 t, ⟨by
+            simp at heq; cases heq; rename_i h; subst h
+            apply PLift.up; simp
+          , ⟨pf.side_condition /\ sub.side_condition,
                  fun sc => by
                   have h0 := heq.down
                   simp at h0
@@ -790,7 +738,7 @@ noncomputable def infer (Phi : phi_context l) (Psi : psi_context l) (Delta : del
       | .some ⟨t1, ⟨_, pf1⟩⟩, .some ⟨t2, ⟨_, pf2⟩⟩ =>
           match check_subtype 99 Phi psi_not_corr Delta t2 t1 with
           | .some sub12 =>
-            .some ⟨t1, ⟨sorry, ⟨pf1.side_condition ∧ pf2.side_condition ∧ sub12.side_condition, fun sc => by
+            .some ⟨t1, ⟨by apply PLift.up; simp, ⟨pf1.side_condition ∧ pf2.side_condition ∧ sub12.side_condition, fun sc => by
               apply has_type.T_CorrCase
               apply pf1.side_condition_sound; grind
               apply has_type.T_Sub
@@ -1290,9 +1238,6 @@ def packed_unit : tm l d m := .pack .Unit .skip
 
 #reduce infer empty_phi (empty_psi 0) empty_delta empty_gamma (.unpack (.annot packed_unit (.ex .Any .Unit)) .skip) (.some .Unit)
 
--- for label testing purposes!
-theorem stub_label_flow : L.leq l1 l2 = true := by
-  sorry
 
 #reduce infer empty_phi (empty_psi 0) empty_delta empty_gamma (.tm_pair (.alloc .skip) (.bitstring .bend)) (.some (.prod (.Ref .Unit) .Public))
 
@@ -1318,16 +1263,6 @@ theorem tc_prod   (Phi : phi_context l)
     (.prod (.Ref .Unit) (.Data (.latl l1))):= by
   tc (try grind)
 
-theorem tc_label (Phi : phi_context l)
-                         (Delta : delta_context l d) :
-                         has_type Phi Psi Delta (cons (.Data (.latl l1)) empty_gamma)
-                         (tm.var_tm ⟨0, by omega⟩)
-                         (.Data (.latl l2)) := by
-  tc (
-    try simp
-    try exact stub_label_flow
-    try sorry
-  )
 
 theorem packed_unit_tc (Phi : phi_context l)
                          (Delta : delta_context l d) (Gamma : gamma_context l d m) :
