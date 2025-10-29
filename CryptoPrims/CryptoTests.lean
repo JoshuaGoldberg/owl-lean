@@ -5,7 +5,7 @@ set_option maxHeartbeats 1000000
 
 -- "[0]" represents garbage values not needed for computation
 theorem enc_i :
-  ( · ; · ; · ; · ;
+  ( · ; · ; · ; · ⊢
     Λβ betaK .
     Λβ betaM .
     Λ tau .
@@ -26,7 +26,7 @@ theorem enc_i :
                 else λ (x : (Data betaK * Public)) : (tau + Unit) => (!L) [π2 x]))
     in
     pack (Data betaK, ⟨k, ⟨(corr_case betaK in enc'), (corr_case betaK in dec')⟩⟩)
-    ⊢
+    :
     ∀ betaK ⊒ ⟨Owl.L.bot⟩ .
     ∀ betaM ⊏ betaK .
     ∀ tau <: Data betaM .
@@ -40,9 +40,9 @@ theorem enc_i :
     )
 
 theorem enc_ty2 :
-  ((betaK, betaM ⊑ betaK) ; · ; · ; · ;
+  ((betaK, betaM ⊑ betaK) ; · ; · ; · ⊢
       pack (Unit, *)
-      ⊢
+      :
       (∃ alphaK <: Unit . alphaK)) :=
     by
     tc_man (
@@ -51,10 +51,10 @@ theorem enc_ty2 :
     )
 
 theorem test_let_2 :
-  ( · ; · ; · ; · ;
+  ( · ; · ; · ; · ⊢
       let (x, y) = ⟨* , ["0"]⟩ in
       y
-      ⊢
+      :
       Public) :=
     by
     tc_man (
@@ -63,10 +63,10 @@ theorem test_let_2 :
     )
 
 theorem test_let_3 :
-  ( · ; · ; · ; · ;
+  ( · ; · ; · ; · ⊢
       let (x, y, z) = ⟨⟨* , *⟩ , ⟨*, ["0"]⟩⟩ in
       z
-      ⊢
+      :
       Public) :=
     by
     tc_man (
@@ -75,9 +75,9 @@ theorem test_let_3 :
     )
 
 theorem enc_ty_contra :
-  ((betaK, betaM ⊑ betaK, betaC ⊒ betaK) ; (corr(betaK)) ; · ; · ;
+  ((betaK, betaM ⊑ betaK, betaC ⊒ betaK) ; (corr(betaK)) ; · ; · ⊢
       (if corr (betaK) then ((λ x => *) : Public -> Unit) else ((λ x => x) : Data betaC -> Data betaC))
-      ⊢
+      :
       (Public -> Unit)) :=
     by
     tc_man (
@@ -86,11 +86,11 @@ theorem enc_ty_contra :
     )
 
 theorem enc_length_test :
-  ( (betaK, betaM ⊑ betaK, betaC ⊒ betaK) ; (corr(betaK)) ; · ; · ;
+  ( (betaK, betaM ⊑ betaK, betaC ⊒ betaK) ; (corr(betaK)) ; · ; · ⊢
       λ x => λ x => λ x => λ x => λ x => λ x => λ x => λ x => λ x => λ x => λ a => λ x => λ x => λ b =>
       λ x => λ x => λ y => λ x => λ h => λ x => λ a => λ x => λ x => λ x => λ x => λ x => λ x => λ x =>
       λ x => λ x => λ x => λ x => λ x => λ x => λ x => λ x => λ z => λ x => λ x => λ x => λ x => λ x => ⟨a, ⟨x, ⟨x, ⟨x, ⟨x, ⟨x, ⟨x, ⟨x, ⟨x, ⟨z, x⟩⟩⟩⟩⟩⟩⟩⟩⟩⟩
-      ⊢
+      :
       (Data betaM -> Data betaM -> Data betaM -> Data betaM -> Data betaM -> Data betaM -> Data betaM ->
        Data betaM -> Data betaM -> Data betaM -> Data betaM -> Data betaM -> Data betaM -> Data betaM ->
        Data betaM -> Data betaM -> Data betaM -> Data betaM -> Data betaM -> Data betaM -> Data betaM ->
@@ -107,11 +107,11 @@ theorem enc_length_test :
 
 
 theorem enc_r :
-  ( (betaK, betaM) ; (corr(betaK)) ; (tau <: Data betaM) ; · ;
+  ( (betaK, betaM) ; (corr(betaK)) ; (tau <: Data betaM) ; · ⊢
     let k = (⟨"genKey"⟩ (["0"], ["0"]) : Data betaK) in
     pack (Data betaK, ⟨k, ⟨λ (x : (Public * Public)) : Public => ⟨"enc"⟩ (π1 x, π2 x),
                            λ (y : (Public * Public)) : Public => ⟨"dec"⟩ (π1 y, π2 y)⟩⟩)
-    ⊢
+    :
     (∃ alphaK <: (Data betaK) . (alphaK *
                                  ((corr (betaK) ? (Public * Public) -> Public : (alphaK * (Data betaM)) -> Public) *
                                   (corr (betaK) ? (Public * Public) -> Public : (alphaK * Public) -> (tau + Unit)))))) :=
@@ -126,11 +126,11 @@ theorem enc_unpack :
   (E => (∃ alphaK <: (Data betaK) . (alphaK *
                                      ((corr (betaK) ? (Public * Public) -> Public : (alphaK * tau) -> Public) *
                                       (corr (betaK) ? (Public * Public) -> Public : (alphaK * Public) -> (tau + Unit))))),
-   x => tau) ;
+   x => tau) ⊢
     (corr_case betaK in
      unpack E as (alpha, ked) in
      (π1 (π2 ked)) [⟨(π1 ked), x⟩])
-    ⊢
+    :
     Public) :=
     by
     tc_man (
@@ -147,12 +147,12 @@ theorem enc_layered :
    E2 => (∃ alphaK <: (Data l2) .
                         (alphaK *
                          ((corr (l2) ? (Public * Public) -> Public : (alphaK * (Data l1)) -> Public) *
-                          (corr (l2) ? (Public * Public) -> Public : (alphaK * Public) -> (b + Unit)))))) ;
+                          (corr (l2) ? (Public * Public) -> Public : (alphaK * Public) -> (b + Unit)))))) ⊢
     (corr_case l3 in
        unpack E1 as (alpha1, ked1) in
        unpack E2 as (alpha2, ked2) in
        (π1 (π2 ked1)) [⟨(π1 ked1), (π1 ked2)⟩])
-    ⊢
+    :
     Public) :=
     by
     tc_man (
@@ -227,7 +227,7 @@ theorem enc_layered2_high_low :
    E2 => (∃ alphaK <: (Data L_high) .
                         (alphaK *
                          ((corr (L_high) ? (Public * Public) -> Public : (alphaK * (Data L_low)) -> Public) *
-                          (corr (L_high) ? (Public * Public) -> Public : (alphaK * Public) -> (b + Unit)))))) ;
+                          (corr (L_high) ? (Public * Public) -> Public : (alphaK * Public) -> (b + Unit)))))) ⊢
     (corr_case L_low in
       (corr_case L_high in
        unpack E1 as (alpha1, ked1) in
@@ -236,7 +236,7 @@ theorem enc_layered2_high_low :
         let c1 = ((π1 (π2 ked1)) [⟨(π1 ked1), x⟩] : Public) in
         let c2 = ((π1 (π2 ked2)) [⟨(π1 ked2), (π1 ked1)⟩] : Public) in
         ⟨"combine"⟩(c1, c2)) : ((Data L_sec) -> Public))))
-    ⊢
+    :
     ((Data L_sec) -> Public)) :=
     by
     tc_man (

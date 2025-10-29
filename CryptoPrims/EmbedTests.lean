@@ -9,9 +9,9 @@ def test_label :=
   }
 
 theorem label_test_ty :
-  ((lx, ly) ; · ; · ; · ;
+  ((lx, ly) ; · ; · ; · ⊢
       ["0"]
-      ⊢
+      :
       Data ($ test_label [⟨Owl.L.bot⟩, lx, ly])) :=
     by
     tc_man (
@@ -43,9 +43,9 @@ def ENC_TM :=
 theorem enc_layered2_high_low :
   ( (L_sec, L_low ⊒ L_sec, L_high ⊒ L_low) ; · ; (a <: Data L_sec, b <: Data L_low) ;
     (E1 => ($ ENC [L_low, L_sec] [a]),
-     E2 => ($ ENC [L_high,L_low] [b])) ;
+     E2 => ($ ENC [L_high,L_low] [b])) ⊢
     ($ ENC_TM [L_sec, L_low, L_high] [] [E1, E2])
-    ⊢
+    :
     ((Data L_sec) -> Public)) :=
     by
     tc_man (
