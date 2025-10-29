@@ -162,7 +162,7 @@ theorem enc_layered :
 
 -- partial
 theorem enc_sig :
-  ( · ; · ; · ; · ;
+  ( · ; · ; · ; · ⊢
     Λβ betaK .
     Λ tau .
     corr_case betaK in
@@ -181,11 +181,11 @@ theorem enc_sig :
     else
       ((let sk = ⟨"genSK"⟩(["0"], ["0"]) in
       let pk = ⟨"vk_of_sk"⟩(["0"], ["0"]) in
-      let L = (alloc (λ null => ı2 *) : Ref ((Public * Public) -> (tau + Unit))) in
-      let sign =  ((λ skm =>
-                  let sig = (⟨"rand"⟩(π2 skm, ["0"]) : Public) in
+      let L = ((alloc (λ (null : (Public * Public)) : (tau + Unit) => (ı2 *))) : Ref ((Public * Public) -> (tau + Unit))) in
+      let sign =  ((λ (skm : (Data betaK * tau)) : Public =>
+                  let sig = (⟨"rand"⟩(((π2 skm) : Public), ["0"]) : Public) in
                   let L_old = (! L) in
-                  let action =  (L := (λ msig' => if ⟨"and"⟩(⟨"eq"⟩((π2 skm), π2 msig'), ⟨"eq"⟩(sig, π2 msig'))
+                  let action =  (L := (λ (msig' : (Public * Public)) : (tau + Unit) => if ⟨"and"⟩(⟨"eq"⟩(π2 skm, π2 msig'), ⟨"eq"⟩(sig, π2 msig'))
                                                 then (ı1 (π2 skm))
                                                 else L_old [msig']))
                   in
@@ -200,7 +200,7 @@ theorem enc_sig :
       (beta *
       ((corr (betaK) ? ((Public * Public) -> Public) : ((alpha * tau) -> Public)) *
        (corr (betaK) ? ((Public * (Public * Public)) -> Public) : ((beta * (Public * Public)) -> (tau + Unit))))))))
-    ⊢
+    :
     ∀ betaK ⊒ ⟨Owl.L.bot⟩ .
     ∀ tau <: Public .
     ∃ alpha <: Data betaK .

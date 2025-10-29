@@ -296,14 +296,22 @@ def check_subtype  (fuel : Nat) (Phi : phi_context l) (Psi : psi_context l) (Del
         .none
 
 @[simp]
-noncomputable def to_data (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_context l d) (t : ty l d)
+noncomputable def to_data (fuel : Nat) (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_context l d) (t : ty l d)
   : Option ((l : Owl.label l) × (PLift (subtype Phi Psi Delta t (.Data l)))) :=
-    match t with
-    | .Data l1 => .some ⟨l1, PLift.up (by apply subtype.ST_Refl)⟩
-    | .Public => .some ⟨.latl L.bot, PLift.up (by
-        constructor
-    )⟩
-    | _ => .none
+    match fuel with
+    | 0 => .none
+    | n + 1 =>
+      match t with
+      | .Data l1 => .some ⟨l1, PLift.up (by apply subtype.ST_Refl)⟩
+      | .Public => .some ⟨.latl L.bot, PLift.up (by
+          constructor
+      )⟩
+      | .var_ty x =>
+        match (to_data n Phi Psi Delta (Delta x)) with
+        | .some ⟨lab, pf⟩ =>
+          .some ⟨lab, (PLift.up (subtype.ST_Var x (.Data lab) pf.down))⟩
+        | .none => .none
+      | _ => .none
 
 @[simp]
 def unifies (t1 : ty l d) (exp : Option (ty l d)) :=
@@ -348,7 +356,7 @@ noncomputable def infer (Phi : phi_context l) (Psi : psi_context l) (Delta : del
   | .Op op e1 e2 => -- This case is long! Might need a step by step.
     match infer Phi Psi Delta Gamma e1 .none, infer Phi Psi Delta Gamma e2 .none with
     | some ⟨t1, pf1⟩, some ⟨t2, pf2⟩ =>
-      match to_data Phi Psi Delta t1, to_data Phi Psi Delta t2 with
+      match to_data 99 Phi Psi Delta t1, to_data 99 Phi Psi Delta t2 with
       | .some ⟨l1, pf11⟩, .some ⟨l2, pf12⟩ =>
         from_synth Phi Psi Delta Gamma _ ⟨pf1.snd.side_condition ∧ pf2.snd.side_condition ∧ (Phi |= (.condition .leq l2 l1)),
               fun sc => by
@@ -372,7 +380,7 @@ noncomputable def infer (Phi : phi_context l) (Psi : psi_context l) (Delta : del
     match infer Phi Psi Delta Gamma e .none with
     | .none => .none
     | .some ⟨t1, pf⟩ =>
-      match to_data Phi Psi Delta t1 with
+      match to_data 9 Phi Psi Delta t1 with
       | .none => .none
       | .some ⟨l, pf2⟩ =>
           from_synth Phi Psi Delta Gamma _ ⟨pf.snd.side_condition, fun sc => by
@@ -387,7 +395,7 @@ noncomputable def infer (Phi : phi_context l) (Psi : psi_context l) (Delta : del
     | .some ⟨t1, ⟨heq, pf⟩⟩ =>
       match infer Phi Psi Delta Gamma e1 exp, infer Phi Psi Delta Gamma e2 exp with
       | .some ⟨t11, ⟨heq1, pf1⟩⟩, .some ⟨t12, ⟨heq2, pf2⟩⟩ =>
-        match check_subtype 999 Phi Psi Delta t12 t11 with
+        match check_subtype 99 Phi Psi Delta t12 t11 with
         | .none => .none
         | .some pf3 =>
             from_synth Phi Psi Delta Gamma t11 ⟨pf.side_condition ∧ pf1.side_condition ∧ pf2.side_condition ∧ pf3.side_condition, fun sc =>
