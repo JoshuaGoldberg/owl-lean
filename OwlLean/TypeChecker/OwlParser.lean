@@ -9,6 +9,7 @@ open Owl
 #check (tm.error : tm 0 0 0)
 #check (ty.Any : ty 0 0)
 
+
 def TCtx := List String
 
 @[simp]
@@ -26,6 +27,11 @@ def TCtx.lookup (t : TCtx) (s : String) : Option (Fin t.length) :=
 -- test parser for labels
 elab "label_parse" "(" p:owl_label ")" : term =>
     elabLabel p
+
+@[simp]
+def list_to_finmap : (xs : List t) → Fin xs.length → t
+  | [] => Fin.elim0
+  | x :: xs => cons x (list_to_finmap xs)
 
 @[simp]
 def SLabel.elab (s : SLabel) (P : TCtx) : Option (Owl.label P.length) :=
@@ -49,9 +55,19 @@ def SLabel.elab (s : SLabel) (P : TCtx) : Option (Owl.label P.length) :=
       match (SLabel.elab l2 P) with
       | .none => .none
       | .some l2' => .some (label.ljoin l1' l2')
-  | .embedlabel l => do
-    let l' := (ren_label (shift_bound_by P.length) l)
-    .some (Eq.symm (Nat.zero_add P.length) ▸ l')
+  | @embedlabel len l xs =>
+      let rec go : List SLabel → Option (List (label P.length))
+        | [] => some []
+        | x::xs => do
+            let res ← SLabel.elab x P
+            let rest ← go xs
+            some (res :: rest)
+      match go xs with
+      | none => none
+      | some elab_xs =>
+          if h : len = elab_xs.length then
+            some (subst_label (list_to_finmap elab_xs) (h ▸ l))
+          else none
   | .default => .some label.default
 
 @[simp]
@@ -178,10 +194,27 @@ def STy.elab (s : STy) (P : TCtx) (D : TCtx): Option (Owl.ty P.length D.length) 
             match (STy.elab t2 P D) with
             | .none => .none
             | .some t2' => .some (ty.t_if c' t1' t2')
-  | .embedty t => do
-    let t' := (ren_ty (shift_bound_by P.length) (shift_bound_by D.length) t)
-    .some (Eq.symm (Nat.zero_add D.length) ▸
-          Eq.symm (Nat.zero_add P.length) ▸ t')
+  | @embedty llen tlen t ls ts => do
+    let rec go1 : List SLabel → Option (List (label P.length))
+        | [] => some []
+        | x::xs => do
+            let res ← SLabel.elab x P
+            let rest ← go1 xs
+            some (res :: rest)
+    let rec go2 : List STy → Option (List (ty P.length D.length))
+        | [] => some []
+        | x::xs => do
+            let res ← STy.elab x P D
+            let rest ← go2 xs
+            some (res :: rest)
+    match go1 ls, go2 ts with
+    | .some elab_ls, .some elab_ts =>
+      if h : llen = elab_ls.length then
+        if k : tlen = elab_ts.length then
+          .some (subst_ty (list_to_finmap elab_ls) (list_to_finmap elab_ts) (k ▸ (h ▸ t)))
+        else .none
+      else .none
+    | _, _ => .none
   | .default => .some ty.default
 
 -- test parser for types
@@ -221,11 +254,35 @@ def SExpr.elab (s : SExpr) (P : TCtx) (D : TCtx) (G : TCtx): Option (Owl.tm P.le
       match (SExpr.elab e2 P D G) with
       | .none => .none
       | .some e2' => .some (tm.Op op e1' e2')
-  | .embedtm e => do
-    let e' := (ren_tm (shift_bound_by P.length) (shift_bound_by D.length) (shift_bound_by G.length) e)
-    .some (Eq.symm (Nat.zero_add G.length) ▸
-          Eq.symm (Nat.zero_add D.length) ▸
-          Eq.symm (Nat.zero_add P.length) ▸ e')
+  | @embedtm llen tlen mlen e ls ts es => do
+    let rec go1 : List SLabel → Option (List (label P.length))
+        | [] => some []
+        | x::xs => do
+            let res ← SLabel.elab x P
+            let rest ← go1 xs
+            some (res :: rest)
+    let rec go2 : List STy → Option (List (ty P.length D.length))
+        | [] => some []
+        | x::xs => do
+            let res ← STy.elab x P D
+            let rest ← go2 xs
+            some (res :: rest)
+    let rec go3 : List SExpr → Option (List (tm P.length D.length G.length))
+        | [] => some []
+        | x::xs => do
+            let res ← SExpr.elab x P D G
+            let rest ← go3 xs
+            some (res :: rest)
+    match go1 ls, go2 ts, go3 es with
+    | .some elab_ls, .some elab_ts, .some elab_es =>
+      if h : llen = elab_ls.length then
+        if k : tlen = elab_ts.length then
+           if j : mlen = elab_es.length then
+            .some (subst_tm (list_to_finmap elab_ls) (list_to_finmap elab_ts) (list_to_finmap elab_es) (j ▸ (k ▸ (h ▸ e))))
+           else .none
+        else .none
+      else .none
+    | _, _, _ => .none
   | .zero e =>
     match (SExpr.elab e P D G) with
     | .none => .none
@@ -482,6 +539,13 @@ def elabHelperTy (s : STy) (lvars : List String) (tvars : List String) : ty lvar
   | .none => ty.Any --default value
 
 @[simp]
+def elabHelperLabel (s : SLabel) (lvars : List String) : label lvars.length :=
+  match SLabel.elab s lvars with
+  | .some e => e
+  | .none => label.default --default value
+
+
+@[simp]
 def elabHelperConstr (s : SConstr) (lvars : List String) : constr lvars.length :=
   match SConstr.elab s lvars with
   | .some e => e
@@ -644,9 +708,25 @@ elab "OwlTy" "[" lvars:ident,* "]" "[" tvars:ident,* "]" "{" p:owl_type "}" : te
   | .none => throwError "owl: ill-formed term"
   | .some _ => mkAppM ``elabHelperTy #[sexprTerm, lvarEListExpr, tvarEListExpr]
 
+@[simp]
+elab "OwlLabel" "[" lvars:ident,* "]" "{" p:owl_label "}" : term => do
+  let lvarNames := lvars.getElems.map (fun id => id.getId.toString)
+  let lvarList := lvarNames.toList
+
+  let lvarEList ← lvarNames.mapM (fun s => return mkStrLit s)
+  let lvarEListExpr ← mkListLit (mkConst ``String) lvarEList.toList
+
+  let sexprTerm ← elabLabel p
+  let sexprTerm2 ← elabLabel_closed p
+
+  let sVal : SLabel ← unsafe do Meta.evalExpr SLabel (mkConst ``SLabel) sexprTerm2
+  match SLabel.elab sVal lvarList with
+  | .none => throwError "owl: ill-formed term"
+  | .some _ => mkAppM ``elabHelperLabel #[sexprTerm, lvarEListExpr]
+
 -- For easier usage of the has_type inductive
 @[simp]
-elab "(" p:owl_phi ";" ps:owl_psi ";" d:owl_delta ";" g:owl_gamma ";" e:owl_tm "⊢" t:owl_type ")" : term => do
+elab "(" p:owl_phi ";" ps:owl_psi ";" d:owl_delta ";" g:owl_gamma "⊢" e:owl_tm ":" t:owl_type ")" : term => do
 
   let sphiExpr2 ← elabPhi_closed p
   let sphi : SPhi ← unsafe do Meta.evalExpr SPhi (mkConst ``SPhi) sphiExpr2

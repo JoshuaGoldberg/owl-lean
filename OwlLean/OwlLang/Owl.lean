@@ -66,17 +66,13 @@ inductive ty : Nat -> Nat-> Type where
 | all_l : cond_sym -> label n_label -> ty (n_label + 1) n_ty -> ty n_label n_ty
 | t_if : label n_label -> ty n_label n_ty -> ty n_label n_ty -> ty n_label n_ty
 | Public : ty n_label n_ty
+| Sing : binary -> ty n_label n_ty
 | default : ty n_label n_ty
 deriving Repr
 
 inductive Dist (a : Type) : Type where
 | ret  : a -> Dist a
 | flip : (Bool -> Dist a) → Dist a
-
-abbrev op := binary -> binary -> Dist binary
-
-instance : Repr Owl.op where
-  reprPrec _ _ := "<Operation>"
 
 inductive tm : Nat -> Nat -> Nat -> Type where
 | var_tm : Fin n_tm -> tm n_label n_ty n_tm
@@ -87,7 +83,7 @@ inductive tm : Nat -> Nat -> Nat -> Type where
 | fixlam : tm n_label n_ty ((n_tm + 1) + 1) -> tm n_label n_ty n_tm
 | tlam : tm n_label (n_ty + 1) n_tm -> tm n_label n_ty n_tm
 | l_lam : tm (n_label + 1) n_ty n_tm -> tm n_label n_ty n_tm
-| Op : op -> tm n_label n_ty n_tm -> tm n_label n_ty n_tm -> tm n_label n_ty n_tm
+| Op : String -> tm n_label n_ty n_tm -> tm n_label n_ty n_tm -> tm n_label n_ty n_tm
 | zero : tm n_label n_ty n_tm -> tm n_label n_ty n_tm
 | app : tm n_label n_ty n_tm -> tm n_label n_ty n_tm -> tm n_label n_ty n_tm
 | alloc : tm n_label n_ty n_tm -> tm n_label n_ty n_tm
@@ -129,9 +125,11 @@ def shift : ren n (n + 1) :=
 def var_zero : Fin (n + 1) :=
   0
 
+@[simp]
 def funcomp (g : Y -> Z) (f : X -> Y) :=
   fun x => g (f x)
 
+@[simp]
 def cons (x : X) (f : Fin n -> X) (m : Fin (n + 1)) : X :=
   match m with
   | ⟨0,_⟩ => x
@@ -182,10 +180,12 @@ def ren_corruption
   | .corr l1 => .corr (ren_label xi_label l1)
   | .not_corr l1 => .not_corr (ren_label xi_label l1)
 
+@[simp]
 def ren_ty
 (xi_label : Fin m_label -> Fin n_label) (xi_ty : Fin m_ty -> Fin n_ty)
 (s : ty m_label m_ty) : ty n_label n_ty :=
   match s with
+  | .Sing s => .Sing s
   | .var_ty s0 => .var_ty (xi_ty s0)
   | .Any => .Any
   | .Unit => .Unit
@@ -322,6 +322,7 @@ label n_label :=
       .lmeet (subst_label sigma_label s0) (subst_label sigma_label s1)
   | .default => .default
 
+@[simp]
 def subst_corruption
 (sigma_label : Fin m_label -> label n_label) (s : corruption m_label) :
 corruption n_label :=
@@ -329,6 +330,7 @@ corruption n_label :=
   | .corr l1 => .corr (subst_label sigma_label l1)
   | .not_corr l1 => .not_corr (subst_label sigma_label l1)
 
+@[simp]
 def subst_constr
   (sigma_label : Fin m_label -> label n_label) (s : constr m_label) :
   constr n_label :=
@@ -337,29 +339,63 @@ def subst_constr
       .condition s0 (subst_label sigma_label s1)
         (subst_label sigma_label s2)
 
+@[simp]
 def up_ty_label (sigma : Fin m -> label n_label)
   : Fin m -> label n_label :=
     (funcomp (ren_label id) sigma)
 
+@[simp]
 def up_ty_ty
   (sigma : Fin m -> ty n_label n_ty) : Fin (m + 1) -> ty n_label (n_ty + 1) :=
     (cons (.var_ty var_zero)
          (funcomp (ren_ty id shift) sigma))
 
+@[simp]
 def up_label_label
   (sigma : Fin m -> label n_label) : Fin (m + 1) -> label (n_label + 1) :=
     (cons (.var_label var_zero)
          (funcomp (ren_label shift) sigma))
 
+@[simp]
 def up_label_ty
   (sigma : Fin m -> ty n_label n_ty) : Fin m -> ty (n_label + 1) n_ty :=
     (funcomp (ren_ty shift id) sigma)
 
+@[simp]
+def up_tm_label
+  (sigma : Fin m -> label n_label)
+  : Fin m -> label n_label :=
+  (funcomp (ren_label id) sigma)
+
+@[simp]
+def up_tm_ty
+  (sigma : Fin m -> ty n_label n_ty) : Fin m -> ty n_label n_ty :=
+  (funcomp (ren_ty id id) sigma)
+
+@[simp]
+def up_tm_tm
+  (sigma : Fin m -> tm n_label n_ty n_tm) :
+  Fin (m + 1) -> tm n_label n_ty (n_tm + 1) :=
+  (cons (tm.var_tm var_zero)
+    (funcomp (ren_tm id id shift) sigma))
+
+@[simp]
+def up_ty_tm
+  (sigma : Fin m -> tm n_label n_ty n_tm) : Fin m -> tm n_label (n_ty + 1) n_tm :=
+  (funcomp (ren_tm id shift id) sigma)
+
+@[simp]
+def up_label_tm
+  (sigma : Fin m -> tm n_label n_ty n_tm) : Fin m -> tm (n_label + 1) n_ty n_tm :=
+  (funcomp (ren_tm shift id id) sigma)
+
+@[simp]
 def subst_ty
 (sigma_label : Fin m_label -> label n_label)
 (sigma_ty : Fin m_ty -> ty n_label n_ty) (s : ty m_label m_ty) :
 ty n_label n_ty :=
   match s with
+  | .Sing s => .Sing s
   | .var_ty s0 => sigma_ty s0
   | .Any => .Any
   | .Unit => .Unit
@@ -387,6 +423,93 @@ ty n_label n_ty :=
       .t_if (subst_label sigma_label s0)
         (subst_ty sigma_label sigma_ty s1) (subst_ty sigma_label sigma_ty s2)
   | .Public => .Public
+  | .default => .default
+
+@[simp]
+def subst_tm
+(sigma_label : Fin m_label -> label n_label)
+(sigma_ty : Fin m_ty -> ty n_label n_ty)
+(sigma_tm : Fin m_tm -> tm n_label n_ty n_tm) (s : tm m_label m_ty m_tm)
+: tm n_label n_ty n_tm :=
+  match s with
+  | .var_tm s0 => sigma_tm s0
+  | .error => .error
+  | .skip => .skip
+  | .bitstring s0 => .bitstring s0
+  | .loc s0 => .loc s0
+  | .fixlam s0 =>
+      .fixlam
+        (subst_tm (up_tm_label (up_tm_label sigma_label))
+           (up_tm_ty (up_tm_ty sigma_ty)) (up_tm_tm (up_tm_tm sigma_tm)) s0)
+  | .tlam s0 =>
+      .tlam
+        (subst_tm (up_ty_label sigma_label) (up_ty_ty sigma_ty)
+           (up_ty_tm sigma_tm) s0)
+  | .l_lam s0 =>
+      .l_lam
+        (subst_tm (up_label_label sigma_label) (up_label_ty sigma_ty)
+           (up_label_tm sigma_tm) s0)
+  | .Op s0 s1 s2 =>
+      .Op s0 (subst_tm sigma_label sigma_ty sigma_tm s1)
+        (subst_tm sigma_label sigma_ty sigma_tm s2)
+  | .zero s0 =>
+      .zero (subst_tm sigma_label sigma_ty sigma_tm s0)
+  | .app s0 s1 =>
+      .app (subst_tm sigma_label sigma_ty sigma_tm s0)
+        (subst_tm sigma_label sigma_ty sigma_tm s1)
+  | .alloc s0 =>
+      .alloc (subst_tm sigma_label sigma_ty sigma_tm s0)
+  | .dealloc s0 =>
+      .dealloc (subst_tm sigma_label sigma_ty sigma_tm s0)
+  | .assign s0 s1 =>
+      .assign (subst_tm sigma_label sigma_ty sigma_tm s0)
+        (subst_tm sigma_label sigma_ty sigma_tm s1)
+  | .tm_pair s0 s1 =>
+      .tm_pair (subst_tm sigma_label sigma_ty sigma_tm s0)
+        (subst_tm sigma_label sigma_ty sigma_tm s1)
+  | .left_tm s0 =>
+      .left_tm (subst_tm sigma_label sigma_ty sigma_tm s0)
+  | .right_tm s0 =>
+      .right_tm (subst_tm sigma_label sigma_ty sigma_tm s0)
+  | .inl s0 =>
+      .inl (subst_tm sigma_label sigma_ty sigma_tm s0)
+  | .inr s0 =>
+      .inr (subst_tm sigma_label sigma_ty sigma_tm s0)
+  | .case s0 s1 s2 =>
+      .case (subst_tm sigma_label sigma_ty sigma_tm s0)
+        (subst_tm (up_tm_label sigma_label) (up_tm_ty sigma_ty)
+           (up_tm_tm sigma_tm) s1)
+        (subst_tm (up_tm_label sigma_label) (up_tm_ty sigma_ty)
+           (up_tm_tm sigma_tm) s2)
+  | .tapp s0 s1 =>
+      .tapp (subst_tm sigma_label sigma_ty sigma_tm s0)
+        (subst_ty sigma_label sigma_ty s1)
+  | .lapp s0 s1 =>
+      .lapp (subst_tm sigma_label sigma_ty sigma_tm s0)
+        (subst_label sigma_label s1)
+  | .pack s0 s1 =>
+      .pack (subst_ty sigma_label sigma_ty s0)
+        (subst_tm sigma_label sigma_ty sigma_tm s1)
+  | .unpack s0 s1 =>
+      .unpack (subst_tm sigma_label sigma_ty sigma_tm s0)
+        (subst_tm (up_tm_label (up_ty_label sigma_label))
+           (up_tm_ty (up_ty_ty sigma_ty)) (up_tm_tm (up_ty_tm sigma_tm)) s1)
+  | .if_tm s0 s1 s2 =>
+      .if_tm (subst_tm sigma_label sigma_ty sigma_tm s0)
+        (subst_tm sigma_label sigma_ty sigma_tm s1)
+        (subst_tm sigma_label sigma_ty sigma_tm s2)
+  | .if_c s0 s1 s2 =>
+      .if_c (subst_label sigma_label s0)
+        (subst_tm sigma_label sigma_ty sigma_tm s1)
+        (subst_tm sigma_label sigma_ty sigma_tm s2)
+  | .sync s0 =>
+      .sync (subst_tm sigma_label sigma_ty sigma_tm s0)
+  | .corr_case s0 s =>
+      .corr_case (subst_label sigma_label s0)
+        (subst_tm sigma_label sigma_ty sigma_tm s)
+  | .annot s0 s1 =>
+      .annot (subst_tm sigma_label sigma_ty sigma_tm s0)
+        (subst_ty sigma_label sigma_ty s1)
   | .default => .default
 
 def shift_bound_by (shift_num : Nat) : Fin n -> Fin (n + shift_num) :=

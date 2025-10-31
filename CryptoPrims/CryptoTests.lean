@@ -1,126 +1,32 @@
-import OwlLean.OwlLang.Owl
-import Lean
-import Std.Data.HashMap
-import OwlLean.TypeChecker.OwlParser
-import OwlLean.TypeChecker.OwlTyping
-open Lean PrettyPrinter Delaborator SubExpr
+import OwlLean.TypeChecker.OwlComplete
 
 set_option maxHeartbeats 1000000
 
-set_option pp.notation true
-set_option pp.fullNames false
-set_option pp.universes false
-set_option pp.proofs false
-
-notation:50 "<" Φ ", " Ψ " ⊨ " co ">" => phi_psi_entail_corr Φ Ψ co
-notation h "::" t => pcons h t
-notation "Ψ∅" => empty_phi 0
-notation "Φ∅" => empty_psi 0
-notation "Ψ∅" => empty_phi
-notation "Φ∅" => empty_psi
-notation "Δ∅" => empty_delta
-notation "Γ∅" => empty_gamma
-notation "corr(" l ")"  => Owl.corruption.corr l
-notation "¬corr(" l ")" => Owl.corruption.not_corr l
-notation pm " ▷ " ψ => subst_psi_context pm ψ
-notation "⟪" l "⟫" => Owl.label.latl l
-notation "⊑" => Owl.cond_sym.leq
-notation "⊒" => Owl.cond_sym.geq
-notation "⊏" => Owl.cond_sym.lt
-notation "⊐" => Owl.cond_sym.gt
-notation "ℓ" n => Owl.label.var_label n
-notation "(" a c b ")" => Owl.constr.condition c a b
-notation "↑" a => lift_phi a
-notation "↑" a => lift_psi a
-notation "[" a "]" => Owl.ren_label id a
-notation h "::" t => Owl.cons h t
-notation "⊥" => Owl.L.bot
-
-@[app_unexpander Owl.Lattice.bot]
-def unexpOwlBot : Unexpander
-| `($_ $_) => `(⊥)
-| _        => throw ()
-
--- non functional
-def genKey : Owl.op :=
-  fun (_ _ : Owl.binary) =>
-    Owl.Dist.ret (Owl.binary.bend)
-
--- non functional
-def enc : Owl.op :=
-  fun (_ _ : Owl.binary) =>
-    Owl.Dist.ret (Owl.binary.bend)
-
--- non functional
-def dec : Owl.op :=
-  fun (_ _ : Owl.binary) =>
-    Owl.Dist.ret (Owl.binary.bend)
-
--- non functional
-def rand : Owl.op :=
-  fun (_ _ : Owl.binary) =>
-    Owl.Dist.ret (Owl.binary.bend)
-
--- non functional
-def eq : Owl.op :=
-  fun (_ _ : Owl.binary) =>
-    Owl.Dist.ret (Owl.binary.bend)
-
--- non functional
-def genSk : Owl.op :=
-  fun (_ _ : Owl.binary) =>
-    Owl.Dist.ret (Owl.binary.bend)
-
--- non functional
-def pk_of_sk : Owl.op :=
-  fun (_ _ : Owl.binary) =>
-    Owl.Dist.ret (Owl.binary.bend)
-
--- non functional
-def vk_of_sk : Owl.op :=
-  fun (_ _ : Owl.binary) =>
-    Owl.Dist.ret (Owl.binary.bend)
-
-def and_op : Owl.op :=
-  fun (_ _ : Owl.binary) =>
-    Owl.Dist.ret (Owl.binary.bend)
-
-def combine : Owl.op :=
-  fun (_ _ : Owl.binary) =>
-    Owl.Dist.ret (Owl.binary.bend)
-
-def sign : Owl.op :=
-  fun (_ _ : Owl.binary) =>
-    Owl.Dist.ret (Owl.binary.bend)
-
-def vrfy : Owl.op :=
-  fun (_ _ : Owl.binary) =>
-    Owl.Dist.ret (Owl.binary.bend)
 
 -- "[0]" represents garbage values not needed for computation
 theorem enc_i :
-  ( · ; · ; · ; · ;
+  ( · ; · ; · ; · ⊢
     Λβ betaK .
     Λβ betaM .
     Λ tau .
-    let k = (⟨genKey⟩ (["0"], ["0"]) : Data betaK) in
+    let k = (⟨"genKey"⟩ (["0"], ["0"]) : Data betaK) in
     let L = alloc (λ (null : Public) : (tau + Unit) => ı2 *) in
     let enc' = (corr_case betaK in
                 (if corr ( betaK )
-                  then (λ (x : (Public * Public)) : Public => ⟨enc⟩ (π1 x, π2 x))
+                  then (λ (x : (Public * Public)) : Public => ⟨"enc"⟩ (π1 x, π2 x))
                   else
                     λ (x : (Data betaK * tau)) : Public =>
-                    let c = ⟨rand⟩ (zero ((π2 x) : Data betaM), ["0"]) in
+                    let c = ⟨"rand"⟩ (zero ((π2 x) : Data betaM), ["0"]) in
                     let L_old = (! L) in
-                    let sc = L := (λ (y : Public) : (tau + Unit) => if ⟨eq⟩(y, c) then ı1 (π2 x) else L_old [y]) in
+                    let sc = L := (λ (y : Public) : (tau + Unit) => if ⟨"eq"⟩(y, c) then ı1 (π2 x) else L_old [y]) in
                     c))
     in
     let dec' = (corr_case betaK in
-               (if corr (betaK) then λ (x : (Public * Public)) : Public => ⟨dec⟩(π1 x, π2 x)
+               (if corr (betaK) then λ (x : (Public * Public)) : Public => ⟨"dec"⟩(π1 x, π2 x)
                 else λ (x : (Data betaK * Public)) : (tau + Unit) => (!L) [π2 x]))
     in
     pack (Data betaK, ⟨k, ⟨(corr_case betaK in enc'), (corr_case betaK in dec')⟩⟩)
-    ⊢
+    :
     ∀ betaK ⊒ ⟨Owl.L.bot⟩ .
     ∀ betaM ⊏ betaK .
     ∀ tau <: Data betaM .
@@ -134,9 +40,9 @@ theorem enc_i :
     )
 
 theorem enc_ty2 :
-  ((betaK, betaM ⊑ betaK) ; · ; · ; · ;
+  ((betaK, betaM ⊑ betaK) ; · ; · ; · ⊢
       pack (Unit, *)
-      ⊢
+      :
       (∃ alphaK <: Unit . alphaK)) :=
     by
     tc_man (
@@ -145,10 +51,10 @@ theorem enc_ty2 :
     )
 
 theorem test_let_2 :
-  ( · ; · ; · ; · ;
+  ( · ; · ; · ; · ⊢
       let (x, y) = ⟨* , ["0"]⟩ in
       y
-      ⊢
+      :
       Public) :=
     by
     tc_man (
@@ -157,10 +63,10 @@ theorem test_let_2 :
     )
 
 theorem test_let_3 :
-  ( · ; · ; · ; · ;
+  ( · ; · ; · ; · ⊢
       let (x, y, z) = ⟨⟨* , *⟩ , ⟨*, ["0"]⟩⟩ in
       z
-      ⊢
+      :
       Public) :=
     by
     tc_man (
@@ -169,9 +75,9 @@ theorem test_let_3 :
     )
 
 theorem enc_ty_contra :
-  ((betaK, betaM ⊑ betaK, betaC ⊒ betaK) ; (corr(betaK)) ; · ; · ;
+  ((betaK, betaM ⊑ betaK, betaC ⊒ betaK) ; (corr(betaK)) ; · ; · ⊢
       (if corr (betaK) then ((λ x => *) : Public -> Unit) else ((λ x => x) : Data betaC -> Data betaC))
-      ⊢
+      :
       (Public -> Unit)) :=
     by
     tc_man (
@@ -180,11 +86,11 @@ theorem enc_ty_contra :
     )
 
 theorem enc_length_test :
-  ( (betaK, betaM ⊑ betaK, betaC ⊒ betaK) ; (corr(betaK)) ; · ; · ;
+  ( (betaK, betaM ⊑ betaK, betaC ⊒ betaK) ; (corr(betaK)) ; · ; · ⊢
       λ x => λ x => λ x => λ x => λ x => λ x => λ x => λ x => λ x => λ x => λ a => λ x => λ x => λ b =>
       λ x => λ x => λ y => λ x => λ h => λ x => λ a => λ x => λ x => λ x => λ x => λ x => λ x => λ x =>
       λ x => λ x => λ x => λ x => λ x => λ x => λ x => λ x => λ z => λ x => λ x => λ x => λ x => λ x => ⟨a, ⟨x, ⟨x, ⟨x, ⟨x, ⟨x, ⟨x, ⟨x, ⟨x, ⟨z, x⟩⟩⟩⟩⟩⟩⟩⟩⟩⟩
-      ⊢
+      :
       (Data betaM -> Data betaM -> Data betaM -> Data betaM -> Data betaM -> Data betaM -> Data betaM ->
        Data betaM -> Data betaM -> Data betaM -> Data betaM -> Data betaM -> Data betaM -> Data betaM ->
        Data betaM -> Data betaM -> Data betaM -> Data betaM -> Data betaM -> Data betaM -> Data betaM ->
@@ -201,11 +107,11 @@ theorem enc_length_test :
 
 
 theorem enc_r :
-  ( (betaK, betaM) ; (corr(betaK)) ; (tau <: Data betaM) ; · ;
-    let k = (⟨genKey⟩ (["0"], ["0"]) : Data betaK) in
-    pack (Data betaK, ⟨k, ⟨λ (x : (Public * Public)) : Public => ⟨enc⟩ (π1 x, π2 x),
-                           λ (y : (Public * Public)) : Public => ⟨dec⟩ (π1 y, π2 y)⟩⟩)
-    ⊢
+  ( (betaK, betaM) ; (corr(betaK)) ; (tau <: Data betaM) ; · ⊢
+    let k = (⟨"genKey"⟩ (["0"], ["0"]) : Data betaK) in
+    pack (Data betaK, ⟨k, ⟨λ (x : (Public * Public)) : Public => ⟨"enc"⟩ (π1 x, π2 x),
+                           λ (y : (Public * Public)) : Public => ⟨"dec"⟩ (π1 y, π2 y)⟩⟩)
+    :
     (∃ alphaK <: (Data betaK) . (alphaK *
                                  ((corr (betaK) ? (Public * Public) -> Public : (alphaK * (Data betaM)) -> Public) *
                                   (corr (betaK) ? (Public * Public) -> Public : (alphaK * Public) -> (tau + Unit)))))) :=
@@ -220,11 +126,11 @@ theorem enc_unpack :
   (E => (∃ alphaK <: (Data betaK) . (alphaK *
                                      ((corr (betaK) ? (Public * Public) -> Public : (alphaK * tau) -> Public) *
                                       (corr (betaK) ? (Public * Public) -> Public : (alphaK * Public) -> (tau + Unit))))),
-   x => tau) ;
+   x => tau) ⊢
     (corr_case betaK in
      unpack E as (alpha, ked) in
      (π1 (π2 ked)) [⟨(π1 ked), x⟩])
-    ⊢
+    :
     Public) :=
     by
     tc_man (
@@ -241,12 +147,12 @@ theorem enc_layered :
    E2 => (∃ alphaK <: (Data l2) .
                         (alphaK *
                          ((corr (l2) ? (Public * Public) -> Public : (alphaK * (Data l1)) -> Public) *
-                          (corr (l2) ? (Public * Public) -> Public : (alphaK * Public) -> (b + Unit)))))) ;
+                          (corr (l2) ? (Public * Public) -> Public : (alphaK * Public) -> (b + Unit)))))) ⊢
     (corr_case l3 in
        unpack E1 as (alpha1, ked1) in
        unpack E2 as (alpha2, ked2) in
        (π1 (π2 ked1)) [⟨(π1 ked1), (π1 ked2)⟩])
-    ⊢
+    :
     Public) :=
     by
     tc_man (
@@ -256,16 +162,16 @@ theorem enc_layered :
 
 -- partial
 theorem enc_sig :
-  ( · ; · ; · ; · ;
+  ( · ; · ; · ; · ⊢
     Λβ betaK .
     Λ tau .
     corr_case betaK in
     (if corr (betaK) then
-      ((let sk = ⟨genSk⟩(["0"], ["0"]) in
-      let vk = ⟨vk_of_sk⟩(sk, ["0"]) in
+      ((let sk = ⟨"genSK"⟩(["0"], ["0"]) in
+      let vk = ⟨"vk_of_sk"⟩(sk, ["0"]) in
       pack(Public, pack (Public, ⟨sk, ⟨vk,
-                    ⟨((λ xy => ⟨sign⟩(π1 xy, π2 xy)) : (Public * Public) -> Public),
-                     ((λ xyz => ⟨vrfy⟩(π1 xyz, π1 (π2 xyz))) : (Public * (Public * Public)) -> Public)⟩⟩⟩))) :
+                    ⟨((λ xy => ⟨"sign"⟩(π1 xy, π2 xy)) : (Public * Public) -> Public),
+                     ((λ xyz => ⟨"vrfy"⟩(π1 xyz, π1 (π2 xyz))) : (Public * (Public * Public)) -> Public)⟩⟩⟩))) :
                      ∃ alpha <: Data betaK .
                      ∃ beta <: Public .
                      (alpha *
@@ -273,13 +179,13 @@ theorem enc_sig :
                      ((corr (betaK) ? ((Public * Public) -> Public) : ((alpha * tau) -> Public)) *
                      (corr (betaK) ? ((Public * (Public * Public)) -> Public) : ((beta * (Public * Public)) -> (tau + Unit)))))))
     else
-      ((let sk = ⟨genSk⟩(["0"], ["0"]) in
-      let pk = ⟨pk_of_sk⟩(["0"], ["0"]) in
-      let L = (alloc (λ null => ı2 *) : Ref ((Public * Public) -> (tau + Unit))) in
-      let sign =  ((λ skm =>
-                  let sig = (⟨rand⟩(π2 skm, ["0"]) : Public) in
+      ((let sk = ⟨"genSK"⟩(["0"], ["0"]) in
+      let pk = ⟨"vk_of_sk"⟩(["0"], ["0"]) in
+      let L = ((alloc (λ (null : (Public * Public)) : (tau + Unit) => (ı2 *))) : Ref ((Public * Public) -> (tau + Unit))) in
+      let sign =  ((λ (skm : (Data betaK * tau)) : Public =>
+                  let sig = (⟨"rand"⟩(((π2 skm) : Public), ["0"]) : Public) in
                   let L_old = (! L) in
-                  let action =  (L := (λ msig' => if ⟨and_op⟩(⟨eq⟩((π2 skm), π2 msig'), ⟨eq⟩(sig, π2 msig'))
+                  let action =  (L := (λ (msig' : (Public * Public)) : (tau + Unit) => if ⟨"and"⟩(⟨"eq"⟩(π2 skm, π2 msig'), ⟨"eq"⟩(sig, π2 msig'))
                                                 then (ı1 (π2 skm))
                                                 else L_old [msig']))
                   in
@@ -294,7 +200,7 @@ theorem enc_sig :
       (beta *
       ((corr (betaK) ? ((Public * Public) -> Public) : ((alpha * tau) -> Public)) *
        (corr (betaK) ? ((Public * (Public * Public)) -> Public) : ((beta * (Public * Public)) -> (tau + Unit))))))))
-    ⊢
+    :
     ∀ betaK ⊒ ⟨Owl.L.bot⟩ .
     ∀ tau <: Public .
     ∃ alpha <: Data betaK .
@@ -321,7 +227,7 @@ theorem enc_layered2_high_low :
    E2 => (∃ alphaK <: (Data L_high) .
                         (alphaK *
                          ((corr (L_high) ? (Public * Public) -> Public : (alphaK * (Data L_low)) -> Public) *
-                          (corr (L_high) ? (Public * Public) -> Public : (alphaK * Public) -> (b + Unit)))))) ;
+                          (corr (L_high) ? (Public * Public) -> Public : (alphaK * Public) -> (b + Unit)))))) ⊢
     (corr_case L_low in
       (corr_case L_high in
        unpack E1 as (alpha1, ked1) in
@@ -329,8 +235,8 @@ theorem enc_layered2_high_low :
        ((λ x =>
         let c1 = ((π1 (π2 ked1)) [⟨(π1 ked1), x⟩] : Public) in
         let c2 = ((π1 (π2 ked2)) [⟨(π1 ked2), (π1 ked1)⟩] : Public) in
-        ⟨combine⟩(c1, c2)) : ((Data L_sec) -> Public))))
-    ⊢
+        ⟨"combine"⟩(c1, c2)) : ((Data L_sec) -> Public))))
+    :
     ((Data L_sec) -> Public)) :=
     by
     tc_man (

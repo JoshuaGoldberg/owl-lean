@@ -24,10 +24,13 @@ syntax ident : owl_label
 syntax "⟨" term "⟩"  : owl_label
 syntax owl_label "⊔" owl_label : owl_label
 syntax owl_label "⊓" owl_label : owl_label
-syntax "$" term : owl_label
+syntax "$" term:max "[" owl_label,* "]" : owl_label
+syntax "$" term:max : owl_label
 syntax "(" owl_label ")" : owl_label
 
-partial def elabLabel : Syntax → MetaM Expr
+
+
+partial def elabLabel : Syntax → TermElabM Expr
   | `(owl_label| ( $e:owl_label)) => elabLabel e
   | `(owl_label| ⟨ $t:term ⟩ ) => do
       let t' ← Term.TermElabM.run' do
@@ -43,10 +46,17 @@ partial def elabLabel : Syntax → MetaM Expr
       mkAppM ``SLabel.lmeet #[elab_e1, elab_e2]
   | `(owl_label| $id:ident) =>
     mkAppM ``SLabel.var_label #[mkStrLit id.getId.toString]
-  | `(owl_label| $ $l:term) => do
-    let l' ← Term.TermElabM.run' do
+  | `(owl_label| $ $l:term [ $xs:owl_label,* ] ) => do
+      let xs' <- xs.getElems.mapM elabLabel
+      let xs_list <- mkListLit (mkConst ``SLabel) xs'.toList
+      let l' ← Term.TermElabM.run' do
         Term.elabTerm l (mkConst ``Owl.label)
-    mkAppM ``SLabel.embedlabel #[l']
+      mkAppM ``SLabel.embedlabel #[l', xs_list]
+  | `(owl_label| $ $l:term ) => do
+      let empty_list <- mkListLit (mkConst ``SLabel) []
+      let l' ← Term.TermElabM.run' do
+        Term.elabTerm l (mkConst ``Owl.label)
+      mkAppM ``SLabel.embedlabel #[l', empty_list]
   | _ => throwUnsupportedSyntax
 
 -- syntax for cond symbols
@@ -59,7 +69,7 @@ syntax "!⊒" : owl_cond_sym
 syntax "!⊏" : owl_cond_sym
 syntax "!⊐" : owl_cond_sym
 
-partial def elabCondSym : Syntax → MetaM Expr
+partial def elabCondSym : Syntax → TermElabM Expr
   | `(owl_cond_sym| ⊑) => mkAppM ``SCondSym.leq #[]
   | `(owl_cond_sym| ⊒) => mkAppM ``SCondSym.geq #[]
   | `(owl_cond_sym| ⊏) => mkAppM ``SCondSym.lt #[]
@@ -74,7 +84,7 @@ partial def elabCondSym : Syntax → MetaM Expr
 syntax "(" owl_constr ")" : owl_constr
 syntax owl_label owl_cond_sym owl_label : owl_constr
 
-partial def elabConstr : Syntax → MetaM Expr
+partial def elabConstr : Syntax → TermElabM Expr
   | `(owl_constr| ( $e:owl_constr)) => elabConstr e
   | `(owl_constr| $l1:owl_label $c:owl_cond_sym $l2:owl_label) => do
       let elab_l1 <- elabLabel l1
@@ -86,7 +96,7 @@ partial def elabConstr : Syntax → MetaM Expr
 -- syntax for binary
 syntax str : owl_binary
 
-partial def buildSBinaryExpr (chars : List Char) : MetaM Expr :=
+partial def buildSBinaryExpr (chars : List Char) : TermElabM Expr :=
   match chars with
   | [] => return mkConst ``SBinary.bend
   | '0' :: rest => do
@@ -97,7 +107,7 @@ partial def buildSBinaryExpr (chars : List Char) : MetaM Expr :=
     mkAppM ``SBinary.bone #[restExpr]
   | _ :: _ => throwError "Invalid binary character"
 
-partial def elabBinary : Syntax → MetaM Expr
+partial def elabBinary : Syntax → TermElabM Expr
   | `(owl_binary| $val:str) => buildSBinaryExpr val.getString.data
   | _ => throwUnsupportedSyntax
 
@@ -116,9 +126,9 @@ syntax "∃" owl_type "<:" owl_type "." owl_type : owl_type
 syntax "∀" owl_label owl_cond_sym owl_label "." owl_type : owl_type
 syntax "corr" "(" owl_label ")" "?" owl_type ":" owl_type : owl_type
 syntax "Public" : owl_type
-syntax "$" term : owl_type
+syntax "$" term:max "[" owl_label,* "]" "[" owl_type,* "]" : owl_type
 
-partial def elabType : Syntax → MetaM Expr
+partial def elabType : Syntax → TermElabM Expr
   | `(owl_type| ( $e:owl_type)) => elabType e
   | `(owl_type| $id:ident) =>
         mkAppM ``STy.var_ty #[mkStrLit id.getId.toString]
@@ -161,10 +171,14 @@ partial def elabType : Syntax → MetaM Expr
     let elab_t2 <- elabType t2
     let elab_c <- elabLabel c
     mkAppM ``STy.t_if #[elab_c, elab_t1, elab_t2]
-  | `(owl_type| $ $t:term) => do
+  | `(owl_type| $ $t:term [ $ls:owl_label,* ] [ $ts:owl_type,* ]) => do
+    let ls' <- ls.getElems.mapM elabLabel
+    let ts' <- ts.getElems.mapM elabType
+    let ls_list <- mkListLit (mkConst ``SLabel) ls'.toList
+    let ts_list <- mkListLit (mkConst ``STy) ts'.toList
     let t' ← Term.TermElabM.run' do
         Term.elabTerm t (mkConst ``Owl.ty)
-    mkAppM ``STy.embedty #[t']
+    mkAppM ``STy.embedty #[t', ls_list, ts_list]
   | _ => throwUnsupportedSyntax
 
 -- syntax for terms
@@ -201,7 +215,7 @@ syntax "let" "(" ident "," ident ")" "=" owl_tm "in" owl_tm : owl_tm
 syntax "let" "(" ident "," ident "," ident ")" "=" owl_tm "in" owl_tm : owl_tm
 syntax "λ" "(" ident ":" owl_type ")" ":" owl_type "=>" owl_tm : owl_tm
 syntax "λ" ident "=>" owl_tm : owl_tm
-syntax "$" term : owl_tm
+syntax "$" term:max "[" owl_label,* "]" "[" owl_type,* "]" "[" owl_tm,* "]" : owl_tm
 syntax "corr_case" owl_label "in" owl_tm : owl_tm
 syntax "(" owl_tm ":" owl_type ")" : owl_tm
 
@@ -237,14 +251,20 @@ partial def elabTm : Syntax → TermElabM Expr
     mkAppM ``SExpr.tm_pair #[elab_e1, elab_e2]
   | `(owl_tm| ⟨ $t:term ⟩ ( $e1:owl_tm , $e2:owl_tm )) => do
     let t' ← Term.TermElabM.run' do
-        Term.elabTerm t (mkConst ``Owl.op)
+        Term.elabTerm t (mkConst ``String)
     let elab_e1 <- elabTm e1
     let elab_e2 <- elabTm e2
     mkAppM ``SExpr.Op #[t', elab_e1, elab_e2]
-  | `(owl_tm| $ $t:term) => do
+  | `(owl_tm| $ $t:term [ $ls:owl_label,* ] [ $ts:owl_type,* ] [ $es:owl_tm,* ]) => do
+    let ls' <- ls.getElems.mapM elabLabel
+    let ts' <- ts.getElems.mapM elabType
+    let es' <- es.getElems.mapM elabTm
+    let ls_list <- mkListLit (mkConst ``SLabel) ls'.toList
+    let ts_list <- mkListLit (mkConst ``STy) ts'.toList
+    let es_list <- mkListLit (mkConst ``SExpr) es'.toList
     let t' ← Term.TermElabM.run' do
         Term.elabTerm t (mkConst ``Owl.tm)
-    mkAppM ``SExpr.embedtm #[t']
+    mkAppM ``SExpr.embedtm #[t', ls_list, ts_list, es_list]
   | `(owl_tm| zero $e:owl_tm) => do
     let elab_e <- elabTm e
     mkAppM ``SExpr.zero #[elab_e]
@@ -368,7 +388,7 @@ partial def elabTm : Syntax → TermElabM Expr
 
 -- CLOSED ELABORATORS
 
-partial def elabLabel_closed : Syntax → MetaM Expr
+partial def elabLabel_closed : Syntax → TermElabM Expr
   | `(owl_label| ( $e:owl_label)) => elabLabel_closed e
   | `(owl_label| ⟨ $_:term ⟩ ) => do mkAppM ``SLabel.default #[]
   | `(owl_label| $e1:owl_label ⊔ $e2:owl_label) => do
@@ -381,10 +401,20 @@ partial def elabLabel_closed : Syntax → MetaM Expr
       mkAppM ``SLabel.lmeet #[elab_e1, elab_e2]
   | `(owl_label| $id:ident) =>
     mkAppM ``SLabel.var_label #[mkStrLit id.getId.toString]
-  | `(owl_label| $ $_:term) => mkAppM ``SLabel.default #[]
+  | `(owl_label| $ $l:term [ $xs:owl_label,* ]  ) => do
+      let xs' <- xs.getElems.mapM elabLabel_closed
+      let xs_list <- mkListLit (mkConst ``SLabel) xs'.toList
+      let l' ← Term.TermElabM.run' do
+        Term.elabTerm l (mkConst ``Owl.label)
+      mkAppM ``SLabel.embedlabel #[l', xs_list]
+  | `(owl_label| $ $l:term ) => do
+      let empty_list <- mkListLit (mkConst ``SLabel) []
+      let l' ← Term.TermElabM.run' do
+        Term.elabTerm l (mkConst ``Owl.label)
+      mkAppM ``SLabel.embedlabel #[l', empty_list]
   | _ => throwUnsupportedSyntax
 
-partial def elabConstr_closed : Syntax → MetaM Expr
+partial def elabConstr_closed : Syntax → TermElabM Expr
   | `(owl_constr| ( $e:owl_constr)) => elabConstr_closed e
   | `(owl_constr| $l1:owl_label $c:owl_cond_sym $l2:owl_label) => do
       let elab_l1 <- elabLabel_closed l1
@@ -393,7 +423,7 @@ partial def elabConstr_closed : Syntax → MetaM Expr
       mkAppM ``SConstr.condition #[elab_c, elab_l1, elab_l2]
   | _ => throwUnsupportedSyntax
 
-partial def elabType_closed : Syntax → MetaM Expr
+partial def elabType_closed : Syntax → TermElabM Expr
   | `(owl_type| ( $e:owl_type)) => elabType_closed e
   | `(owl_type| $id:ident) =>
         mkAppM ``STy.var_ty #[mkStrLit id.getId.toString]
@@ -436,7 +466,7 @@ partial def elabType_closed : Syntax → MetaM Expr
     let elab_t2 <- elabType_closed t2
     let elab_c <- elabLabel_closed c
     mkAppM ``STy.t_if #[elab_c, elab_t1, elab_t2]
-  | `(owl_type| $ $_:term) => mkAppM ``STy.default #[]
+  | `(owl_type| $ $_:term [$_:owl_label,* ] [$_:owl_type,*]) => mkAppM ``STy.default #[]
   | _ => throwUnsupportedSyntax
 
 partial def elabTm_closed : Syntax → TermElabM Expr
@@ -465,11 +495,11 @@ partial def elabTm_closed : Syntax → TermElabM Expr
     mkAppM ``SExpr.tm_pair #[elab_e1, elab_e2]
   | `(owl_tm| ⟨ $t:term ⟩ ( $e1:owl_tm , $e2:owl_tm )) => do
     let t' ← Term.TermElabM.run' do
-        Term.elabTerm t (mkConst ``Owl.op)
+        Term.elabTerm t (mkConst ``String)
     let elab_e1 <- elabTm_closed e1
     let elab_e2 <- elabTm_closed e2
     mkAppM ``SExpr.Op #[t', elab_e1, elab_e2]
-  | `(owl_tm| $ $_:term) => mkAppM ``SExpr.default #[]
+  | `(owl_tm| $ $_:term [ $_:owl_label,* ] [ $_:owl_type,* ] [ $_:owl_tm,* ]) => mkAppM ``SExpr.default #[]
   | `(owl_tm| zero $e:owl_tm) => do
     let elab_e <- elabTm_closed e
     mkAppM ``SExpr.zero #[elab_e]
@@ -596,7 +626,7 @@ syntax "(" owl_phi_entry ")" : owl_phi_entry
 syntax  ident owl_cond_sym owl_label : owl_phi_entry
 syntax ident : owl_phi_entry
 
-partial def elabPhiEntry : Syntax → MetaM Expr
+partial def elabPhiEntry : Syntax → TermElabM Expr
   | `(owl_phi_entry| ( $e:owl_phi_entry)) => elabPhiEntry e
   | `(owl_phi_entry|  $id:ident $co:owl_cond_sym $lab:owl_label) => do
       let elab_co <- elabCondSym co
@@ -609,7 +639,7 @@ partial def elabPhiEntry : Syntax → MetaM Expr
       mkAppM ``SPhiEntry.PhiEntry #[mkStrLit id.getId.toString, condSym, botLExpr]
   | _ => throwUnsupportedSyntax
 
-partial def elabPhiEntry_closed : Syntax → MetaM Expr
+partial def elabPhiEntry_closed : Syntax → TermElabM Expr
   | `(owl_phi_entry| ( $e:owl_phi_entry)) => elabPhiEntry_closed e
   | `(owl_phi_entry|  $id:ident $co:owl_cond_sym $lab:owl_label) => do
       let elab_co <- elabCondSym co
@@ -624,14 +654,14 @@ partial def elabPhiEntry_closed : Syntax → MetaM Expr
 syntax "(" owl_delta_entry ")" : owl_delta_entry
 syntax  ident "<:" owl_type : owl_delta_entry
 
-partial def elabDeltaEntry : Syntax → MetaM Expr
+partial def elabDeltaEntry : Syntax → TermElabM Expr
   | `(owl_delta_entry| ( $e:owl_delta_entry)) => elabDeltaEntry e
   | `(owl_delta_entry|  $id:ident <: $t:owl_type) => do
       let elab_t <- elabType t
       mkAppM ``SDeltaEntry.DeltaEntry #[mkStrLit id.getId.toString, elab_t]
   | _ => throwUnsupportedSyntax
 
-partial def elabDeltaEntry_closed : Syntax → MetaM Expr
+partial def elabDeltaEntry_closed : Syntax → TermElabM Expr
   | `(owl_delta_entry| ( $e:owl_delta_entry)) => elabDeltaEntry_closed e
   | `(owl_delta_entry|  $id:ident <: $t:owl_type) => do
       let elab_t <- elabType_closed t
@@ -641,14 +671,14 @@ partial def elabDeltaEntry_closed : Syntax → MetaM Expr
 syntax "(" owl_gamma_entry ")" : owl_gamma_entry
 syntax  ident "=>" owl_type : owl_gamma_entry
 
-partial def elabGammaEntry : Syntax → MetaM Expr
+partial def elabGammaEntry : Syntax → TermElabM Expr
   | `(owl_gamma_entry| ( $e:owl_gamma_entry)) => elabGammaEntry e
   | `(owl_gamma_entry|  $id:ident => $t:owl_type) => do
       let elab_t <- elabType t
       mkAppM ``SGammaEntry.GammaEntry #[mkStrLit id.getId.toString, elab_t]
   | _ => throwUnsupportedSyntax
 
-partial def elabGammaEntry_closed : Syntax → MetaM Expr
+partial def elabGammaEntry_closed : Syntax → TermElabM Expr
   | `(owl_gamma_entry| ( $e:owl_gamma_entry)) => elabGammaEntry_closed e
   | `(owl_gamma_entry|  $id:ident => $t:owl_type) => do
       let elab_t <- elabType_closed t
@@ -659,7 +689,7 @@ syntax "(" owl_psi_entry ")" : owl_psi_entry
 syntax  "corr(" owl_label ")" : owl_psi_entry
 syntax  "¬corr(" owl_label ")" : owl_psi_entry
 
-partial def elabPsiEntry : Syntax → MetaM Expr
+partial def elabPsiEntry : Syntax → TermElabM Expr
   | `(owl_psi_entry| ( $e:owl_psi_entry)) => elabPsiEntry e
   | `(owl_psi_entry| corr($l1:owl_label)) => do
       let elab_l1 <- elabLabel l1
@@ -669,7 +699,7 @@ partial def elabPsiEntry : Syntax → MetaM Expr
       mkAppM ``SPsiEntry.PsiNotCorr #[elab_l1]
   | _ => throwUnsupportedSyntax
 
-partial def elabPsiEntry_closed : Syntax → MetaM Expr
+partial def elabPsiEntry_closed : Syntax → TermElabM Expr
   | `(owl_psi_entry| ( $e:owl_psi_entry)) => elabPsiEntry_closed e
   | `(owl_psi_entry| corr($l1:owl_label)) => do
       let elab_l1 <- elabLabel_closed l1
@@ -713,7 +743,7 @@ where
   | Gamma_End, acc => acc
   | Gamma_Cons x xs, acc => go xs (Gamma_Cons x acc)
 
-partial def elabPhiHelper : Syntax → MetaM Expr
+partial def elabPhiHelper : Syntax → TermElabM Expr
   | `(owl_phi| ($e1:owl_phi_entry, $rest:owl_phi)) => do
     let elab_e1 ← elabPhiEntry e1
     let elab_rest ← elabPhiHelper rest
@@ -734,7 +764,7 @@ partial def elabPhiHelper : Syntax → MetaM Expr
      mkAppM ``SPhi.Phi_End #[]
   | _ => throwUnsupportedSyntax
 
-partial def elabPhiHelper_closed : Syntax → MetaM Expr
+partial def elabPhiHelper_closed : Syntax → TermElabM Expr
   | `(owl_phi| ($e1:owl_phi_entry, $rest:owl_phi)) => do
     let elab_e1 ← elabPhiEntry_closed e1
     let elab_rest ← elabPhiHelper_closed rest
@@ -761,7 +791,7 @@ syntax owl_delta_entry : owl_delta
 syntax "(" owl_delta_entry ")" : owl_delta
 syntax "·" : owl_delta
 
-partial def elabDeltaHelper : Syntax → MetaM Expr
+partial def elabDeltaHelper : Syntax → TermElabM Expr
   | `(owl_delta| ($e1:owl_delta_entry, $rest:owl_delta)) => do
     let elab_e1 ← elabDeltaEntry e1
     let elab_rest ← elabDeltaHelper rest
@@ -782,7 +812,7 @@ partial def elabDeltaHelper : Syntax → MetaM Expr
      mkAppM ``SDelta.Delta_End #[]
   | _ => throwUnsupportedSyntax
 
-partial def elabDeltaHelper_closed : Syntax → MetaM Expr
+partial def elabDeltaHelper_closed : Syntax → TermElabM Expr
   | `(owl_delta| ($e1:owl_delta_entry, $rest:owl_delta)) => do
     let elab_e1 ← elabDeltaEntry_closed e1
     let elab_rest ← elabDeltaHelper_closed rest
@@ -809,7 +839,7 @@ syntax owl_gamma_entry : owl_gamma
 syntax "(" owl_gamma_entry ")" : owl_gamma
 syntax "·" : owl_gamma
 
-partial def elabGammaHelper : Syntax → MetaM Expr
+partial def elabGammaHelper : Syntax → TermElabM Expr
   | `(owl_gamma| ($e1:owl_gamma_entry, $rest:owl_gamma)) => do
     let elab_e1 ← elabGammaEntry e1
     let elab_rest ← elabGammaHelper rest
@@ -830,7 +860,7 @@ partial def elabGammaHelper : Syntax → MetaM Expr
      mkAppM ``SGamma.Gamma_End #[]
   | _ => throwUnsupportedSyntax
 
-partial def elabGammaHelper_closed : Syntax → MetaM Expr
+partial def elabGammaHelper_closed : Syntax → TermElabM Expr
   | `(owl_gamma| ($e1:owl_gamma_entry, $rest:owl_gamma)) => do
     let elab_e1 ← elabGammaEntry_closed e1
     let elab_rest ← elabGammaHelper_closed rest
@@ -857,7 +887,7 @@ syntax owl_psi_entry : owl_psi
 syntax "(" owl_psi_entry ")" : owl_psi
 syntax "·" : owl_psi
 
-partial def elabPsi : Syntax → MetaM Expr
+partial def elabPsi : Syntax → TermElabM Expr
   | `(owl_psi| ($e1:owl_psi_entry, $rest:owl_psi)) => do
     let elab_e1 ← elabPsiEntry e1
     let elab_rest ← elabPsi rest
@@ -878,7 +908,7 @@ partial def elabPsi : Syntax → MetaM Expr
      mkAppM ``SPsi.Psi_End #[]
   | _ => throwUnsupportedSyntax
 
-partial def elabPsi_closed : Syntax → MetaM Expr
+partial def elabPsi_closed : Syntax → TermElabM Expr
   | `(owl_psi| ($e1:owl_psi_entry, $rest:owl_psi)) => do
     let elab_e1 ← elabPsiEntry_closed e1
     let elab_rest ← elabPsi_closed rest
@@ -899,27 +929,27 @@ partial def elabPsi_closed : Syntax → MetaM Expr
      mkAppM ``SPsi.Psi_End #[]
   | _ => throwUnsupportedSyntax
 
-partial def elabPhi (stx : Syntax) : MetaM Expr := do
+partial def elabPhi (stx : Syntax) : TermElabM Expr := do
   let phi ← elabPhiHelper stx
   mkAppM ``SPhi.reverse #[phi]
 
-partial def elabPhi_closed (stx : Syntax) : MetaM Expr := do
+partial def elabPhi_closed (stx : Syntax) : TermElabM Expr := do
   let phi ← elabPhiHelper_closed stx
   mkAppM ``SPhi.reverse #[phi]
 
-partial def elabDelta (stx : Syntax) : MetaM Expr := do
+partial def elabDelta (stx : Syntax) : TermElabM Expr := do
   let delta ← elabDeltaHelper stx
   mkAppM ``SDelta.reverse #[delta]
 
-partial def elabDelta_closed (stx : Syntax) : MetaM Expr := do
+partial def elabDelta_closed (stx : Syntax) : TermElabM Expr := do
   let delta ← elabDeltaHelper_closed stx
   mkAppM ``SDelta.reverse #[delta]
 
-partial def elabGamma (stx : Syntax) : MetaM Expr := do
+partial def elabGamma (stx : Syntax) : TermElabM Expr := do
   let gamma ← elabGammaHelper stx
   mkAppM ``SGamma.reverse #[gamma]
 
-partial def elabGamma_closed (stx : Syntax) : MetaM Expr := do
+partial def elabGamma_closed (stx : Syntax) : TermElabM Expr := do
   let gamma ← elabGammaHelper_closed stx
   mkAppM ``SGamma.reverse #[gamma]
 

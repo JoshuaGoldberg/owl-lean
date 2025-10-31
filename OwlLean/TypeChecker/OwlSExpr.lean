@@ -15,7 +15,7 @@ inductive SLabel : Type
 | latl : Owl.Lcarrier -> SLabel
 | ljoin : SLabel -> SLabel -> SLabel
 | lmeet : SLabel -> SLabel -> SLabel
-| embedlabel : Owl.label 0 -> SLabel
+| embedlabel : Owl.label l -> List SLabel -> SLabel
 | default : SLabel
 deriving Repr
 
@@ -47,7 +47,7 @@ inductive STy : Type where
 | ex : String -> STy -> STy -> STy
 | all_l : String -> SCondSym -> SLabel -> STy -> STy
 | t_if : SLabel -> STy -> STy -> STy
-| embedty : Owl.ty 0 0 -> STy
+| embedty : Owl.ty l d -> List SLabel -> List STy -> STy
 | Public : STy
 | default : STy
 deriving Repr
@@ -61,7 +61,7 @@ inductive SExpr : Type where
 | fixlam : String -> String -> SExpr -> SExpr
 | tlam : String -> SExpr -> SExpr
 | l_lam : String -> SExpr -> SExpr
-| Op : Owl.op -> SExpr -> SExpr -> SExpr
+| Op : String -> SExpr -> SExpr -> SExpr
 | zero : SExpr -> SExpr
 | app : SExpr -> SExpr -> SExpr
 | alloc : SExpr -> SExpr
@@ -82,7 +82,7 @@ inductive SExpr : Type where
 | if_c :
     SLabel -> SExpr -> SExpr -> SExpr
 | sync : SExpr -> SExpr
-| embedtm : Owl.tm 0 0 0 -> SExpr
+| embedtm : Owl.tm l d m -> List SLabel -> List STy -> List SExpr -> SExpr
 | annot : SExpr -> STy -> SExpr
 | corr_case : SLabel -> SExpr -> SExpr
 | default : SExpr
