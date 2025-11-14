@@ -59,7 +59,7 @@ With this, we can now keep fixlam in the form `fixlam fun x => body``, and the r
 
 ### Issue 2 -  Not every term can be synthesized
 
-Alrught, that last point was a lie. *Ideally* every term could be synthesized, but this is not an ideal world (note that if every term could be synthesized, we could also eliminate checking terms all together). In many cases, this is not an issue, as we choose when to check and when to synthesize in our definition. However, synthesizing is needed in cases like the aforementioned body of a fixlam, since we do not know the type otherwise. We can now touch upon another feature of Owl, which are the ``inl`` and ``inr`` terms, which are used to deal with ``sum`` types, as seen here:
+Alright, that last point was a lie. *Ideally* every term could be synthesized, but this is not an ideal world (note that if every term could be synthesized, we could also eliminate checking terms all together). In many cases, this is not an issue, as we choose when to check and when to synthesize in our definition. However, synthesizing is needed in cases like the aforementioned body of a fixlam, since we do not know the type otherwise. We can now touch upon another feature of Owl, which are the ``inl`` and ``inr`` terms, which are used to deal with ``sum`` types, as seen here:
 
 Insert here
 
