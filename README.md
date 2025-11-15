@@ -79,7 +79,7 @@ With this, we can now annotate the type of ``inl`` and ``inr`` by wrapping them 
 
 With the above modifcations, we have been able to expand the typechecker design to handle a large variety of cases in terms. In fact, the majority of terms in Owl can likely now be typechecked without worry, as long as we're careful to implemnt proper proof constructions for checks and synthesis. Thankfully, we can again rely on the fact that it is proofs being returned, meaning that they are valid conclusions assuming the definition has no errors. That being said, these issues are not the main issue when it comes to designing a proper typechecker. We can now shift our focus to aspects of the language that are more specific to Owl itself, as well as the unique challenges those features present to our current typechecking model.
 
-## Issue 3 - Labels and Constraints
+## Issue 3 - Subtyping
 
 ## Issue 4 - Labels and Constraints
 
