@@ -81,6 +81,21 @@ With the above modifcations, we have been able to expand the typechecker design 
 
 ## Issue 3 - Subtyping
 
+A core part of Owl's design is the inclusion of subtyping, written ``t1 <: t2``, meaning that ``t1`` is a subtype of ``t2``. This pops up in various rules within the language, such as with type lambdas:
+
+Insert here
+
+Additionally, Owl allows for the following rule: 
+
+Insert here
+
+Which allows a for a term to have type ``t2`` if it has a ``t1`` and ``t1`` subtypes  ``t2``. This allows us to write some more creative definitions, such as the following:
+
+Insert here
+
+Which is allowed as all terms are a subtype of ``Any``. This means, of course, that we need to add subtyping to our typechecker design, otherwise we lose out on a lot of expressibility with what we can write. Doing this is actually pretty straightforward, as we can mostly focus on extending our typechcker with this new feature. We did this by adding an additional
+definition, called ``subtype``, that takes in two types (``t1`` and ``t2``), and returns a proof that ``t1 <: t2`` if possible.  
+
 ## Issue 4 - Labels and Constraints
 
 Constraints play a big role in working with the language of Owl. In short, a constraint defines the relation between two labels. To keep it simple, we can assume most constraints take the form of ``l1 ⊑ l2``, meaning that ``l1`` flows to ``l2``.  
