@@ -1,4 +1,4 @@
-# OwlLean
+# OwlLean - README in progress
 A type checker for Owl, implemented in Lean 4
 
 Supports most of the current features, including :
