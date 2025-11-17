@@ -11,7 +11,7 @@ Supports most of the current features, including :
 - Security Lattice representations
 - And more ...
 
-Additionally, we have included extra features for a more streamlined typechkick experience :
+Additionally, we have included extra features for a more streamlined typechecking experience :
 - Annotations for terms
 - Non-recursive Lambdas and let bindings
 - Specific notation for if statement typechecking
@@ -39,6 +39,8 @@ match e with
   has_type.T_True
 | _ => .none
 ```
+Where we choose to return an ``Option``, with ``.none`` indicating that typechecking failed
+
 Then, we could call ``(typecheck True Bool)`` and get a valid proof in return that tells us what we want to know. Returning a proof is nice, as we can at least be assured that what we've done is valid, and since Lean lets us seamlessly integrate proofs as return types,
 we get a pretty nice and clean result.
 
@@ -93,11 +95,35 @@ Which allows a for a term to have type ``t2`` if it has a ``t1`` and ``t1`` subt
 
 Insert here
 
-Which is allowed as all terms are a subtype of ``Any``. This means, of course, that we need to add subtyping to our typechecker design, otherwise we lose out on a lot of expressibility with what we can write. Doing this is actually pretty straightforward, as we can mostly focus on extending our typechcker with this new feature. We did this by adding an additional
-definition, called ``subtype``, that takes in two types (``t1`` and ``t2``), and returns a proof that ``t1 <: t2`` if possible.  
+Which is allowed as all types are a subtype of ``Any``. This means, of course, that we need to add subtyping to our typechecker design, otherwise we lose out on a lot of expressibility with what we can write. Doing this is actually pretty straightforward, as we can mostly focus on extending our typechcker with this new feature. We did this by adding an additional
+definition, called ``subtype``, that takes in two types (``t1`` and ``t2``), and returns a proof that ``t1 <: t2`` if possible. 
 
 ## Issue 4 - Labels and Constraints
 
 Constraints play a big role in working with the language of Owl. In short, a constraint defines the relation between two labels. To keep it simple, we can assume most constraints take the form of ``l1 ⊑ l2``, meaning that ``l1`` flows to ``l2``.  
 
 ## Issue 5 - Corruption Sets
+
+## Bonus Issue 1 - Recursion in Subtyping
+
+Just for fun, we can also describe some of the smaller issues encountered during implementation, that were minor, yet still valuable to know about. In this case, ``check_subtype`` had a slight issue. We currently define it as a recursive function, that calls itself on branches of types to form a complete proof.
+The issue comes with the subtyping rule for variables:
+
+Insert here
+
+This initially seems fine, as we could simply write the branch as follows:
+``` lean
+.var_ty x, t' =>
+  match check_subtype Phi Psi Delta (Delta x) t' with
+  | .some pf =>
+    .some ⟨pf.side_condition,
+          fun sc => subtype.ST_Var x t' (grind pf)⟩
+  | .none => .none
+```
+Except we run into a slight speedbump; Lean doesn't like it when we recurse on something that it cannot tell is smaller. In this case, we call ``check_subtype`` with ``(Delta x)``, but Lean isn't sure that ``(Delta x)`` is smaller than ``x``. Thus, we get an error.
+Thankfully, we can implement a small fix to avoid this problem by giving ``check_subtype`` a fuel parameter, and matching on that number before matching on the type. This way, Lean can always tell that the function is getting smaller, since the fuel always decreases.
+This of course brings in some limitations and annoyances, but as long as we set a sufficient;y large fuel, things turn out ok.
+
+## Bonus Issue 2 - Subtyping for Ref
+This case ended up being far more annoying than the previous, yet the solution was far simpler than we originally anticipated. 
+
