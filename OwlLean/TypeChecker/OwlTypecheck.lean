@@ -878,7 +878,7 @@ syntax "destruct_csp" ident : tactic
 macro_rules
   | `(tactic| all_ren $test:ident $inj:ident $curr:num $goal:num) => do
       let suf := "_" ++ toString curr.getNat
-      let mk (s : String) : TSyntax `ident := mkIdent <| Name.str .anonymous (s ++ suf)
+      let mk (s : String) : TSyntax `ident := mkIdent (Name.str .anonymous (s ++ suf))
       let eId := mk "e"
       let currVal := (curr.getNat)
       let currNextVal := (curr.getNat + 1)
@@ -946,7 +946,7 @@ macro_rules
       let newIterVal := (iter.getNat + 1)
       let newIterSyntax := Syntax.mkNumLit (toString newIterVal)
       let newKSyntax := Syntax.mkNumLit (toString newKVal)
-      let mk (s : String) : TSyntax `ident := mkIdent <| Name.str .anonymous (s ++ suf)
+      let mk (s : String) : TSyntax `ident := mkIdent (Name.str .anonymous (s ++ suf))
       let lId         := mk "l"
       let pmPrevId    := mk "pm_prev"
       let pctxPrevId  := mk "phictx_prev"
@@ -1011,7 +1011,7 @@ macro_rules
       let newIterVal := (iter.getNat + 1)
       let newIterSyntax := Syntax.mkNumLit (toString newIterVal)
       let newKSyntax := Syntax.mkNumLit (toString newKVal)
-      let mk (s : String) : TSyntax `ident := mkIdent <| Name.str .anonymous (s ++ suf)
+      let mk (s : String) : TSyntax `ident := mkIdent (Name.str .anonymous (s ++ suf))
       let lId         := mk "l"
       let pmPrevId    := mk "pm_prev"
       let pctxPrevId  := mk "phictx_prev"

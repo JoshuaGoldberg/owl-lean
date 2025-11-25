@@ -100,8 +100,6 @@ def phi_entails_c (pctx : phi_context l) (co : constr l) : Prop :=
     valid_phi_map l pm pctx ->
     phi_map_holds l pm co)
 
-
-
 structure CorruptionSet where
   is_corrupt : label 0 -> Prop
   has_bot : is_corrupt (label.latl L.bot)
