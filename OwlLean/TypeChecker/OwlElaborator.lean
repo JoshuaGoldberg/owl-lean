@@ -33,8 +33,7 @@ syntax "(" owl_label ")" : owl_label
 partial def elabLabel : Syntax → TermElabM Expr
   | `(owl_label| ( $e:owl_label)) => elabLabel e
   | `(owl_label| ⟨ $t:term ⟩ ) => do
-      let t' ← Term.TermElabM.run' do
-        Term.elabTerm t (mkConst ``Owl.Lcarrier)
+      let t' ← Term.elabTerm t (mkConst ``Owl.Lcarrier)
       mkAppM ``SLabel.latl #[t']
   | `(owl_label| $e1:owl_label ⊔ $e2:owl_label) => do
       let elab_e1 <- elabLabel e1
@@ -49,13 +48,11 @@ partial def elabLabel : Syntax → TermElabM Expr
   | `(owl_label| $ $l:term [ $xs:owl_label,* ] ) => do
       let xs' <- xs.getElems.mapM elabLabel
       let xs_list <- mkListLit (mkConst ``SLabel) xs'.toList
-      let l' ← Term.TermElabM.run' do
-        Term.elabTerm l (mkConst ``Owl.label)
+      let l' ← Term.elabTerm l (mkConst ``Owl.label)
       mkAppM ``SLabel.embedlabel #[l', xs_list]
   | `(owl_label| $ $l:term ) => do
       let empty_list <- mkListLit (mkConst ``SLabel) []
-      let l' ← Term.TermElabM.run' do
-        Term.elabTerm l (mkConst ``Owl.label)
+      let l' ← Term.elabTerm l (mkConst ``Owl.label)
       mkAppM ``SLabel.embedlabel #[l', empty_list]
   | _ => throwUnsupportedSyntax
 
@@ -176,8 +173,7 @@ partial def elabType : Syntax → TermElabM Expr
     let ts' <- ts.getElems.mapM elabType
     let ls_list <- mkListLit (mkConst ``SLabel) ls'.toList
     let ts_list <- mkListLit (mkConst ``STy) ts'.toList
-    let t' ← Term.TermElabM.run' do
-        Term.elabTerm t (mkConst ``Owl.ty)
+    let t' ← Term.elabTerm t (mkConst ``Owl.ty)
     mkAppM ``STy.embedty #[t', ls_list, ts_list]
   | _ => throwUnsupportedSyntax
 
@@ -250,8 +246,7 @@ partial def elabTm : Syntax → TermElabM Expr
     let elab_e2 <- elabTm e2
     mkAppM ``SExpr.tm_pair #[elab_e1, elab_e2]
   | `(owl_tm| ⟨ $t:term ⟩ ( $e1:owl_tm , $e2:owl_tm )) => do
-    let t' ← Term.TermElabM.run' do
-        Term.elabTerm t (mkConst ``String)
+    let t' ← Term.elabTerm t (mkConst ``String)
     let elab_e1 <- elabTm e1
     let elab_e2 <- elabTm e2
     mkAppM ``SExpr.Op #[t', elab_e1, elab_e2]
@@ -262,8 +257,7 @@ partial def elabTm : Syntax → TermElabM Expr
     let ls_list <- mkListLit (mkConst ``SLabel) ls'.toList
     let ts_list <- mkListLit (mkConst ``STy) ts'.toList
     let es_list <- mkListLit (mkConst ``SExpr) es'.toList
-    let t' ← Term.TermElabM.run' do
-        Term.elabTerm t (mkConst ``Owl.tm)
+    let t' ← Term.elabTerm t (mkConst ``Owl.tm)
     mkAppM ``SExpr.embedtm #[t', ls_list, ts_list, es_list]
   | `(owl_tm| zero $e:owl_tm) => do
     let elab_e <- elabTm e
@@ -404,13 +398,11 @@ partial def elabLabel_closed : Syntax → TermElabM Expr
   | `(owl_label| $ $l:term [ $xs:owl_label,* ]  ) => do
       let xs' <- xs.getElems.mapM elabLabel_closed
       let xs_list <- mkListLit (mkConst ``SLabel) xs'.toList
-      let l' ← Term.TermElabM.run' do
-        Term.elabTerm l (mkConst ``Owl.label)
+      let l' ← Term.elabTerm l (mkConst ``Owl.label)
       mkAppM ``SLabel.embedlabel #[l', xs_list]
   | `(owl_label| $ $l:term ) => do
       let empty_list <- mkListLit (mkConst ``SLabel) []
-      let l' ← Term.TermElabM.run' do
-        Term.elabTerm l (mkConst ``Owl.label)
+      let l' ← Term.elabTerm l (mkConst ``Owl.label)
       mkAppM ``SLabel.embedlabel #[l', empty_list]
   | _ => throwUnsupportedSyntax
 
@@ -494,8 +486,7 @@ partial def elabTm_closed : Syntax → TermElabM Expr
     let elab_e2 <- elabTm_closed e2
     mkAppM ``SExpr.tm_pair #[elab_e1, elab_e2]
   | `(owl_tm| ⟨ $t:term ⟩ ( $e1:owl_tm , $e2:owl_tm )) => do
-    let t' ← Term.TermElabM.run' do
-        Term.elabTerm t (mkConst ``String)
+    let t' ← Term.elabTerm t (mkConst ``String)
     let elab_e1 <- elabTm_closed e1
     let elab_e2 <- elabTm_closed e2
     mkAppM ``SExpr.Op #[t', elab_e1, elab_e2]
