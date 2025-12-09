@@ -811,7 +811,19 @@ theorem infer_sound_none (Phi : phi_context l) (Psi : psi_context l) (Delta : de
 
 syntax "tc_full" term:max term:max term:max term:max term:max term:max tactic : tactic
 syntax "tc_full_man" term:max term:max term:max term:max term:max term:max tactic : tactic
-
+syntax "tc" tactic:max : tactic
+syntax "tc_man" tactic:max : tactic
+syntax "auto_solve_fast" : tactic
+syntax "solve_phi_validation" ident : tactic
+syntax "attempt_solve" : tactic
+syntax "solve_phi_validation_anon" : tactic
+syntax "solve_phi_validation_anon_no_simp" : tactic
+syntax "case_phi " ident ident ident num num : tactic
+syntax "case_phi_corr" ident ident ident ident num num : tactic
+syntax "all_ren" ident ident num num : tactic
+syntax "check_corr" ident ident ident : tactic
+syntax "destruct_csp" ident : tactic
+syntax "auto_solve" : tactic
 
 def simple_test_delta :=
    (dcons .Unit (@empty_delta 0))
@@ -867,15 +879,7 @@ theorem shift_injective : forall (x : Fin l) (y : Fin l), shift x = shift y -> x
   simp [shift] at h
   exact h
 
-syntax "solve_phi_validation" ident : tactic
-syntax "attempt_solve" : tactic
-syntax "solve_phi_validation_anon" : tactic
-syntax "solve_phi_validation_anon_no_simp" : tactic
-syntax "case_phi " ident ident ident num num : tactic
-syntax "case_phi_corr" ident ident ident ident num num : tactic
-syntax "all_ren" ident ident num num : tactic
-syntax "check_corr" ident ident ident : tactic
-syntax "destruct_csp" ident : tactic
+
 
 macro_rules
   | `(tactic| all_ren $test:ident $inj:ident $curr:num $goal:num) => do
@@ -1130,8 +1134,6 @@ macro "solve_all_constraints" : tactic => `(tactic|
         | solve_phi_validation_anon
         | solve_phi_validation_anon_no_simp)))
 
-syntax "auto_solve" : tactic
-
 macro_rules
   | `(tactic| auto_solve) =>
     `(tactic| first
@@ -1183,11 +1185,6 @@ macro_rules
           dsimp [infer] at h
           cases h
     )
-
-syntax "tc" tactic:max : tactic
-syntax "tc_man" tactic:max : tactic
-
-syntax "auto_solve_fast" : tactic
 
 elab_rules : tactic
 | `(tactic| tc $k) => do
