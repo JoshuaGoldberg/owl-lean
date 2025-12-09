@@ -809,22 +809,6 @@ theorem infer_sound_none (Phi : phi_context l) (Psi : psi_context l) (Delta : de
   apply cond'
   apply h2
 
-syntax "tc_full" term:max term:max term:max term:max term:max term:max tactic : tactic
-syntax "tc_full_man" term:max term:max term:max term:max term:max term:max tactic : tactic
-syntax "tc" tactic:max : tactic
-syntax "tc_man" tactic:max : tactic
-syntax "auto_solve_fast" : tactic
-syntax "solve_phi_validation" ident : tactic
-syntax "attempt_solve" : tactic
-syntax "solve_phi_validation_anon" : tactic
-syntax "solve_phi_validation_anon_no_simp" : tactic
-syntax "case_phi " ident ident ident num num : tactic
-syntax "case_phi_corr" ident ident ident ident num num : tactic
-syntax "all_ren" ident ident num num : tactic
-syntax "check_corr" ident ident ident : tactic
-syntax "destruct_csp" ident : tactic
-syntax "auto_solve" : tactic
-
 def simple_test_delta :=
    (dcons .Unit (@empty_delta 0))
 
@@ -879,7 +863,22 @@ theorem shift_injective : forall (x : Fin l) (y : Fin l), shift x = shift y -> x
   simp [shift] at h
   exact h
 
-
+syntax "tc_full" term:max term:max term:max term:max term:max term:max tactic : tactic
+syntax "tc_full_man" term:max term:max term:max term:max term:max term:max tactic : tactic
+syntax "tc" tactic:max : tactic
+syntax "tc_man" tactic:max : tactic
+syntax "auto_solve_fast" : tactic
+syntax "solve_phi_validation" ident : tactic
+syntax "attempt_solve" : tactic
+syntax "solve_phi_validation_anon" : tactic
+syntax "solve_phi_validation_anon_no_simp" : tactic
+syntax "case_phi " ident ident ident num num : tactic
+syntax "case_phi_corr" ident ident ident ident num num : tactic
+syntax "all_ren" ident ident num num : tactic
+syntax "check_corr" ident ident ident : tactic
+syntax "destruct_csp" ident : tactic
+syntax "auto_solve" : tactic
+syntax "solve_all_constraints" : tactic
 
 macro_rules
   | `(tactic| all_ren $test:ident $inj:ident $curr:num $goal:num) => do
@@ -1121,20 +1120,17 @@ macro_rules
         (repeat constructor);
         case_phi_corr $vpm:ident $vpm:ident $vpm:ident $Csp:ident 1 0;
     )
-
-macro "solve_all_constraints" : tactic => `(tactic|
-  repeat (first
-    | constructor <;> (first
-        | trivial
-        | simp
-        | (right; intro pm C vpm Csp; check_corr vpm C Csp)
-        | (left; intro pm C vpm Csp; check_corr vpm C Csp)
-        | (intro pm C vpm Csp; check_corr vpm C Csp)
-        | attempt_solve
-        | solve_phi_validation_anon
-        | solve_phi_validation_anon_no_simp)))
-
-macro_rules
+  | `(tactic| solve_all_constraints) => `(tactic|
+      repeat (first
+      | constructor <;> (first
+          | trivial
+          | simp
+          | (right; intro pm C vpm Csp; check_corr vpm C Csp)
+          | (left; intro pm C vpm Csp; check_corr vpm C Csp)
+          | (intro pm C vpm Csp; check_corr vpm C Csp)
+          | attempt_solve
+          | solve_phi_validation_anon
+          | solve_phi_validation_anon_no_simp)))
   | `(tactic| auto_solve) =>
     `(tactic| first
       | intro pm C vpm Csp; check_corr vpm C Csp
@@ -1142,8 +1138,6 @@ macro_rules
       | solve_phi_validation_anon
       | solve_phi_validation_anon_no_simp
       | (apply And.intro; all_goals auto_solve))
-
-macro_rules
   | `(tactic| tc_full $Phi $Psi $Delta $Gamma $e $t $k) => `(tactic|
       cases h : infer $Phi $Psi $Delta $Gamma $e (some $t) with
       | some result =>
@@ -1164,8 +1158,6 @@ macro_rules
           dsimp [infer] at h
           cases h
     )
-
-macro_rules
   | `(tactic| tc_full_man $Phi $Psi $Delta $Gamma $e $t $k) => `(tactic|
       cases h : infer $Phi $Psi $Delta $Gamma $e (some $t) with
       | some result =>
