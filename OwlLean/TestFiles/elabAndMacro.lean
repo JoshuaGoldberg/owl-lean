@@ -44,6 +44,7 @@ macro "my_simp" : tactic => `(tactic| simp)
 macro "my_simp2" x:term : tactic => `(tactic| simp)
 
 syntax "my_simp3" : tactic
+
 syntax "my_simp4" num : tactic
 
 macro_rules
