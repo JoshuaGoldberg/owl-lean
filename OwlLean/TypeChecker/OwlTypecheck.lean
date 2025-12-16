@@ -299,7 +299,7 @@ def check_subtype  (fuel : Nat) (Phi : phi_context l) (Psi : psi_context l) (Del
         .none
 
 @[simp]
-noncomputable def to_data (fuel : Nat) (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_context l d) (t : ty l d)
+def to_data (fuel : Nat) (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_context l d) (t : ty l d)
   : Option ((l : Owl.label l) × (PLift (subtype Phi Psi Delta t (.Data l)))) :=
     match fuel with
     | 0 => .none
@@ -324,7 +324,7 @@ def unifies (t1 : ty l d) (exp : Option (ty l d)) :=
   )
 
 @[simp]
-noncomputable def from_synth (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_context l d)
+def from_synth (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_context l d)
           (Gamma : gamma_context l d m) {e : tm l d m} (t1 : ty l d) (h : Conditional (has_type Phi Psi Delta Gamma e t1)) (exp : Option (ty l d)) :
           Option ((t : ty l d) × unifies t exp × Conditional (has_type Phi Psi Delta Gamma e t)) :=
     match exp with
@@ -346,7 +346,7 @@ noncomputable def from_synth (Phi : phi_context l) (Psi : psi_context l) (Delta 
 -- If it typechecks, a proof that the input term has type "exp"
 -- If no type is provided, infer will attempt to synthesize the type of the input term
 -- If successful, it will return the synthesized type, and a proof that the input term has that type
-noncomputable def infer (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_context l d)
+def infer (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_context l d)
           (Gamma : gamma_context l d m) (e : tm l d m) (exp : Option (ty l d)) :
           Option ((t : ty l d) × unifies t exp × Conditional (has_type Phi Psi Delta Gamma e t)) :=
   match e with
@@ -815,10 +815,10 @@ def simple_test_delta :=
 def test_delta_2 :=
    (dcons (.var_ty ⟨0, by omega⟩) simple_test_delta)
 
-noncomputable def simple_test_phi :=
+def simple_test_phi :=
   (pcons (.geq, .var_label ⟨0, by omega⟩) (pcons (.geq, .latl L.bot) empty_phi))
 
-noncomputable def simple_test_gamma : gamma_context 0 0 1 :=
+def simple_test_gamma : gamma_context 0 0 1 :=
   (cons .Unit empty_gamma)
 
 theorem cons_surjective {n : Nat} (f : Fin (n + 1) → label 0) :

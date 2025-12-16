@@ -37,7 +37,7 @@ def lift_gamma_l (Gamma : gamma_context l d m)
   := fun i => ren_ty shift id (Gamma i)
 
 -- Convert from labels down to lattice elements
-noncomputable def interp_lattice (l : label 0) : L.labels :=
+def interp_lattice (l : label 0) : L.labels :=
   match l with
   | .latl x => x
   | .ljoin x y => (L.join (interp_lattice x) (interp_lattice y))
