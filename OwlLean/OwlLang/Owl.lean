@@ -24,7 +24,7 @@ instance : Inhabited Lattice where
     bot_all := fun _ => rfl
   }
 
-def L := (default : Lattice)
+opaque L : Lattice
 
 abbrev Lcarrier : Type := L.labels
 
