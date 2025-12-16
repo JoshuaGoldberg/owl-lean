@@ -68,7 +68,6 @@ def valid_constraint (co : constr 0) : Prop :=
   | (.condition .ngt x y) => L.leq (interp_lattice y) (interp_lattice x) = false \/ L.leq (interp_lattice x) (interp_lattice y) = true
   | (.condition .nlt x y) => L.leq (interp_lattice x) (interp_lattice y) = false \/ L.leq (interp_lattice y) (interp_lattice x) = false
 
-
 def phi_map (l : Nat) : Type := (Fin l) -> (label 0)
 def empty_phi_map : phi_map 0 := fun (i : Fin 0) => nomatch i
 

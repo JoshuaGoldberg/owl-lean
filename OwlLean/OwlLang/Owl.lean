@@ -11,20 +11,20 @@ structure Lattice where
   leq_refl : forall l, leq l l = true
   bot_all : forall l, leq bot l = true
 
-def IL : Inhabited Lattice where
-  default :=
-    Lattice.mk
-    Unit
-    (fun _ _ => true)
-    ()
-    (by grind)
-    (fun _ _ => ())
-    (fun _ _ => ())
-    (by grind)
-    (by grind)
-    (by grind)
+instance : Inhabited Lattice where
+  default := {
+    labels := Unit
+    leq := fun _ _ => true
+    bot := ()
+    bot_proof := fun _ => rfl
+    join := fun _ _ => ()
+    meet := fun _ _ => ()
+    leq_trans := fun _ _ _ _ _ => rfl
+    leq_refl := fun _ => rfl
+    bot_all := fun _ => rfl
+  }
 
-def L := IL.default
+def L := (default : Lattice)
 
 abbrev Lcarrier : Type := L.labels
 
