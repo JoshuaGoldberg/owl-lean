@@ -11,7 +11,20 @@ structure Lattice where
   leq_refl : forall l, leq l l = true
   bot_all : forall l, leq bot l = true
 
-axiom L : Lattice
+def IL : Inhabited Lattice where
+  default :=
+    Lattice.mk
+    Unit
+    (fun _ _ => true)
+    ()
+    (by grind)
+    (fun _ _ => ())
+    (fun _ _ => ())
+    (by grind)
+    (by grind)
+    (by grind)
+
+def L := IL.default
 
 abbrev Lcarrier : Type := L.labels
 
