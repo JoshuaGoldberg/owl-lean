@@ -1,9 +1,14 @@
+import Lean
 import OwlLean.TypeChecker.OwlComplete
+import OwlLean.TypeChecker.TcSimple
 
-set_option maxHeartbeats 1000000
+open Lean Meta Elab Tactic
+
+open OwlTypecheck
 
 
 -- "[0]" represents garbage values not needed for computation
+/-
 theorem enc_i :
   ( · ; · ; · ; · ⊢
     Λβ betaK .
@@ -34,10 +39,20 @@ theorem enc_i :
                                  ((corr (betaK) ? (Public * Public) -> Public : (alphaK * tau) -> Public) *
                                   (corr (betaK) ? (Public * Public) -> Public : (alphaK * Public) -> (tau + Unit)))))) :=
     by
-    tc_man (
-      try simp
-      auto_solve
-    )
+    apply OwlTypecheck.infer_sound
+
+
+    unfold OwlTypecheck.infer
+
+
+
+
+    rw [OwlTypecheck.infer]
+
+-/
+
+
+open EStateM
 
 theorem enc_ty2 :
   ((betaK, betaM ⊑ betaK) ; · ; · ; · ⊢
@@ -45,10 +60,14 @@ theorem enc_ty2 :
       :
       (∃ alphaK <: Unit . alphaK)) :=
     by
-    tc_man (
-      try simp
-      try auto_solve
-    )
+      apply OwlTc.infer_sound
+      dsimp [OwlTc.infer, OwlTc.check_subtype, OwlTc.has_type_infer]
+      simp [EStateM.run]
+      simp [pure, EStateM.pure]
+
+
+
+
 
 theorem test_let_2 :
   ( · ; · ; · ; · ⊢
@@ -57,10 +76,11 @@ theorem test_let_2 :
       :
       Public) :=
     by
-    tc_man (
-      try simp
-      try auto_solve
-    )
+      apply infer_sound
+      simp
+      dsimp [infer]
+      dsimp [check_subtype]
+      simp
 
 theorem test_let_3 :
   ( · ; · ; · ; · ⊢
@@ -116,10 +136,11 @@ theorem enc_r :
                                  ((corr (betaK) ? (Public * Public) -> Public : (alphaK * (Data betaM)) -> Public) *
                                   (corr (betaK) ? (Public * Public) -> Public : (alphaK * Public) -> (tau + Unit)))))) :=
     by
-    tc_man (
-      try simp
-      auto_solve
-    )
+      simp
+      apply infer_sound
+      dsimp [infer]
+      dsimp [check_subtype]
+
 
 theorem enc_unpack :
   ( (betaK, betaM ⊑ betaK) ; · ; (tau <: Data betaM) ;
@@ -153,12 +174,14 @@ theorem enc_layered :
        unpack E2 as (alpha2, ked2) in
        (π1 (π2 ked1)) [⟨(π1 ked1), (π1 ked2)⟩])
     :
-    Public) :=
-    by
-    tc_man (
-      try simp
-      auto_solve_fast
-    )
+    Public) := by
+      apply OwlTc.infer_sound
+      dsimp [OwlTc.has_type_infer, OwlTc.infer]
+      dsimp [EStateM.run]
+      simp
+
+
+
 
 -- partial
 theorem enc_sig :
@@ -243,3 +266,5 @@ theorem enc_layered2_high_low :
       try simp
       auto_solve_fast
     )
+
+-/

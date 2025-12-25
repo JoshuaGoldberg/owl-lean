@@ -37,6 +37,7 @@ def lift_gamma_l (Gamma : gamma_context l d m)
   := fun i => ren_ty shift id (Gamma i)
 
 -- Convert from labels down to lattice elements
+@[simp]
 def interp_lattice (l : label 0) : L.labels :=
   match l with
   | .latl x => x
@@ -45,6 +46,7 @@ def interp_lattice (l : label 0) : L.labels :=
   | .var_label n => nomatch n
   | .default => L.bot
 
+@[simp]
 def negate_cond (co : constr l) : constr l :=
   match co with
   | (.condition .leq x y) => (.condition .nleq x y)
@@ -57,6 +59,7 @@ def negate_cond (co : constr l) : constr l :=
   | (.condition .nlt x y) => (.condition .lt x y)
 
 -- Check if a constraint is valid, under the assumption it is closed *)
+@[simp]
 def valid_constraint (co : constr 0) : Prop :=
   match co with
   | (.condition .leq x y) => L.leq (interp_lattice x) (interp_lattice y) = true
@@ -72,32 +75,69 @@ def valid_constraint (co : constr 0) : Prop :=
 def phi_map (l : Nat) : Type := (Fin l) -> (label 0)
 def empty_phi_map : phi_map 0 := fun (i : Fin 0) => nomatch i
 
+@[simp]
 def phi_map_holds (l : Nat) (pm : phi_map l) (co : constr l) : Prop :=
   match co with
   | (.condition c l1 l2) => (valid_constraint (.condition c (subst_label pm l1) (subst_label pm l2)))
 
+@[simp]
 def lift_phi (pm : Fin (l + 1) -> (cond_sym × label l)) : phi_context (l + 1) :=
   fun i =>
     let ⟨sym, lab⟩ := (pm i)
     ⟨sym, ren_label shift lab⟩
 
+@[simp]
 def pcons (x : cond_sym × label l) (phi : phi_context l) : phi_context (l + 1) :=
   (lift_phi (cons x phi))
 
+@[simp]
 def dcons (x : ty l d) (delta : delta_context l d) : delta_context l (d+1) :=
   (lift_delta (cons x delta))
 
-inductive valid_phi_map : forall l, phi_map l -> phi_context l -> Prop where
-| phi_empty_valid : valid_phi_map 0 empty_phi_map empty_phi
-| phi_cons : forall l pm phictx phi (sym : cond_sym) (lab : label l) (lab_val : label 0),
-  valid_phi_map l pm phictx ->
-  phi_map_holds (l+1) (cons lab_val pm) (.condition sym (.var_label var_zero) (ren_label shift lab)) ->
-  phi = lift_phi (cons (sym, lab) phictx) ->
-  valid_phi_map (l+1) (cons lab_val pm) phi
+@[simp]
+def phi_map.valid (p : phi_map l) (c : phi_context l) :=
+  Fin.foldr l (fun i acc =>
+    acc ∧ (let (s, l) := c i; valid_constraint (.condition s (p i) (subst_label p l)))
+  ) True
+
+def Fin.forall_fold {l} (f : Fin l -> Prop) :
+  (forall i, f i) =
+  Fin.foldr l (fun i acc =>
+    acc ∧ f i
+  ) True := by
+    ext
+    constructor
+    {
+      intros h
+      induction l
+      simp
+      simp [Fin.foldr_succ]
+      simp [h 0]
+      rename_i ih
+      apply ih
+      grind
+    }
+    {
+      intros h
+      intros i
+      induction l
+      cases i; omega
+      apply Fin.cases
+      rename_i ih
+      simp [Fin.foldr_succ] at h
+      grind
+      intros j
+      rename_i ih
+      specialize (ih (fun x => f x.succ))
+      apply ih
+      simp [Fin.foldr_succ] at h
+      grind
+    }
+
 
 def phi_entails_c (pctx : phi_context l) (co : constr l) : Prop :=
   (forall pm,
-    valid_phi_map l pm pctx ->
+    pm.valid pctx ->
     phi_map_holds l pm co)
 
 structure CorruptionSet where
@@ -132,8 +172,8 @@ inductive C_satisfies_psi : CorruptionSet -> psi_context 0 -> Prop where
   C_satisfies_psi C ((.not_corr l) :: psi)
 
 def  phi_psi_entail_corr (phictx : phi_context l) (psictx : psi_context l) (co : corruption l) : Prop :=
-  (forall pm C,
-    (valid_phi_map l pm phictx) ->
+  (forall (pm : phi_map l) C,
+    (pm.valid phictx) ->
     (C_satisfies_psi C (subst_psi_context pm psictx)) ->
     (C_satisfies_psi C (subst_psi_context pm [co])))
 

@@ -8,8 +8,8 @@ structure Lattice where
   join   : labels -> labels -> labels
   meet   : labels -> labels -> labels
   leq_trans : forall l1 l2 l3, leq l1 l2 -> leq l2 l3 -> leq l1 l3
-  leq_refl : forall l, leq l l = true
-  bot_all : forall l, leq bot l = true
+  leq_refl : forall l, leq l l
+  bot_all : forall l, leq bot l
 
 def IL : Inhabited Lattice where
   default :=
@@ -25,6 +25,20 @@ def IL : Inhabited Lattice where
     (by grind)
 
 def L := IL.default
+
+def lattice_leq_trans : forall {l1 l2 l3}, L.leq l1 l2 -> L.leq l2 l3 -> L.leq l1 l3 :=
+  fun {l1 l2 l3} =>
+    L.leq_trans l1 l2 l3
+
+grind_pattern lattice_leq_trans => L.leq l1 l2, L.leq l2 l3
+
+def lattice_leq_refl : forall {l}, L.leq l l := fun {l} => L.leq_refl l
+
+grind_pattern lattice_leq_refl => L.leq l l
+
+def lattice_bot_all : forall {l}, L.leq L.bot l := fun {l} => L.bot_all l
+
+grind_pattern lattice_bot_all => L.leq L.bot l
 
 abbrev Lcarrier : Type := L.labels
 
@@ -170,6 +184,7 @@ def upRen_label_label (xi : Fin m -> Fin n) : Fin (m + 1) -> Fin (n + 1) :=
 def upRen_label_ty (xi : Fin m -> Fin n) : Fin m -> Fin n :=
   xi
 
+@[simp]
 def ren_label
   (xi_label : Fin m_label → Fin n_label)
   (s : label m_label) : label n_label :=
