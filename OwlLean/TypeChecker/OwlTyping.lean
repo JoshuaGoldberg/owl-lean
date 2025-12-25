@@ -7,31 +7,41 @@ open Owl
 #check (tm.error : tm 0 0 0)
 #check (ty.Any : ty 0 0)
 
+@[simp]
 def gamma_context (l : Nat) (d : Nat) (m : Nat) := Fin m -> ty l d
+@[simp]
 def delta_context (l : Nat) (d : Nat) := Fin d -> ty l d
+@[simp]
 def phi_context (l : Nat) := Fin l -> (cond_sym × label l)
 
+@[simp]
 def empty_gamma : gamma_context l d 0 :=
   fun (i : Fin 0) => nomatch i
 
+@[simp]
 def empty_delta : delta_context l 0 :=
   fun (i : Fin 0) => nomatch i
 
+@[simp]
 def empty_phi : (phi_context 0) :=
   fun (i : Fin 0) => nomatch i
 
+@[simp]
 def lift_delta (Delta : Fin (d + 1) -> ty l d)
   : delta_context l (d + 1)
   := fun i => ren_ty id shift (Delta i)
 
+@[simp]
 def lift_delta_l (Delta : delta_context l d)
   : delta_context (l + 1) d
   := fun i => ren_ty shift id (Delta i)
 
+@[simp]
 def lift_gamma_d (Gamma : gamma_context l d m)
   : gamma_context l (d + 1) m
   := fun i => ren_ty id shift (Gamma i)
 
+@[simp]
 def lift_gamma_l (Gamma : gamma_context l d m)
   : gamma_context (l + 1) d m
   := fun i => ren_ty shift id (Gamma i)
@@ -72,7 +82,9 @@ def valid_constraint (co : constr 0) : Prop :=
   | (.condition .nlt x y) => L.leq (interp_lattice x) (interp_lattice y) = false \/ L.leq (interp_lattice y) (interp_lattice x) = false
 
 
+@[simp]
 def phi_map (l : Nat) : Type := (Fin l) -> (label 0)
+@[simp]
 def empty_phi_map : phi_map 0 := fun (i : Fin 0) => nomatch i
 
 @[simp]
@@ -135,6 +147,7 @@ def Fin.forall_fold {l} (f : Fin l -> Prop) :
     }
 
 
+@[simp]
 def phi_entails_c (pctx : phi_context l) (co : constr l) : Prop :=
   (forall pm,
     pm.valid pctx ->
@@ -148,29 +161,41 @@ structure CorruptionSet where
                     L.leq (interp_lattice l) (interp_lattice l') = true ->
                     is_corrupt l
 
+
+@[grind]
+theorem CorruptionSet.by_downwards_closed (C : CorruptionSet) :
+  C.is_corrupt l ->
+  Owl.L.leq (interp_lattice l') (interp_lattice l) = true ->
+  C.is_corrupt l' := by
+    intros h1 h2
+    apply C.downward_closed
+    apply h1
+    assumption
+
+@[simp]
 def psi_context (l : Nat) := (List (corruption l))
 
+@[simp]
 def empty_psi (l : Nat) : psi_context l := []
 
+@[simp]
 def lift_psi (pm : psi_context l) : psi_context (l + 1) :=
   pm.map (ren_corruption shift)
 
+@[simp]
 def subst_psi_context (sigma_label : Fin m_label -> label n_label)
   (psi : psi_context m_label) : psi_context n_label :=
   psi.map (subst_corruption sigma_label)
 
-inductive C_satisfies_psi : CorruptionSet -> psi_context 0 -> Prop where
-| psi_empty : forall C,
-  C_satisfies_psi C []
-| psi_corr : forall psi C l,
-  C_satisfies_psi C psi ->
-  C.is_corrupt l ->
-  C_satisfies_psi C ((.corr l) :: psi)
-| psi_not_corr : forall psi C l,
-  C_satisfies_psi C psi ->
-  ¬(C.is_corrupt l) ->
-  C_satisfies_psi C ((.not_corr l) :: psi)
+@[simp]
+def C_satisfies_psi (C : CorruptionSet) (psi : psi_context 0) : Prop :=
+  List.foldr (fun i acc =>
+    acc ∧ match i with
+    | corruption.corr x => C.is_corrupt x
+    | .not_corr x => ¬ (C.is_corrupt x)
+  ) True psi
 
+@[simp]
 def  phi_psi_entail_corr (phictx : phi_context l) (psictx : psi_context l) (co : corruption l) : Prop :=
   (forall (pm : phi_map l) C,
     (pm.valid phictx) ->

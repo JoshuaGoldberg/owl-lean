@@ -724,6 +724,22 @@ elab "OwlLabel" "[" lvars:ident,* "]" "{" p:owl_label "}" : term => do
   | .none => throwError "owl: ill-formed term"
   | .some _ => mkAppM ``elabHelperLabel #[sexprTerm, lvarEListExpr]
 
+
+structure Sequent where
+  l : Nat
+  d : Nat
+  m : Nat
+  Phi : phi_context l
+  Psi : psi_context l
+  Delta : delta_context l d
+  Gamma : gamma_context l d m
+  e : tm l d m
+  t : ty l d
+
+def Sequent.has_ty (s : Sequent) :=
+  has_type s.Phi s.Psi s.Delta s.Gamma s.e s.t
+
+
 -- For easier usage of the has_type inductive
 @[simp]
 elab "(" p:owl_phi ";" ps:owl_psi ";" d:owl_delta ";" g:owl_gamma "⊢" e:owl_tm ":" t:owl_type ")" : term => do
@@ -790,4 +806,4 @@ elab "(" p:owl_phi ";" ps:owl_psi ";" d:owl_delta ";" g:owl_gamma "⊢" e:owl_tm
   let tyExpr ← mkAppM ``elabHelperTy #[← elabType t, lvarsExpr, tvarsExpr]
   let tmExpr ← mkAppM ``elabHelper #[← elabTm e, lvarsExpr, tvarsExpr, varsExpr]
 
-  mkAppM ``has_type #[phiExpr, psiExpr, deltaExpr, gammaExpr, tmExpr, tyExpr]
+  mkAppM ``Sequent.mk #[mkNatLit lvars.length, mkNatLit tvars.length, mkNatLit vars.length, phiExpr, psiExpr, deltaExpr, gammaExpr, tmExpr, tyExpr]

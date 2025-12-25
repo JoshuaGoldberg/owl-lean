@@ -8,12 +8,24 @@ open Lean Meta Elab Tactic
 
 namespace OwlTc
 
+inductive Result ε α :=
+  | ok : α -> Result ε α
+  | err : ε -> Result ε α
 
-abbrev Check α := EStateM Unit Prop α
+abbrev Check α := Prop -> Result String (α × Prop)
 
-def emit (p : Prop) : Check Unit := do
-  let acc <- get
-  set (p ∧ acc)
+@[always_inline, simp]
+instance : Monad Check where
+  pure := fun x => fun p => .ok (x, p)
+  bind := fun c k => fun p =>
+    match c p with
+    | .err e => .err e
+    | .ok (x, p') => k x p'
+
+def emit (p : Prop) : Check Unit := fun q => .ok ((), p ∧ q)
+
+def throw (s : String) : Check α := fun _ => .err s
+
 
 abbrev subtype_fuel := 10
 
@@ -22,7 +34,7 @@ abbrev subtype_fuel := 10
 def check_subtype  (fuel : Nat) (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_context l d)
                            (t1 : ty l d) (t2 : ty l d) : Check Unit :=
     match fuel with
-    | 0 => throw ()
+    | 0 => throw "check_subtype: out of fuel"
     | (n + 1) =>
       match t1, t2 with
       | x, .Any => pure ()
@@ -61,6 +73,7 @@ def check_subtype  (fuel : Nat) (Phi : phi_context l) (Psi : psi_context l) (Del
         let extended_phi := lift_phi (cons (cs, lab) Phi)
         let constraint := (.condition cs (.var_label var_zero) (ren_label shift lab'))
         let constraint_holds := extended_phi |= constraint
+        emit constraint_holds
         let extended_psi := lift_psi Psi
         let extended_delta := lift_delta_l Delta
         check_subtype n extended_phi extended_psi extended_delta t t'
@@ -71,7 +84,7 @@ def check_subtype  (fuel : Nat) (Phi : phi_context l) (Psi : psi_context l) (Del
       | t, .t_if lab t1' t2' => do
         check_subtype n Phi ((.corr lab) :: Psi) Delta t t1'
         check_subtype n Phi ((.not_corr lab) :: Psi) Delta t t2'
-      | _, _ => throw ()
+      | _, _ => throw "check_subtype: unhandled case"
 
 
 @[simp]
@@ -85,16 +98,17 @@ def from_synth (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_contex
       pure t'
 
 
+@[simp]
 def to_data (fuel : Nat) (Delta : delta_context l d) (t : ty l d)
   : Check (Owl.label l) :=
     match fuel with
-    | 0 => throw ()
+    | 0 => throw "to_data: out of fuel"
     | n + 1 =>
       match t with
       | .Data l1 => pure l1
       | .Public => pure (.latl L.bot)
       | .var_ty x => to_data n Delta (Delta x)
-      | _ => throw ()
+      | _ => throw "to_data: unhandled case"
 
 
 -- Infer performs the dual roles of synthesis and checking
@@ -137,33 +151,33 @@ def infer (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_context l d
     let t <- infer Phi Psi Delta Gamma e .none
     match t with
     | .Ref t0 => from_synth Phi Psi Delta t0 exp
-    | _ => throw ()
+    | _ => throw "dealloc"
   | .assign e1 e2 => do
     let t0 <- infer Phi Psi Delta Gamma e1 .none
     match t0 with
     | .Ref t1 => do
       let _ <- infer Phi Psi Delta Gamma e2 (.some t1)
       from_synth Phi Psi Delta .Unit exp
-    | _ => throw ()
+    | _ => throw "assign"
   | .inl e =>
     match exp with
     | .some (.sum t1 t2) => do
        let _ <- infer Phi Psi Delta Gamma e (.some t1)
        pure (.sum t1 t2)
-    | _ => throw ()
+    | _ => throw "inl"
   | .inr e =>
     match exp with
     | .some (.sum t1 t2) => do
        let _ <- infer Phi Psi Delta Gamma e (.some t2)
        pure (.sum t1 t2)
-    | _ => throw ()
+    | _ => throw "inr"
   | .fixlam e =>
     match exp with
     | .some (.arr t t') => do
        let extended_gamma := cons (.arr t t') (cons t Gamma)
        let _ <- infer Phi Psi Delta extended_gamma e (.some t')
        pure (.arr t t')
-    | _ => throw ()
+    | _ => throw "fixlam"
   | .app e1 e2 =>
     match exp with
     | .none => do
@@ -171,7 +185,7 @@ def infer (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_context l d
       | .arr t t' => do
         let _ <- infer Phi Psi Delta Gamma e2 (.some t)
         pure t'
-      | _ => throw ()
+      | _ => throw ".app"
     | .some expected => do
       let t1 <- infer Phi Psi Delta Gamma e2 .none
       infer Phi Psi Delta Gamma e1 (.some (.arr t1 expected))
@@ -182,11 +196,11 @@ def infer (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_context l d
   | .left_tm e => do
     match <- infer Phi Psi Delta Gamma e .none with
     | .prod t1 t2 => from_synth Phi Psi Delta t1 exp
-    | _ => throw ()
+    | _ => throw "left_tm"
   | .right_tm e => do
     match <- infer Phi Psi Delta Gamma e .none with
     | .prod t1 t2 => from_synth Phi Psi Delta t2 exp
-    | _ => throw ()
+    | _ => throw "right_tm"
   | .case e e1 e2 => do
     match <- infer Phi Psi Delta Gamma e .none with
     | .sum t1 t2 => do
@@ -200,32 +214,32 @@ def infer (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_context l d
       | none => do
         check_subtype subtype_fuel Phi Psi Delta r2 r1
         pure r1
-    | _ => throw ()
+    | _ => throw "case"
   | .tlam e =>
     match exp with
     | .some (.all t0 t) => do
       let _ <- infer Phi Psi (lift_delta (cons t0 Delta)) (lift_gamma_d Gamma) e (.some t)
       pure (.all t0 t)
-    | _ => throw ()
+    | _ => throw "tlam"
   | .tapp e t' => do
     match <- infer Phi Psi Delta Gamma e .none with
     | .all t0 t => do
       check_subtype subtype_fuel Phi Psi Delta t' t0
       let result_ty := subst_ty .var_label (cons t' .var_ty) t;
       from_synth Phi Psi Delta result_ty exp
-    | _ => throw ()
+    | _ => throw "tapp"
   | .pack t' e =>
     match exp with
-    | .none => throw ()
+    | .none => throw "pack: empty expected"
     | .some (.ex t0 t) => do
       let substituted_type := subst_ty .var_label (cons t' .var_ty) t
       check_subtype subtype_fuel Phi Psi Delta t' t0
       let r <- infer Phi Psi Delta Gamma e (.some substituted_type)
       pure (.ex t0 t)
-    | _ => throw ()
+    | _ => throw "pack"
   | .unpack e e' =>
     match exp with
-    | .none => throw ()
+    | .none => throw "unpack: empty expected"
     | .some exp_ty => do
       match <- infer Phi Psi Delta Gamma e .none with
       | .ex t0 t => do
@@ -234,10 +248,10 @@ def infer (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_context l d
         let renamed_t' := ren_ty id shift exp_ty
         let res <- infer Phi Psi extended_delta extended_gamma e' (.some renamed_t')
         pure exp_ty
-      | _ => throw ()
+      | _ => throw "unpack"
   | .l_lam e =>
     match exp with
-    | .none => throw ()
+    | .none => throw "l_lam: empty expected"
     | .some exp_ty =>
       match exp_ty with
       | .all_l cs lab t_body => do
@@ -246,7 +260,7 @@ def infer (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_context l d
                   (lift_delta_l Delta) (lift_gamma_l Gamma)
                   e (.some t_body)
         pure exp_ty
-      | _ => throw ()
+      | _ => throw "l_lam"
   | .lapp e lab' =>
     match exp with
     | .none => do
@@ -256,7 +270,7 @@ def infer (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_context l d
         let constraint_obligation := (Phi |= (.condition cs lab lab'))
         emit constraint_obligation
         pure result_ty
-      | _ => throw ()
+      | _ => throw "lapp"
     | .some exp_ty => do
       match <- infer Phi Psi Delta Gamma e .none with
       | .all_l cs lab t => do
@@ -265,7 +279,7 @@ def infer (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_context l d
         let constraint_obligation := (Phi |= (.condition cs lab lab'))
         emit constraint_obligation
         pure exp_ty
-      | _ => throw ()
+      | _ => throw "lapp"
   | .annot e t' => do -- LONG CASE TO HANDLE IF CHECKING PROPERLY
     let r <- infer Phi Psi Delta Gamma e (.some t')
     from_synth Phi Psi Delta r exp
@@ -291,12 +305,14 @@ def infer (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_context l d
   | .sync e => do
     let _ <- infer Phi Psi Delta Gamma e (.some .Public)
     from_synth Phi Psi Delta .Public exp
-  | _ => throw ()
+  | _ => throw "infer: unhandled case"
+
+opaque TypeError (s : String) : Prop := False
 
 def has_type_infer Phi Psi Delta Gamma (e : tm l d m) (exp : ty l d) :=
-  match (infer Phi Psi Delta Gamma e (.some exp)).run True with
-  | .ok _ p => p
-  | .error _ _ => False
+  match (infer Phi Psi Delta Gamma e (.some exp)) True with
+  | .ok (_, p) => p
+  | .err e => TypeError e
 
 theorem infer_sound Phi Psi Delta Gamma (e : tm l d m) (exp : ty l d) :
   has_type_infer Phi Psi Delta Gamma e exp ->

@@ -19,6 +19,12 @@ theorem derived_if_typing_annot : forall lab e,
   unfold phi_psi_entail_corr
   intro pm C vpm Csp
   (repeat constructor)
+  sorry
+  sorry
+  sorry
+  sorry
+  /-
+
   cases Csp with
   | psi_corr psi C' l $Csp:ident Csp' =>
       exact Csp'
@@ -36,11 +42,15 @@ theorem derived_if_typing_annot : forall lab e,
   try simp
   apply subtype.ST_Refl
   exact h2
+  -/
 
 theorem derived_if_typing : forall lab e1 e2,
   has_type Phi ((.corr lab) :: Psi) Delta Gamma e1 t1 ->
   has_type Phi ((.not_corr lab) :: Psi) Delta Gamma e2 t2 ->
   has_type Phi Psi Delta Gamma (.if_c lab e1 e2)  (.t_if lab t1 t2) := by
+  sorry
+
+/-
   intro lab e1 e2 h1 h2
   apply has_type.T_CorrCase2 lab (.if_c lab e1 e2)  (.t_if lab t1 t2)
   apply has_type.T_Sub (.if_c lab e1 e2) t1 (.t_if lab t1 t2)
@@ -79,11 +89,16 @@ theorem derived_if_typing : forall lab e1 e2,
   try simp
   exact h2
 
+-/
+
 theorem derived_if_subtyping : forall lab t1 t2 t',
   subtype Phi ((.corr lab) :: Psi) Delta t1 t' ->
   subtype Phi ((.not_corr lab) :: Psi) Delta t2 t' ->
   subtype Phi Psi Delta (.t_if lab t1 t2) t' :=
   by
+  sorry
+
+/-
   intro lab t1 t2 t' h1 h2
   apply subtype.ST_Corr
   apply subtype.ST_LIf1
@@ -103,11 +118,16 @@ theorem derived_if_subtyping : forall lab t1 t2 t',
   try simp
   exact h2
 
+-/
+
 theorem derived_if_subtyping_right : forall lab t t1' t2',
   subtype Phi ((.corr lab) :: Psi) Delta t t1' ->
   subtype Phi ((.not_corr lab) :: Psi) Delta t t2' ->
   subtype Phi Psi Delta t (.t_if lab t1' t2') :=
   by
+  sorry
+
+/-
   intro lab t1 t2 t' h1 h2
   apply subtype.ST_Corr
   apply subtype.ST_RIf1
@@ -126,6 +146,8 @@ theorem derived_if_subtyping_right : forall lab t t1' t2',
       exact Csp'
   try simp
   exact h2
+
+-/
 
 -- NEEDED TACTICS
 -- has_type

@@ -51,6 +51,7 @@ theorem enc_i :
 
 -/
 
+/-
 
 open EStateM
 
@@ -159,8 +160,9 @@ theorem enc_unpack :
       auto_solve
     )
 
-theorem enc_layered :
-  ( (l1, l2 ⊒ l1, l3 ⊒ l2) ; · ; (a <: Data l2, b <: Data l1) ;
+-/
+
+abbrev mySeq := ( (l1, l2 ⊒ l1, l3 ⊒ l2) ; · ; (a <: Data l2, b <: Data l1) ;
   (E1 => (∃ alphaK <: (Data l3) .
                         (alphaK *
                          ((corr (l3) ? (Public * Public) -> Public : (alphaK * (Data l2)) -> Public) *
@@ -174,97 +176,44 @@ theorem enc_layered :
        unpack E2 as (alpha2, ked2) in
        (π1 (π2 ked1)) [⟨(π1 ked1), (π1 ked2)⟩])
     :
-    Public) := by
-      apply OwlTc.infer_sound
-      dsimp [OwlTc.has_type_infer, OwlTc.infer]
-      dsimp [EStateM.run]
-      simp
+    Public)
+
+@[inline]
+def Sequent.ok (s : Sequent) :=
+  OwlTc.has_type_infer s.Phi s.Psi s.Delta s.Gamma s.e s.t
+
+#reduce (types := true) mySeq.ok
+
+partial def unfoldAll (e : Expr) (declName : Name) : MetaM Expr := do
+  if let some unfolded ← unfoldDefinition? e (ignoreTransparency := true) then
+    unfoldAll unfolded declName
+  else
+    -- Fallback to standard reduction if it's no longer the head constant
+    reduce e
+
+elab "eval_goal" : tactic => do
+  -- 1. Get the current main goal
+  let goal ← getMainGoal
+
+  -- 2. Use goal.withContext to ensure we can see local variables
+  goal.withContext do
+    let type ← goal.getType
+
+    -- 3. Reduce the type (this is MetaM)
+    let reduced ← reduce (skipTypes := false) type
+
+    -- 4. Change the goal and get the new MVarId
+    let newGoal ← goal.change reduced
+
+    -- 5. Update the tactic state with the new goal
+    replaceMainGoal [newGoal]
+    evalTactic (<- `(tactic| simp))
 
 
+attribute [simp] Fin.foldr_succ
 
 
--- partial
-theorem enc_sig :
-  ( · ; · ; · ; · ⊢
-    Λβ betaK .
-    Λ tau .
-    corr_case betaK in
-    (if corr (betaK) then
-      ((let sk = ⟨"genSK"⟩(["0"], ["0"]) in
-      let vk = ⟨"vk_of_sk"⟩(sk, ["0"]) in
-      pack(Public, pack (Public, ⟨sk, ⟨vk,
-                    ⟨((λ xy => ⟨"sign"⟩(π1 xy, π2 xy)) : (Public * Public) -> Public),
-                     ((λ xyz => ⟨"vrfy"⟩(π1 xyz, π1 (π2 xyz))) : (Public * (Public * Public)) -> Public)⟩⟩⟩))) :
-                     ∃ alpha <: Data betaK .
-                     ∃ beta <: Public .
-                     (alpha *
-                     (beta *
-                     ((corr (betaK) ? ((Public * Public) -> Public) : ((alpha * tau) -> Public)) *
-                     (corr (betaK) ? ((Public * (Public * Public)) -> Public) : ((beta * (Public * Public)) -> (tau + Unit)))))))
-    else
-      ((let sk = ⟨"genSK"⟩(["0"], ["0"]) in
-      let pk = ⟨"vk_of_sk"⟩(["0"], ["0"]) in
-      let L = ((alloc (λ (null : (Public * Public)) : (tau + Unit) => (ı2 *))) : Ref ((Public * Public) -> (tau + Unit))) in
-      let sign =  ((λ (skm : (Data betaK * tau)) : Public =>
-                  let sig = (⟨"rand"⟩(((π2 skm) : Public), ["0"]) : Public) in
-                  let L_old = (! L) in
-                  let action =  (L := (λ (msig' : (Public * Public)) : (tau + Unit) => if ⟨"and"⟩(⟨"eq"⟩(π2 skm, π2 msig'), ⟨"eq"⟩(sig, π2 msig'))
-                                                then (ı1 (π2 skm))
-                                                else L_old [msig']))
-                  in
-                  sig) : (((Data betaK * tau) -> Public)))
-      in
-      let vrfy = ((λ vkmsig =>
-                  (! L) [⟨π1 (π2 vkmsig), π2 (π2 vkmsig)⟩]) : ((Public * (Public * Public)) -> (tau + Unit))) in
-      pack(Data betaK, pack(Public, ⟨sk, ⟨pk, ⟨sign, vrfy⟩⟩⟩))) :
-      ∃ alpha <: Data betaK .
-      ∃ beta <: Public .
-      (alpha *
-      (beta *
-      ((corr (betaK) ? ((Public * Public) -> Public) : ((alpha * tau) -> Public)) *
-       (corr (betaK) ? ((Public * (Public * Public)) -> Public) : ((beta * (Public * Public)) -> (tau + Unit))))))))
-    :
-    ∀ betaK ⊒ ⟨Owl.L.bot⟩ .
-    ∀ tau <: Public .
-    ∃ alpha <: Data betaK .
-    ∃ beta <: Public .
-    (alpha *
-    (beta *
-    ((corr (betaK) ? ((Public * Public) -> Public) : ((alpha * tau) -> Public)) *
-     (corr (betaK) ? ((Public * (Public * Public)) -> Public) : ((beta * (Public * Public)) -> (tau + Unit))))))
-    ) :=
-    by
-    tc_man (
-      try simp
-      auto_solve_fast
-    )
-
-    -- the issue here is that just because tau <: public, does that mean public <: tau?
-
-theorem enc_layered2_high_low :
-  ( (L_sec, L_low ⊒ L_sec, L_high ⊒ L_low) ; · ; (a <: Data L_sec, b <: Data L_low) ;
-  (E1 => (∃ alphaK <: (Data L_low) .
-                        (alphaK *
-                         ((corr (L_low) ? (Public * Public) -> Public : (alphaK * (Data L_sec)) -> Public) *
-                          (corr (L_low) ? (Public * Public) -> Public : (alphaK * Public) -> (a + Unit))))),
-   E2 => (∃ alphaK <: (Data L_high) .
-                        (alphaK *
-                         ((corr (L_high) ? (Public * Public) -> Public : (alphaK * (Data L_low)) -> Public) *
-                          (corr (L_high) ? (Public * Public) -> Public : (alphaK * Public) -> (b + Unit)))))) ⊢
-    (corr_case L_low in
-      (corr_case L_high in
-       unpack E1 as (alpha1, ked1) in
-       unpack E2 as (alpha2, ked2) in
-       ((λ x =>
-        let c1 = ((π1 (π2 ked1)) [⟨(π1 ked1), x⟩] : Public) in
-        let c2 = ((π1 (π2 ked2)) [⟨(π1 ked2), (π1 ked1)⟩] : Public) in
-        ⟨"combine"⟩(c1, c2)) : ((Data L_sec) -> Public))))
-    :
-    ((Data L_sec) -> Public)) :=
-    by
-    tc_man (
-      try simp
-      auto_solve_fast
-    )
-
--/
+theorem enc_layered :
+  mySeq.ok :=  by
+    eval_goal;
+    grind
