@@ -5,49 +5,10 @@ open Lean Meta Elab Tactic
 
 open OwlTc
 
-/-
-@[simp]
-def Sequent.ok (s : Sequent) :=
-  OwlTc.has_type_infer s.Phi s.Psi s.Delta s.Gamma s.e s.t
--/
-
-
-elab "whnf" : tactic => do
-  -- 1. Get the current main goal
-  let goal ← getMainGoal
-
-  -- 2. Use goal.withContext to ensure we can see local variables
-  goal.withContext do
-    let reduced ← whnf (<- goal.getType)
-    let newGoal ← goal.change reduced
-    replaceMainGoal [newGoal]
-
-elab "done" : tactic => do
-  -- 1. Get the current main goal
-  let goal ← getMainGoal
-  match <- goal.getType with
-  | .app (.app (.const `OwlTc.TypeError _) stx) e => do
-    let s <- unsafe evalExpr String (mkConst ``String) e
-    let stx' <- unsafe evalExpr (Option Owl.opaqueSyntax)
-      (mkApp (mkConst ``Option [.zero]) (mkConst ``Owl.opaqueSyntax []))
-      stx
-    let newGoal := Expr.app (.app (.const `OwlTc.TypeError []) stx) (mkStrLit s)
-    let newGoal <- goal.change newGoal
-    replaceMainGoal [newGoal]
-    match stx' with
-    | some v =>
-      logInfo "got syntax"
-      logErrorAt v.inner s
-    | _ => pure ()
-    logInfo s
-  | _ => pure ()
-
-
 
 attribute [simp] Fin.foldr_succ
 
-def encI :=
-( · ; · ; · ; · ⊢
+#tc( · ; · ; · ; · ⊢
     Λβ betaK .
     Λβ betaM .
     Λ tau .
@@ -75,88 +36,13 @@ def encI :=
     (∃ alphaK <: (Data betaK) . (alphaK *
                                  ((corr (betaK) ? (Public * Public) -> Public : (alphaK * tau) -> Public) *
                                   (corr (betaK) ? (Public * Public) -> Public : (alphaK * Public) -> (tau + unit))))))
-
-
-
-
-
-#check Command.CommandElabM
-
-
-def addTypeInfo (stx : Syntax) (s : String) := do
-    let n : Name := Name.mkSimple s
-
-    withEnableInfoTree true do withLocalDeclD n (mkSort levelOne) fun dslType => do
-      let forgedExpr ← mkFreshExprMVar dslType
-      pushInfoLeaf <| .ofTermInfo {
-        elaborator := `Sequent
-        stx := stx
-        lctx := (← getLCtx)
-        expectedType? := some dslType
-        expr := forgedExpr
-        isBinder := false
-      }
-    pure ()
-
-def tcVisit l d (o : Owl.opaqueSyntax) (t : Owl.ty l d) : Command.CommandElabM Unit  := do
-  Command.liftTermElabM $ addTypeInfo o.inner (toString t)
-  pure ()
-
-def tcLog (s : String) : Command.CommandElabM Unit := do
-  -- Command.liftTermElabM $ logInfo s
-  IO.println s
-  pure ()
-
-syntax "#tc" term "by" tacticSeq : command
-
-@[simp]
-def interpSideConditions (ls : List SideCondition) : Prop :=
-  List.foldr (fun i acc => i.interp ∧ acc) True ls
-
-def mkFreshDefn (e : Expr) : Command.CommandElabM Ident := do
-  let lctx ← Command.liftTermElabM $ getLCtx
-  let name := LocalContext.getUnusedName lctx `freshDef
-  let id := mkIdent name
-  Command.liftTermElabM <| do
-    -- add definition: freshDef := e
-    Lean.addDecl <| .defnDecl {
-      name := name,
-      levelParams := [],
-      type := ← inferType e,
-      value := e,
-      hints := .abbrev,
-      safety := DefinitionSafety.safe
+    by {
+      unfold freshDef
+      simp
+      grind
     }
-  pure id
-
-elab_rules : command
-  | `(#tc $e by%$tkp $pf:tacticSeq ) => do
-    let s ← Command.liftTermElabM $ Lean.Elab.Term.elabTerm e (.some (.const `Sequent []))
-    let s <- Command.liftTermElabM $ unsafe evalExpr Sequent (mkConst `Sequent) s
-    match <- OwlTc.infer s.Phi s.Psi s.Delta s.Gamma s.e s.t (CheckState.init tcVisit tcLog) with
-    | .ok (_, p) => do
-      let sc := p.side_condition
-      let id <- mkFreshDefn (toExpr sc)
-      let lemmaName <- (Command.liftTermElabM $ mkFreshUserName `_)
-      let thmCmd <- withRef tkp `(command|
-        theorem $(mkIdent lemmaName) : interpSideConditions $id := by $pf
-      )
-      Command.elabCommand thmCmd
-    | .err e =>
-      logInfo s!"err: {e.2}"
-      match e.1 with
-      | .none => pure ()
-      | .some v =>
-        logErrorAt v.inner e.2
-    -- Alternatively, use macros or custom translation if Sequent is not a constructor
-    -- let s : Sequent := ... -- adjust as needed depending on the definition of Sequent
 
 
-#tc encI by {
-    unfold freshDef
-    simp
-    grind
-}
 
 
 syntax "#tst" "by" tacticSeq : command

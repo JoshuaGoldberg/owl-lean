@@ -750,72 +750,148 @@ structure Sequent where
 def Sequent.has_ty (s : Sequent) :=
   has_type s.Phi s.Psi s.Delta s.Gamma s.e s.t
 
+def addTypeInfo (stx : Syntax) (s : String) := do
+    let n : Name := Name.mkSimple s
+
+    withEnableInfoTree true do withLocalDeclD n (mkSort levelOne) fun dslType => do
+      let forgedExpr ← mkFreshExprMVar dslType
+      pushInfoLeaf <| .ofTermInfo {
+        elaborator := `Sequent
+        stx := stx
+        lctx := (← getLCtx)
+        expectedType? := some dslType
+        expr := forgedExpr
+        isBinder := false
+      }
+    pure ()
+
+def tcVisit l d (o : Owl.opaqueSyntax) (t : Owl.ty l d) : Command.CommandElabM Unit  := do
+  Command.liftTermElabM $ addTypeInfo o.inner (toString t)
+  pure ()
+
+def tcLog (s : String) : Command.CommandElabM Unit := do
+  -- Command.liftTermElabM $ logInfo s
+  IO.println s
+  pure ()
+
+syntax "#tc" term "by" tacticSeq : command
+
+open OwlTc
+
+@[simp]
+def interpSideConditions (ls : List SideCondition) : Prop :=
+  List.foldr (fun i acc => i.interp ∧ acc) True ls
+
+def mkFreshDefn (e : Expr) : Command.CommandElabM Ident := do
+  let lctx ← Command.liftTermElabM $ getLCtx
+  let name := LocalContext.getUnusedName lctx `freshDef
+  let id := mkIdent name
+  Command.liftTermElabM <| do
+    -- add definition: freshDef := e
+    Lean.addDecl <| .defnDecl {
+      name := name,
+      levelParams := [],
+      type := ← inferType e,
+      value := e,
+      hints := .abbrev,
+      safety := DefinitionSafety.safe
+    }
+  pure id
+
+def doTc (s : Sequent) tkp pf := do
+    match <- OwlTc.infer s.Phi s.Psi s.Delta s.Gamma s.e s.t (CheckState.init tcVisit tcLog) with
+    | .ok (_, p) => do
+      let sc := p.side_condition
+      let id <- mkFreshDefn (toExpr sc)
+      let lemmaName <- (Command.liftTermElabM $ mkFreshUserName `_)
+      let thmCmd <- withRef tkp `(command|
+        theorem $(mkIdent lemmaName) : interpSideConditions $id := by $pf
+      )
+      Command.elabCommand thmCmd
+    | .err e =>
+      logInfo s!"err: {e.2}"
+      match e.1 with
+      | .none => pure ()
+      | .some v =>
+        logErrorAt v.inner e.2
+
+elab_rules : command
+  | `(#tc $e by%$tkp $pf:tacticSeq ) => do
+    let s ← Command.liftTermElabM $ Lean.Elab.Term.elabTerm e (.some (.const `Sequent []))
+    let s <- Command.liftTermElabM $ unsafe evalExpr Sequent (mkConst `Sequent) s
+    doTc s tkp pf
+    -- Alternatively, use macros or custom translation if Sequent is not a constructor
+    -- let s : Sequent := ... -- adjust as needed depending on the definition of Sequent
 
 -- For easier usage of the has_type inductive
-@[simp]
-elab "(" p:owl_phi ";" ps:owl_psi ";" d:owl_delta ";" g:owl_gamma "⊢" e:owl_tm ":" t:owl_type ")" : term => do
-  withEnableInfoTree false do
 
-    let sphiExpr2 ← elabPhi_closed p
-    let sphi : SPhi ← unsafe do Meta.evalExpr SPhi (mkConst ``SPhi) sphiExpr2
+syntax "#tc(" owl_phi ";" owl_psi ";" owl_delta ";" owl_gamma "⊢" owl_tm ":" owl_type ")" "by" tacticSeq : command
+elab_rules : command
+  | `(#tc( $p ; $ps; $d; $g ⊢ $e : $t) by%$tkp $pf ) => do
+    let seq_e <- Command.liftTermElabM $ withEnableInfoTree false do
 
-    let spsiExpr2 ← elabPsi_closed ps
-    let spsi : SPsi ← unsafe do Meta.evalExpr SPsi (mkConst ``SPsi) spsiExpr2
+      let sphiExpr2 ← elabPhi_closed p
+      let sphi : SPhi ← unsafe do Meta.evalExpr SPhi (mkConst ``SPhi) sphiExpr2
 
-    let sdeltaExpr2 ← elabDelta_closed d
-    let sdelta : SDelta ← unsafe do Meta.evalExpr SDelta (mkConst ``SDelta) sdeltaExpr2
+      let spsiExpr2 ← elabPsi_closed ps
+      let spsi : SPsi ← unsafe do Meta.evalExpr SPsi (mkConst ``SPsi) spsiExpr2
 
-    let sgammaExpr2 ← elabGamma_closed g
-    let sgamma : SGamma ← unsafe do Meta.evalExpr SGamma (mkConst ``SGamma) sgammaExpr2
+      let sdeltaExpr2 ← elabDelta_closed d
+      let sdelta : SDelta ← unsafe do Meta.evalExpr SDelta (mkConst ``SDelta) sdeltaExpr2
 
-    let lvars := SPhi.getVars sphi
-    let tvars := SDelta.getVars sdelta
-    let vars := SGamma.getVars sgamma
+      let sgammaExpr2 ← elabGamma_closed g
+      let sgamma : SGamma ← unsafe do Meta.evalExpr SGamma (mkConst ``SGamma) sgammaExpr2
 
-    -- ensure all things are properly typed
-    match SPhi.elab sphi with
-    | .none => throwError "owl: ill-formed phi context {p}"
-    | .some _ => pure ()
+      let lvars := SPhi.getVars sphi
+      let tvars := SDelta.getVars sdelta
+      let vars := SGamma.getVars sgamma
 
-    match SPsi.elab spsi lvars with
-    | .none => throwError "owl: ill-formed phi context {ps}"
-    | .some _ => pure ()
+      -- ensure all things are properly typed
+      match SPhi.elab sphi with
+      | .none => throwError "owl: ill-formed phi context {p}"
+      | .some _ => pure ()
 
-    match SDelta.elab sdelta lvars with
-    | .none => throwError "owl: ill-formed delta context {d}"
-    | .some _ => pure ()
+      match SPsi.elab spsi lvars with
+      | .none => throwError "owl: ill-formed phi context {ps}"
+      | .some _ => pure ()
 
-    match SGamma.elab sgamma lvars tvars with
-    | .none => throwError "owl: ill-formed gamma context {g}"
-    | .some _ => pure ()
+      match SDelta.elab sdelta lvars with
+      | .none => throwError "owl: ill-formed delta context {d}"
+      | .some _ => pure ()
 
-    let stmExpr2 ← elabTm_closed e
-    let stm : SExpr ← unsafe do Meta.evalExpr SExpr (mkConst ``SExpr) stmExpr2
+      match SGamma.elab sgamma lvars tvars with
+      | .none => throwError "owl: ill-formed gamma context {g}"
+      | .some _ => pure ()
 
-    let styExpr2 ← elabType_closed t
-    let sty : STy ← unsafe do Meta.evalExpr STy (mkConst ``STy) styExpr2
+      let stmExpr2 ← elabTm_closed e
+      let stm : SExpr ← unsafe do Meta.evalExpr SExpr (mkConst ``SExpr) stmExpr2
 
-    match SExpr.elab stm lvars tvars vars with
-    | .none => throwError "owl: ill-formed term {e}"
-    | .some _ => pure ()
+      let styExpr2 ← elabType_closed t
+      let sty : STy ← unsafe do Meta.evalExpr STy (mkConst ``STy) styExpr2
 
-    match STy.elab sty lvars tvars with
-    | .none => throwError "owl: ill-formed type {t}"
-    | .some _ => pure ()
+      match SExpr.elab stm lvars tvars vars with
+      | .none => throwError "owl: ill-formed term {e}"
+      | .some _ => pure ()
 
-    -- prepare to do full evaluation
-    let lvarsExpr ← mkListLit (mkConst ``String) (← lvars.mapM (fun s => return mkStrLit s))
-    let tvarsExpr ← mkListLit (mkConst ``String) (← tvars.mapM (fun s => return mkStrLit s))
-    let varsExpr ← mkListLit (mkConst ``String) (← vars.mapM (fun s => return mkStrLit s))
+      match STy.elab sty lvars tvars with
+      | .none => throwError "owl: ill-formed type {t}"
+      | .some _ => pure ()
 
-    let phiExpr ← mkAppM ``phiWithLength #[mkNatLit lvars.length, ← elabPhi p]
-    let psiExpr ← mkAppM ``psiWithLength #[mkNatLit lvars.length, ← elabPsi ps, lvarsExpr]
-    let deltaExpr ← mkAppM ``deltaWithLength #[mkNatLit lvars.length, mkNatLit tvars.length,
-                                             ← elabDelta d, lvarsExpr]
-    let gammaExpr ← mkAppM ``gammaWithLength #[mkNatLit lvars.length, mkNatLit tvars.length,
-                                              mkNatLit vars.length, ← elabGamma g,
-                                              lvarsExpr, tvarsExpr]
-    let tyExpr ← mkAppM ``elabHelperTy #[← elabType t, lvarsExpr, tvarsExpr]
-    let tmExpr ← mkAppM ``elabHelper #[← elabTm e, lvarsExpr, tvarsExpr, varsExpr]
+      -- prepare to do full evaluation
+      let lvarsExpr ← mkListLit (mkConst ``String) (← lvars.mapM (fun s => return mkStrLit s))
+      let tvarsExpr ← mkListLit (mkConst ``String) (← tvars.mapM (fun s => return mkStrLit s))
+      let varsExpr ← mkListLit (mkConst ``String) (← vars.mapM (fun s => return mkStrLit s))
 
-    mkAppM ``Sequent.mk #[mkNatLit lvars.length, mkNatLit tvars.length, mkNatLit vars.length, phiExpr, psiExpr, deltaExpr, gammaExpr, tmExpr, tyExpr]
+      let phiExpr ← mkAppM ``phiWithLength #[mkNatLit lvars.length, ← elabPhi p]
+      let psiExpr ← mkAppM ``psiWithLength #[mkNatLit lvars.length, ← elabPsi ps, lvarsExpr]
+      let deltaExpr ← mkAppM ``deltaWithLength #[mkNatLit lvars.length, mkNatLit tvars.length,
+                                              ← elabDelta d, lvarsExpr]
+      let gammaExpr ← mkAppM ``gammaWithLength #[mkNatLit lvars.length, mkNatLit tvars.length,
+                                                mkNatLit vars.length, ← elabGamma g,
+                                                lvarsExpr, tvarsExpr]
+      let tyExpr ← mkAppM ``elabHelperTy #[← elabType t, lvarsExpr, tvarsExpr]
+      let tmExpr ← mkAppM ``elabHelper #[← elabTm e, lvarsExpr, tvarsExpr, varsExpr]
+
+      mkAppM ``Sequent.mk #[mkNatLit lvars.length, mkNatLit tvars.length, mkNatLit vars.length, phiExpr, psiExpr, deltaExpr, gammaExpr, tmExpr, tyExpr]
+    let seq <- Command.liftTermElabM $ unsafe evalExpr Sequent (mkConst `Sequent) seq_e
+    doTc seq tkp pf

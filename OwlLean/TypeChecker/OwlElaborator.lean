@@ -1,6 +1,7 @@
 import OwlLean.TypeChecker.OwlSExpr
 import Lean
 import Std.Data.HashMap
+import OwlLean.TypeChecker.TcSimple
 
 open Lean Elab Meta
 
@@ -933,5 +934,3 @@ partial def elabGamma_closed (stx : Syntax) : TermElabM Expr := do
 -- test parser for labels
 elab "phi_parse" "(" p:owl_phi ")" : term =>
     elabPhi p
-
-#reduce phi_parse ( (x, y, z ⊑ y) )
