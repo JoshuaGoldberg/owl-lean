@@ -4,6 +4,10 @@ import Std.Data.HashMap
 
 open Lean Elab Meta
 
+deriving instance ToExpr for SLabel
+deriving instance ToExpr for SCondSym
+deriving instance ToExpr for STy
+
 declare_syntax_cat owl_tm
 declare_syntax_cat owl_label
 declare_syntax_cat owl_type
@@ -112,7 +116,7 @@ partial def elabBinary : Syntax → TermElabM Expr
 syntax "(" owl_type ")" : owl_type
 syntax ident : owl_type
 syntax "Any" : owl_type
-syntax "Unit" : owl_type
+syntax "unit" : owl_type
 syntax "Data" owl_label : owl_type
 syntax "Ref" owl_type : owl_type
 syntax owl_type "->" owl_type : owl_type
@@ -130,7 +134,7 @@ partial def elabType : Syntax → TermElabM Expr
   | `(owl_type| $id:ident) =>
         mkAppM ``STy.var_ty #[mkStrLit id.getId.toString]
   | `(owl_type| Any) => mkAppM ``STy.Any #[]
-  | `(owl_type| Unit) => mkAppM ``STy.Unit #[]
+  | `(owl_type| unit) => mkAppM ``STy.Unit #[]
   | `(owl_type| Public) => mkAppM ``STy.Public #[]
   | `(owl_type| Data $l:owl_label) => do
     let elab_l <- elabLabel l
@@ -207,6 +211,7 @@ syntax "if" owl_tm "then" owl_tm "else" owl_tm : owl_tm
 syntax "if" "corr" "(" owl_label ")" "then" owl_tm "else" owl_tm : owl_tm
 syntax "sync" owl_tm : owl_tm
 syntax "let" ident "=" owl_tm "in" owl_tm : owl_tm
+syntax "let" ident ":" owl_type "=" owl_tm "in" owl_tm : owl_tm
 syntax "let" "(" ident "," ident ")" "=" owl_tm "in" owl_tm : owl_tm
 syntax "let" "(" ident "," ident "," ident ")" "=" owl_tm "in" owl_tm : owl_tm
 syntax "λ" "(" ident ":" owl_type ")" ":" owl_type "=>" owl_tm : owl_tm
@@ -221,35 +226,51 @@ syntax "(" owl_tm ":" owl_type ")" : owl_tm
 -- let x = π1 e' in
 -- let y = π2 e' in ...
 
-partial def elabTm : Syntax → TermElabM Expr
-  | `(owl_tm| ( $e:owl_tm)) => elabTm e
+deriving instance ToExpr for String.Pos.Raw
+deriving instance ToExpr for Substring.Raw
+deriving instance ToExpr for SourceInfo
+deriving instance ToExpr for Syntax
+
+def mkOpaqueSyntax (s : Lean.Syntax) : Owl.opaqueSyntax := { inner := s }
+
+def mkEmptySyntax : String ->  TermElabM Expr := fun s =>
+  mkAppM ``mkOpaqueSyntax #[toExpr (Syntax.atom SourceInfo.none s)]
+
+mutual
+  partial def elabTm : Syntax -> TermElabM Expr :=
+    fun stx => do
+      let se <- mkAppM ``mkOpaqueSyntax #[toExpr stx]
+      mkAppM ``SExpr.mk #[se, ← elabTmX stx]
+
+partial def elabTmX : Syntax → TermElabM Expr
+  | `(owl_tm| ( $e:owl_tm)) => elabTmX e
   | `(owl_tm| $id:ident) =>
-        mkAppM ``SExpr.var_tm #[mkStrLit id.getId.toString]
+        mkAppM ``SExprX.var_tm #[mkStrLit id.getId.toString]
   | `(owl_tm| $n:num) =>
-    mkAppM ``SExpr.loc #[mkNatLit n.getNat]
-  | `(owl_tm| error) => mkAppM ``SExpr.error #[]
-  | `(owl_tm| *) => mkAppM ``SExpr.skip #[]
+    mkAppM ``SExprX.loc #[mkNatLit n.getNat]
+  | `(owl_tm| error) => mkAppM ``SExprX.error #[]
+  | `(owl_tm| *) => mkAppM ``SExprX.skip #[]
   | `(owl_tm| [ $b:owl_binary ] ) => do
     let elab_b <- elabBinary b
-    mkAppM ``SExpr.bitstring #[elab_b]
+    mkAppM ``SExprX.bitstring #[elab_b]
   | `(owl_tm| fix $f:ident ( $id:ident ) $e:owl_tm) => do
     let elab_e <- elabTm e
-    mkAppM ``SExpr.fixlam #[mkStrLit f.getId.toString, mkStrLit id.getId.toString, elab_e]
+    mkAppM ``SExprX.fixlam #[mkStrLit f.getId.toString, mkStrLit id.getId.toString, elab_e]
   | `(owl_tm| Λ $id:ident . $e:owl_tm) => do
     let elab_e <- elabTm e
-    mkAppM ``SExpr.tlam #[mkStrLit id.getId.toString, elab_e]
+    mkAppM ``SExprX.tlam #[mkStrLit id.getId.toString, elab_e]
   | `(owl_tm| Λβ $id:ident . $e:owl_tm) => do
     let elab_e <- elabTm e
-    mkAppM ``SExpr.l_lam #[mkStrLit id.getId.toString, elab_e]
+    mkAppM ``SExprX.l_lam #[mkStrLit id.getId.toString, elab_e]
   | `(owl_tm|⟨ $e1:owl_tm , $e2:owl_tm ⟩) => do
     let elab_e1 <- elabTm e1
     let elab_e2 <- elabTm e2
-    mkAppM ``SExpr.tm_pair #[elab_e1, elab_e2]
+    mkAppM ``SExprX.tm_pair #[elab_e1, elab_e2]
   | `(owl_tm| ⟨ $t:term ⟩ ( $e1:owl_tm , $e2:owl_tm )) => do
     let t' ← Term.elabTerm t (mkConst ``String)
     let elab_e1 <- elabTm e1
     let elab_e2 <- elabTm e2
-    mkAppM ``SExpr.Op #[t', elab_e1, elab_e2]
+    mkAppM ``SExprX.Op #[t', elab_e1, elab_e2]
   | `(owl_tm| $ $t:term [ $ls:owl_label,* ] [ $ts:owl_type,* ] [ $es:owl_tm,* ]) => do
     let ls' <- ls.getElems.mapM elabLabel
     let ts' <- ts.getElems.mapM elabType
@@ -258,127 +279,105 @@ partial def elabTm : Syntax → TermElabM Expr
     let ts_list <- mkListLit (mkConst ``STy) ts'.toList
     let es_list <- mkListLit (mkConst ``SExpr) es'.toList
     let t' ← Term.elabTerm t (mkConst ``Owl.tm)
-    mkAppM ``SExpr.embedtm #[t', ls_list, ts_list, es_list]
+    mkAppM ``SExprX.embedtm #[t', ls_list, ts_list, es_list]
   | `(owl_tm| zero $e:owl_tm) => do
     let elab_e <- elabTm e
-    mkAppM ``SExpr.zero #[elab_e]
+    mkAppM ``SExprX.zero #[elab_e]
   | `(owl_tm| $e1:owl_tm [ $e2:owl_tm ]) => do
     let elab_e1 <- elabTm e1
     let elab_e2 <- elabTm e2
-    mkAppM ``SExpr.app #[elab_e1, elab_e2]
+    mkAppM ``SExprX.app #[elab_e1, elab_e2]
   | `(owl_tm| alloc $e:owl_tm) => do
     let elab_e <- elabTm e
-    mkAppM ``SExpr.alloc #[elab_e]
+    mkAppM ``SExprX.alloc #[elab_e]
   | `(owl_tm| ! $e:owl_tm) => do
     let elab_e <- elabTm e
-    mkAppM ``SExpr.dealloc #[elab_e]
+    mkAppM ``SExprX.dealloc #[elab_e]
   | `(owl_tm| $e1:owl_tm := $e2:owl_tm) => do
     let elab_e1 <- elabTm e1
     let elab_e2 <- elabTm e2
-    mkAppM ``SExpr.assign #[elab_e1, elab_e2]
+    mkAppM ``SExprX.assign #[elab_e1, elab_e2]
   | `(owl_tm| π1 $e:owl_tm) => do
     let elab_e <- elabTm e
-    mkAppM ``SExpr.left_tm #[elab_e]
+    mkAppM ``SExprX.left_tm #[elab_e]
   | `(owl_tm| π2 $e:owl_tm) => do
     let elab_e <- elabTm e
-    mkAppM ``SExpr.right_tm #[elab_e]
+    mkAppM ``SExprX.right_tm #[elab_e]
   | `(owl_tm| ı1 $e:owl_tm) => do
     let elab_e <- elabTm e
-    mkAppM ``SExpr.inl #[elab_e]
+    mkAppM ``SExprX.inl #[elab_e]
   | `(owl_tm| ı2 $e:owl_tm) => do
     let elab_e <- elabTm e
-    mkAppM ``SExpr.inr #[elab_e]
+    mkAppM ``SExprX.inr #[elab_e]
   | `(owl_tm| case $e1:owl_tm in $id1:ident => $e2:owl_tm | $id2:ident => $e3:owl_tm) => do
     let elab_e1 <- elabTm e1
     let elab_e2 <- elabTm e2
     let elab_e3 <- elabTm e3
-    mkAppM ``SExpr.case #[elab_e1, mkStrLit id1.getId.toString, elab_e2, mkStrLit id2.getId.toString, elab_e3]
+    mkAppM ``SExprX.case #[elab_e1, mkStrLit id1.getId.toString, elab_e2, mkStrLit id2.getId.toString, elab_e3]
   | `(owl_tm| $e:owl_tm [[ $t:owl_type ]]) => do
     let elab_e <- elabTm e
     let elab_t <- elabType t
-    mkAppM ``SExpr.tapp #[elab_e, elab_t]
+    mkAppM ``SExprX.tapp #[elab_e, elab_t]
   | `(owl_tm| $e:owl_tm [[[ $l:owl_label ]]]) => do
     let elab_e <- elabTm e
     let elab_l <- elabLabel l
-    mkAppM ``SExpr.lapp #[elab_e, elab_l]
+    mkAppM ``SExprX.lapp #[elab_e, elab_l]
   | `(owl_tm| unpack $e1:owl_tm as ($id1:ident, $id2:ident) in $e2:owl_tm) => do
     let elab_e1 <- elabTm e1
     let elab_e2 <- elabTm e2
-    mkAppM ``SExpr.unpack #[elab_e1, mkStrLit id1.getId.toString, mkStrLit id2.getId.toString, elab_e2]
+    mkAppM ``SExprX.unpack #[elab_e1, mkStrLit id1.getId.toString, mkStrLit id2.getId.toString, elab_e2]
   | `(owl_tm| pack ($t:owl_type, $e:owl_tm)) => do
     let elab_t <- elabType t
     let elab_e <- elabTm e
-    mkAppM ``SExpr.pack #[elab_t, elab_e]
+    mkAppM ``SExprX.pack #[elab_t, elab_e]
   | `(owl_tm| if $e1:owl_tm then $e2:owl_tm else $e3:owl_tm) => do
     let elab_e1 <- elabTm e1
     let elab_e2 <- elabTm e2
     let elab_e3 <- elabTm e3
-    mkAppM ``SExpr.if_tm #[elab_e1, elab_e2, elab_e3]
+    mkAppM ``SExprX.if_tm #[elab_e1, elab_e2, elab_e3]
   | `(owl_tm| if corr($c:owl_label) then $e1:owl_tm else $e2:owl_tm) => do
     let elab_c <- elabLabel c
     let elab_e1 <- elabTm e1
     let elab_e2 <- elabTm e2
-    mkAppM ``SExpr.if_c #[elab_c, elab_e1, elab_e2]
+    mkAppM ``SExprX.if_c #[elab_c, elab_e1, elab_e2]
   | `(owl_tm| sync $e:owl_tm) => do
     let elab_e <- elabTm e
-    mkAppM ``SExpr.sync #[elab_e]
+    mkAppM ``SExprX.sync #[elab_e]
   | `(owl_tm| let $id1:ident = $e:owl_tm  in $b:owl_tm) => do
     let elab_e <- elabTm e
     let elab_b <- elabTm b
-    let unused := "unused variable"
-    let lambda <- mkAppM ``SExpr.fixlam #[mkStrLit unused, mkStrLit id1.getId.toString, elab_b]
-    mkAppM ``SExpr.app #[lambda, elab_e]
+    mkAppM ``SExprX.elet #[mkStrLit id1.getId.toString, elab_e, elab_b]
+  | `(owl_tm| let $id1:ident : $t:owl_type = $e:owl_tm  in $b:owl_tm) => do
+    elabTmX (<- `(owl_tm |
+      let $id1 = ($e : $t) in $b
+    ))
   | `(owl_tm| let ($id1:ident, $id2:ident) = $e:owl_tm  in $b:owl_tm) => do
-    let elab_e <- elabTm e
-    let elab_b <- elabTm b
-    let unused := "unused variable"
-    let var <- mkAppM ``SExpr.var_tm #[mkStrLit "e_prime"]
-    let left <- mkAppM ``SExpr.left_tm #[var]
-    let right <- mkAppM ``SExpr.right_tm #[var]
-    let lambda1 <- mkAppM ``SExpr.fixlam #[mkStrLit unused, mkStrLit id2.getId.toString, elab_b]
-    let app1 <- mkAppM ``SExpr.app #[lambda1, right]
-    let lambda2 <- mkAppM ``SExpr.fixlam #[mkStrLit unused, mkStrLit id1.getId.toString, app1]
-    let app2 <- mkAppM ``SExpr.app #[lambda2, left]
-    let lambda3 <- mkAppM ``SExpr.fixlam #[mkStrLit unused, mkStrLit "e_prime", app2]
-    mkAppM ``SExpr.app #[lambda3, elab_e]
+    elabTmX (<- `(owl_tm| let $id1 = π1 $e in let $id2 = π2 $e in $b))
   | `(owl_tm| let ($id1:ident, $id2:ident, $id3:ident) = $e:owl_tm  in $b:owl_tm) => do
-    let elab_e <- elabTm e
-    let elab_b <- elabTm b
-    let unused := "unused variable"
-    let var <- mkAppM ``SExpr.var_tm #[mkStrLit "e_prime"]
-    let first <- mkAppM ``SExpr.left_tm #[var]
-    let split_second <- mkAppM ``SExpr.right_tm #[var]
-    let second <- mkAppM ``SExpr.left_tm #[split_second]
-    let third <- mkAppM ``SExpr.right_tm #[split_second]
-    let lambda0 <- mkAppM ``SExpr.fixlam #[mkStrLit unused, mkStrLit id3.getId.toString, elab_b]
-    let app0 <- mkAppM ``SExpr.app #[lambda0, third]
-    let lambda1 <- mkAppM ``SExpr.fixlam #[mkStrLit unused, mkStrLit id2.getId.toString, app0]
-    let app1 <- mkAppM ``SExpr.app #[lambda1, second]
-    let lambda2 <- mkAppM ``SExpr.fixlam #[mkStrLit unused, mkStrLit id1.getId.toString, app1]
-    let app2 <- mkAppM ``SExpr.app #[lambda2, first]
-    let lambda3 <- mkAppM ``SExpr.fixlam #[mkStrLit unused, mkStrLit "e_prime", app2]
-    mkAppM ``SExpr.app #[lambda3, elab_e]
+    elabTmX (<- `(owl_tm |
+      let $id1 = π1 $e in
+      let $id2 = π1 (π2 $e) in
+      let $id3 = π2 (π2 $e) in
+      $b
+    ))
   | `(owl_tm| λ ($id:ident : $t1:owl_type) : $t2:owl_type => $e:owl_tm) => do
-    let elab_e <- elabTm e
-    let elab_t1 <- elabType t1
-    let elab_t2 <- elabType t2
-    let unused := "unused variable"
-    let lambda <- mkAppM ``SExpr.fixlam #[mkStrLit unused, mkStrLit id.getId.toString, elab_e]
-    let arr <- mkAppM ``STy.arr #[elab_t1, elab_t2]
-    mkAppM ``SExpr.annot #[lambda, arr]
+    elabTmX (<- `(owl_tm|
+      ((λ $id => $e) : ($t1 -> $t2)
+    )))
   | `(owl_tm| λ $id:ident => $e:owl_tm) => do
     let elab_e <- elabTm e
     let unused := "unused variable"
-    mkAppM ``SExpr.fixlam #[mkStrLit unused, mkStrLit id.getId.toString, elab_e]
+    mkAppM ``SExprX.fixlam #[mkStrLit unused, mkStrLit id.getId.toString, elab_e]
   | `(owl_tm| corr_case $l1:owl_label in $e:owl_tm ) => do
     let elab_e <- elabTm e
     let elab_l1 <- elabLabel l1
-    mkAppM ``SExpr.corr_case #[elab_l1, elab_e]
+    mkAppM ``SExprX.corr_case #[elab_l1, elab_e]
   | `(owl_tm| ( $e:owl_tm : $t:owl_type)) => do
     let elab_e <- elabTm e
     let elab_t <- elabType t
-    mkAppM ``SExpr.annot #[elab_e, elab_t]
+    mkAppM ``SExprX.annot #[elab_e, elab_t]
   | _ => throwUnsupportedSyntax
+end
 
 -- CLOSED ELABORATORS
 
@@ -420,7 +419,7 @@ partial def elabType_closed : Syntax → TermElabM Expr
   | `(owl_type| $id:ident) =>
         mkAppM ``STy.var_ty #[mkStrLit id.getId.toString]
   | `(owl_type| Any) => mkAppM ``STy.Any #[]
-  | `(owl_type| Unit) => mkAppM ``STy.Unit #[]
+  | `(owl_type| unit) => mkAppM ``STy.Unit #[]
   | `(owl_type| Public) => mkAppM ``STy.Public #[]
   | `(owl_type| Data $l:owl_label) => do
     let elab_l <- elabLabel_closed l
@@ -461,156 +460,143 @@ partial def elabType_closed : Syntax → TermElabM Expr
   | `(owl_type| $ $_:term [$_:owl_label,* ] [$_:owl_type,*]) => mkAppM ``STy.default #[]
   | _ => throwUnsupportedSyntax
 
-partial def elabTm_closed : Syntax → TermElabM Expr
-  | `(owl_tm| ( $e:owl_tm)) => elabTm_closed e
+
+mutual
+
+  partial def elabTm_closed : Syntax -> TermElabM Expr :=
+    fun stx => do
+      let se <- mkAppM ``mkOpaqueSyntax #[toExpr stx]
+      -- let se <- mkEmptySyntax s!"elabTm_closed {stx.prettyPrint}"
+      mkAppM ``SExpr.mk #[se, ← elabTmX_closed stx]
+
+partial def elabTmX_closed : Syntax → TermElabM Expr
+  | `(owl_tm| ( $e:owl_tm)) => elabTmX_closed e
   | `(owl_tm| $id:ident) =>
-        mkAppM ``SExpr.var_tm #[mkStrLit id.getId.toString]
+        mkAppM ``SExprX.var_tm #[mkStrLit id.getId.toString]
   | `(owl_tm| $n:num) =>
-    mkAppM ``SExpr.loc #[mkNatLit n.getNat]
-  | `(owl_tm| error) => mkAppM ``SExpr.error #[]
-  | `(owl_tm| *) => mkAppM ``SExpr.skip #[]
+    mkAppM ``SExprX.loc #[mkNatLit n.getNat]
+  | `(owl_tm| error) => mkAppM ``SExprX.error #[]
+  | `(owl_tm| *) => mkAppM ``SExprX.skip #[]
   | `(owl_tm| [ $b:owl_binary ] ) => do
     let elab_b <- elabBinary b
-    mkAppM ``SExpr.bitstring #[elab_b]
+    mkAppM ``SExprX.bitstring #[elab_b]
   | `(owl_tm| fix $f:ident ( $id:ident ) $e:owl_tm) => do
     let elab_e <- elabTm_closed e
-    mkAppM ``SExpr.fixlam #[mkStrLit f.getId.toString, mkStrLit id.getId.toString, elab_e]
+    mkAppM ``SExprX.fixlam #[mkStrLit f.getId.toString, mkStrLit id.getId.toString, elab_e]
   | `(owl_tm| Λ $id:ident . $e:owl_tm) => do
     let elab_e <- elabTm_closed e
-    mkAppM ``SExpr.tlam #[mkStrLit id.getId.toString, elab_e]
+    mkAppM ``SExprX.tlam #[mkStrLit id.getId.toString, elab_e]
   | `(owl_tm| Λβ $id:ident . $e:owl_tm) => do
     let elab_e <- elabTm_closed e
-    mkAppM ``SExpr.l_lam #[mkStrLit id.getId.toString, elab_e]
+    mkAppM ``SExprX.l_lam #[mkStrLit id.getId.toString, elab_e]
   | `(owl_tm|⟨ $e1:owl_tm , $e2:owl_tm ⟩) => do
     let elab_e1 <- elabTm_closed e1
     let elab_e2 <- elabTm_closed e2
-    mkAppM ``SExpr.tm_pair #[elab_e1, elab_e2]
+    mkAppM ``SExprX.tm_pair #[elab_e1, elab_e2]
   | `(owl_tm| ⟨ $t:term ⟩ ( $e1:owl_tm , $e2:owl_tm )) => do
     let t' ← Term.elabTerm t (mkConst ``String)
     let elab_e1 <- elabTm_closed e1
     let elab_e2 <- elabTm_closed e2
-    mkAppM ``SExpr.Op #[t', elab_e1, elab_e2]
-  | `(owl_tm| $ $_:term [ $_:owl_label,* ] [ $_:owl_type,* ] [ $_:owl_tm,* ]) => mkAppM ``SExpr.default #[]
+    mkAppM ``SExprX.Op #[t', elab_e1, elab_e2]
+  | `(owl_tm| $ $_:term [ $_:owl_label,* ] [ $_:owl_type,* ] [ $_:owl_tm,* ]) => mkAppM ``SExprX.default #[]
   | `(owl_tm| zero $e:owl_tm) => do
     let elab_e <- elabTm_closed e
-    mkAppM ``SExpr.zero #[elab_e]
+    mkAppM ``SExprX.zero #[elab_e]
   | `(owl_tm| $e1:owl_tm [ $e2:owl_tm ]) => do
     let elab_e1 <- elabTm_closed e1
     let elab_e2 <- elabTm_closed e2
-    mkAppM ``SExpr.app #[elab_e1, elab_e2]
+    mkAppM ``SExprX.app #[elab_e1, elab_e2]
   | `(owl_tm| alloc $e:owl_tm) => do
     let elab_e <- elabTm_closed e
-    mkAppM ``SExpr.alloc #[elab_e]
+    mkAppM ``SExprX.alloc #[elab_e]
   | `(owl_tm| ! $e:owl_tm) => do
     let elab_e <- elabTm_closed e
-    mkAppM ``SExpr.dealloc #[elab_e]
+    mkAppM ``SExprX.dealloc #[elab_e]
   | `(owl_tm| $e1:owl_tm := $e2:owl_tm) => do
     let elab_e1 <- elabTm_closed e1
     let elab_e2 <- elabTm_closed e2
-    mkAppM ``SExpr.assign #[elab_e1, elab_e2]
+    mkAppM ``SExprX.assign #[elab_e1, elab_e2]
   | `(owl_tm| π1 $e:owl_tm) => do
     let elab_e <- elabTm_closed e
-    mkAppM ``SExpr.left_tm #[elab_e]
+    mkAppM ``SExprX.left_tm #[elab_e]
   | `(owl_tm| π2 $e:owl_tm) => do
     let elab_e <- elabTm_closed e
-    mkAppM ``SExpr.right_tm #[elab_e]
+    mkAppM ``SExprX.right_tm #[elab_e]
   | `(owl_tm| ı1 $e:owl_tm) => do
     let elab_e <- elabTm_closed e
-    mkAppM ``SExpr.inl #[elab_e]
+    mkAppM ``SExprX.inl #[elab_e]
   | `(owl_tm| ı2 $e:owl_tm) => do
     let elab_e <- elabTm_closed e
-    mkAppM ``SExpr.inr #[elab_e]
+    mkAppM ``SExprX.inr #[elab_e]
   | `(owl_tm| case $e1:owl_tm in $id1:ident => $e2:owl_tm | $id2:ident => $e3:owl_tm) => do
     let elab_e1 <- elabTm_closed e1
     let elab_e2 <- elabTm_closed e2
     let elab_e3 <- elabTm_closed e3
-    mkAppM ``SExpr.case #[elab_e1, mkStrLit id1.getId.toString, elab_e2, mkStrLit id2.getId.toString, elab_e3]
+    mkAppM ``SExprX.case #[elab_e1, mkStrLit id1.getId.toString, elab_e2, mkStrLit id2.getId.toString, elab_e3]
   | `(owl_tm| $e:owl_tm [[ $t:owl_type ]]) => do
     let elab_e <- elabTm_closed e
     let elab_t <- elabType_closed t
-    mkAppM ``SExpr.tapp #[elab_e, elab_t]
+    mkAppM ``SExprX.tapp #[elab_e, elab_t]
   | `(owl_tm| $e:owl_tm [[[ $l:owl_label ]]]) => do
     let elab_e <- elabTm_closed e
     let elab_l <- elabLabel l
-    mkAppM ``SExpr.lapp #[elab_e, elab_l]
+    mkAppM ``SExprX.lapp #[elab_e, elab_l]
   | `(owl_tm| unpack $e1:owl_tm as ($id1:ident, $id2:ident) in $e2:owl_tm) => do
     let elab_e1 <- elabTm_closed e1
     let elab_e2 <- elabTm_closed e2
-    mkAppM ``SExpr.unpack #[elab_e1, mkStrLit id1.getId.toString, mkStrLit id2.getId.toString, elab_e2]
+    mkAppM ``SExprX.unpack #[elab_e1, mkStrLit id1.getId.toString, mkStrLit id2.getId.toString, elab_e2]
   | `(owl_tm| pack ($t:owl_type, $e:owl_tm)) => do
     let elab_t <- elabType_closed t
     let elab_e <- elabTm_closed e
-    mkAppM ``SExpr.pack #[elab_t, elab_e]
+    mkAppM ``SExprX.pack #[elab_t, elab_e]
   | `(owl_tm| if $e1:owl_tm then $e2:owl_tm else $e3:owl_tm) => do
     let elab_e1 <- elabTm_closed e1
     let elab_e2 <- elabTm_closed e2
     let elab_e3 <- elabTm_closed e3
-    mkAppM ``SExpr.if_tm #[elab_e1, elab_e2, elab_e3]
+    mkAppM ``SExprX.if_tm #[elab_e1, elab_e2, elab_e3]
   | `(owl_tm| if corr($c:owl_label) then $e1:owl_tm else $e2:owl_tm) => do
     let elab_c <- elabLabel_closed c
     let elab_e1 <- elabTm_closed e1
     let elab_e2 <- elabTm_closed e2
-    mkAppM ``SExpr.if_c #[elab_c, elab_e1, elab_e2]
+    mkAppM ``SExprX.if_c #[elab_c, elab_e1, elab_e2]
   | `(owl_tm| sync $e:owl_tm) => do
     let elab_e <- elabTm_closed e
-    mkAppM ``SExpr.sync #[elab_e]
+    mkAppM ``SExprX.sync #[elab_e]
   | `(owl_tm| let $id1:ident = $e:owl_tm  in $b:owl_tm) => do
     let elab_e <- elabTm_closed e
     let elab_b <- elabTm_closed b
-    let unused := "unused variable"
-    let lambda <- mkAppM ``SExpr.fixlam #[mkStrLit unused, mkStrLit id1.getId.toString, elab_b]
-    mkAppM ``SExpr.app #[lambda, elab_e]
+    mkAppM ``SExprX.elet #[mkStrLit id1.getId.toString, elab_e, elab_b]
+  | `(owl_tm| let $id1:ident : $t:owl_type = $e:owl_tm  in $b:owl_tm) => do
+    elabTmX_closed (<- `(owl_tm |
+      let $id1 = ($e : $t) in $b
+    ))
   | `(owl_tm| let ($id1:ident, $id2:ident) = $e:owl_tm  in $b:owl_tm) => do
-    let elab_e <- elabTm_closed e
-    let elab_b <- elabTm_closed b
-    let unused := "unused variable"
-    let var <- mkAppM ``SExpr.var_tm #[mkStrLit "e_prime"]
-    let left <- mkAppM ``SExpr.left_tm #[var]
-    let right <- mkAppM ``SExpr.right_tm #[var]
-    let lambda1 <- mkAppM ``SExpr.fixlam #[mkStrLit unused, mkStrLit id2.getId.toString, elab_b]
-    let app1 <- mkAppM ``SExpr.app #[lambda1, left]
-    let lambda2 <- mkAppM ``SExpr.fixlam #[mkStrLit unused, mkStrLit id1.getId.toString, app1]
-    let app2 <- mkAppM ``SExpr.app #[lambda2, right]
-    let lambda3 <- mkAppM ``SExpr.fixlam #[mkStrLit unused, mkStrLit "e_prime", app2]
-    mkAppM ``SExpr.app #[lambda3, elab_e]
+    elabTmX_closed (<- `(owl_tm| let $id1 = π1 $e in let $id2 = π2 $e in $b))
   | `(owl_tm| let ($id1:ident, $id2:ident, $id3:ident) = $e:owl_tm  in $b:owl_tm) => do
-    let elab_e <- elabTm_closed e
-    let elab_b <- elabTm_closed b
-    let unused := "unused variable"
-    let var <- mkAppM ``SExpr.var_tm #[mkStrLit "e_prime"]
-    let first <- mkAppM ``SExpr.left_tm #[var]
-    let split_second <- mkAppM ``SExpr.right_tm #[var]
-    let second <- mkAppM ``SExpr.left_tm #[split_second]
-    let third <- mkAppM ``SExpr.right_tm #[split_second]
-    let lambda0 <- mkAppM ``SExpr.fixlam #[mkStrLit unused, mkStrLit id3.getId.toString, elab_b]
-    let app0 <- mkAppM ``SExpr.app #[lambda0, third]
-    let lambda1 <- mkAppM ``SExpr.fixlam #[mkStrLit unused, mkStrLit id2.getId.toString, app0]
-    let app1 <- mkAppM ``SExpr.app #[lambda1, second]
-    let lambda2 <- mkAppM ``SExpr.fixlam #[mkStrLit unused, mkStrLit id1.getId.toString, app1]
-    let app2 <- mkAppM ``SExpr.app #[lambda2, first]
-    let lambda3 <- mkAppM ``SExpr.fixlam #[mkStrLit unused, mkStrLit "e_prime", app2]
-    mkAppM ``SExpr.app #[lambda3, elab_e]
+    elabTmX_closed (<- `(owl_tm |
+      let $id1 = π1 $e in
+      let $id2 = π1 (π2 $e) in
+      let $id3 = π2 (π2 $e) in
+      $b
+    ))
   | `(owl_tm| λ ($id:ident : $t1:owl_type) : $t2:owl_type => $e:owl_tm) => do
-    let elab_e <- elabTm_closed e
-    let elab_t1 <- elabType_closed t1
-    let elab_t2 <- elabType_closed t2
-    let unused := "unused variable"
-    let lambda <- mkAppM ``SExpr.fixlam #[mkStrLit unused, mkStrLit id.getId.toString, elab_e]
-    let arr <- mkAppM ``STy.arr #[elab_t1, elab_t2]
-    mkAppM ``SExpr.annot #[lambda, arr]
+    elabTmX_closed (<- `(owl_tm|
+      ((λ $id => $e) : ($t1 -> $t2)
+    )))
   | `(owl_tm| λ $id:ident => $e:owl_tm) => do
     let elab_e <- elabTm_closed e
     let unused := "unused variable"
-    mkAppM ``SExpr.fixlam #[mkStrLit unused, mkStrLit id.getId.toString, elab_e]
+    mkAppM ``SExprX.fixlam #[mkStrLit unused, mkStrLit id.getId.toString, elab_e]
   | `(owl_tm| corr_case $l1:owl_label in $e:owl_tm ) => do
     let elab_e <- elabTm_closed e
     let elab_l1 <- elabLabel_closed l1
-    mkAppM ``SExpr.corr_case #[elab_l1, elab_e]
+    mkAppM ``SExprX.corr_case #[elab_l1, elab_e]
   | `(owl_tm| ( $e:owl_tm : $t:owl_type)) => do
     let elab_e <- elabTm_closed e
     let elab_t <- elabType_closed t
-    mkAppM ``SExpr.annot #[elab_e, elab_t]
+    mkAppM ``SExprX.annot #[elab_e, elab_t]
   | _ => throwUnsupportedSyntax
+end
 
 -- Phi Mappings
 syntax "(" owl_phi_entry ")" : owl_phi_entry

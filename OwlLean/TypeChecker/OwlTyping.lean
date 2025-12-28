@@ -3,9 +3,53 @@ import Lean
 
 open Owl
 
--- sanity checks
-#check (tm.error : tm 0 0 0)
-#check (ty.Any : ty 0 0)
+/--
+Type for an n-length array of type `α` as an inductive type.
+-/
+inductive vec (α : Type u) : Nat → Type u
+| nil  : vec α 0
+| cons : α → vec α n → vec α (n + 1)
+  deriving Lean.ToExpr
+
+
+@[simp]
+def vec.to_fn (v : vec α n) : Fin n → α :=
+  match v with
+  | vec.nil => fun i => nomatch i
+  | vec.cons x xs => Fin.cases x xs.to_fn
+
+@[simp]
+def vec.from_fn (f : Fin n → α) : vec α n :=
+  match n with
+  | 0 => .nil
+  | _ + 1 => .cons (f 0) (vec.from_fn (fun i => f i.succ))
+
+@[simp]
+theorem vec.from_fn_to (f : Fin n → α) :
+  vec.to_fn (vec.from_fn f) = f := by
+    revert f
+    induction n
+    intros f
+    simp
+    ext i
+    nomatch i
+    intros f
+    simp
+    ext i
+    cases i using Fin.cases
+    simp
+    simp
+    rename_i ih _
+    rw [ih]
+
+@[simp]
+theorem vec.to_fn_from (v : vec n α) :
+  vec.from_fn (vec.to_fn v) = v := by
+    induction v
+    simp
+    simp
+    grind
+
 
 @[simp]
 def gamma_context (l : Nat) (d : Nat) (m : Nat) := Fin m -> ty l d
@@ -13,6 +57,21 @@ def gamma_context (l : Nat) (d : Nat) (m : Nat) := Fin m -> ty l d
 def delta_context (l : Nat) (d : Nat) := Fin d -> ty l d
 @[simp]
 def phi_context (l : Nat) := Fin l -> (cond_sym × label l)
+
+abbrev gamma_context_repr (l d m : Nat) := vec (ty l d) m
+
+instance : Lean.ToExpr (gamma_context_repr l d m) := by
+  infer_instance
+
+abbrev delta_context_repr l d := vec (ty l d) d
+
+instance : Lean.ToExpr (delta_context_repr l d) := by
+  infer_instance
+
+abbrev phi_context_repr l := vec (cond_sym × label l) l
+
+instance : Lean.ToExpr (phi_context_repr l) := by
+  infer_instance
 
 @[simp]
 def empty_gamma : gamma_context l d 0 :=
@@ -172,8 +231,24 @@ theorem CorruptionSet.by_downwards_closed (C : CorruptionSet) :
     apply h1
     assumption
 
+@[grind]
+theorem CorruptionSet.has_bot_pf (C : CorruptionSet) :
+  C.is_corrupt (label.latl L.bot) := by {
+      apply C.has_bot
+  }
+
+@[grind]
+theorem CorruptionSet.is_corrupt_bot (C : CorruptionSet) :
+  C.is_corrupt (label.latl Owl.LabelTm.bot) := by
+    apply C.has_bot
+
+
 @[simp]
 def psi_context (l : Nat) := (List (corruption l))
+
+instance : Lean.ToExpr (psi_context l) := by
+  unfold psi_context
+  infer_instance
 
 @[simp]
 def empty_psi (l : Nat) : psi_context l := []
@@ -196,6 +271,14 @@ def C_satisfies_psi (C : CorruptionSet) (psi : psi_context 0) : Prop :=
   ) True psi
 
 @[simp]
+def psi_context_inconsistent (phi : phi_context l) (psi : psi_context l) : Prop :=
+  forall (pm : phi_map l) C,
+    pm.valid phi ->
+    C_satisfies_psi C (subst_psi_context pm psi) ->
+    False
+
+
+@[simp]
 def  phi_psi_entail_corr (phictx : phi_context l) (psictx : psi_context l) (co : corruption l) : Prop :=
   (forall (pm : phi_map l) C,
     (pm.valid phictx) ->
@@ -207,6 +290,7 @@ notation:100 pctx " |= " co => phi_entails_c pctx co
 notation:100 "! " e => tm.dealloc e
 
 -- Checks for proper values within terms
+/-
 inductive is_value : tm l d m -> Prop where
 | error_value : is_value .error
 | skip_value : is_value .skip
@@ -214,8 +298,8 @@ inductive is_value : tm l d m -> Prop where
   is_value (.loc n)
 | bitstring_value : forall b,
   is_value (.bitstring b)
-| fixlam_value : forall e,
-  is_value (.fixlam e)
+| fixlam_value : forall nm e,
+  is_value (.fixlam nm e)
 | pair_value : forall v1 v2,
   is_value v1 ->
   is_value v2 ->
@@ -233,6 +317,7 @@ inductive is_value : tm l d m -> Prop where
 | pack_value : forall t v,
   is_value v ->
   is_value (.pack t v)
+-/
 
   -- subtyping rules for Owl
   inductive subtype : (phi_context l) -> (psi_context l) -> (delta_context l d) ->
@@ -301,121 +386,115 @@ inductive is_value : tm l d m -> Prop where
   | ST_Refl : forall x,
     subtype Phi Psi Delta x x
 
+mutual
+  inductive has_type : (Phi : phi_context l) -> (Psi : psi_context l) -> (Delta : delta_context l d) -> (Gamma : gamma_context l d m) ->
+    tm l d m -> ty l d -> Prop where
+  | has_type_mk : has_typeX Phi Psi Delta Gamma v t -> has_type Phi Psi Delta Gamma (.mk stx v) t
 -- Typing rules for Owl
-inductive has_type : (Phi : phi_context l) -> (Psi : psi_context l) -> (Delta : delta_context l d) -> (Gamma : gamma_context l d m) ->
-  tm l d m -> ty l d -> Prop where
+inductive has_typeX : (Phi : phi_context l) -> (Psi : psi_context l) -> (Delta : delta_context l d) -> (Gamma : gamma_context l d m) ->
+  tmX l d m -> ty l d -> Prop where
 | T_Var : forall x,
-  has_type Phi Psi Delta Gamma (.var_tm x) (Gamma x)
-| T_IUnit : has_type Phi Psi Delta Gamma .skip .Unit
+  has_typeX Phi Psi Delta Gamma (.var_tm x) (Gamma x)
+| T_IUnit : has_typeX Phi Psi Delta Gamma .skip .Unit
 | T_Const : forall b,
-  has_type Phi Psi Delta Gamma (.bitstring b) .Public
+  has_typeX Phi Psi Delta Gamma (.bitstring b) .Public
 | T_Op : forall op e1 e2 l,
   has_type Phi Psi Delta Gamma e1 (.Data l) ->
   has_type Phi Psi Delta Gamma e2 (.Data l) ->
-  has_type Phi Psi Delta Gamma (.Op op e1 e2) (.Data l)
+  has_typeX Phi Psi Delta Gamma (.Op op e1 e2) (.Data l)
 | T_Zero : forall e l,
   has_type Phi Psi Delta Gamma e (.Data l) ->
-  has_type Phi Psi Delta Gamma (.zero e) .Public
+  has_typeX Phi Psi Delta Gamma (.zero e) .Public
 | T_If {Phi Psi Delta Gamma} : forall e e1 e2 t,
   has_type Phi Psi Delta Gamma e .Public ->
   has_type Phi Psi Delta Gamma e1 t ->
   has_type Phi Psi Delta Gamma e2 t ->
-  has_type Phi Psi Delta Gamma (.if_tm e e1 e2) t
+  has_typeX Phi Psi Delta Gamma (.if_tm e e1 e2) t
 | T_IRef : forall e t,
   has_type Phi Psi Delta Gamma e t ->
-  has_type Phi Psi Delta Gamma (.alloc e) (.Ref t)
+  has_typeX Phi Psi Delta Gamma (.alloc e) (.Ref t)
 | T_ERef : forall e t,
   has_type Phi Psi Delta Gamma e (.Ref t) ->
-  has_type Phi Psi Delta Gamma (! e) t
+  has_typeX Phi Psi Delta Gamma (.dealloc e) t
 | T_Assign : forall e1 e2 t,
   has_type Phi Psi Delta Gamma e1 (.Ref t) ->
   has_type Phi Psi Delta Gamma e2 t ->
-  has_type Phi Psi Delta Gamma (.assign e1 e2) .Unit
+  has_typeX Phi Psi Delta Gamma (.assign e1 e2) .Unit
 | T_IFun : forall e t t',
   has_type Phi Psi Delta (cons (.arr t t') (cons t Gamma)) e t' ->
-  has_type Phi Psi Delta Gamma (.fixlam e) (.arr t t')
+  has_typeX Phi Psi Delta Gamma (.fixlam nm e) (.arr t t')
 | T_EFun : forall e1 e2 t t',
   has_type Phi Psi Delta Gamma e1 (.arr t t') ->
   has_type Phi Psi Delta Gamma e2 t ->
-  has_type Phi Psi Delta Gamma (.app e1 e2) t'
+  has_typeX Phi Psi Delta Gamma (.app e1 e2) t'
 | T_IProd : forall e1 e2 t1 t2,
   has_type Phi Psi Delta Gamma e1 t1 ->
   has_type Phi Psi Delta Gamma e2 t2 ->
-  has_type Phi Psi Delta Gamma (.tm_pair e1 e2) (.prod t1 t2)
+  has_typeX Phi Psi Delta Gamma (.tm_pair e1 e2) (.prod t1 t2)
 | T_EProdL : forall e t1 t2,
   has_type Phi Psi Delta Gamma e (.prod t1 t2) ->
-  has_type Phi Psi Delta Gamma (.left_tm e) t1
+  has_typeX Phi Psi Delta Gamma (.left_tm e) t1
 | T_EProdR : forall e t1 t2,
   has_type Phi Psi Delta Gamma e (.prod t1 t2) ->
-  has_type Phi Psi Delta Gamma (.right_tm e) t2
+  has_typeX Phi Psi Delta Gamma (.right_tm e) t2
 | T_ISumL : forall e t1 t2,
   has_type Phi Psi Delta Gamma e t1 ->
-  has_type Phi Psi Delta Gamma (.inl e) (.sum t1 t2)
+  has_typeX Phi Psi Delta Gamma (.inl e) (.sum t1 t2)
 | T_ISumR : forall e t1 t2,
   has_type Phi Psi Delta Gamma e t2 ->
-  has_type Phi Psi Delta Gamma (.inr e) (.sum t1 t2)
+  has_typeX Phi Psi Delta Gamma (.inr e) (.sum t1 t2)
 | T_ESum : forall e t1 t2 t e1 e2,
   has_type Phi Psi Delta Gamma e (.sum t1 t2) ->
   has_type Phi Psi Delta (cons t1 Gamma) e1 t ->
   has_type Phi Psi Delta (cons t2 Gamma) e2 t ->
-  has_type Phi Psi Delta Gamma (.case e e1 e2) t
+  has_typeX Phi Psi Delta Gamma (.case e e1 e2) t
 | T_IUniv : forall t0 t e,
   has_type Phi Psi (lift_delta (cons t0 Delta)) (lift_gamma_d Gamma) e t ->
-  has_type Phi Psi Delta Gamma (.tlam e) (.all t0 t)
+  has_typeX Phi Psi Delta Gamma (.tlam e) (.all t0 t)
 | T_EUniv : forall t t' t0 e,
   subtype Phi Psi Delta t' t0 ->
   has_type Phi Psi Delta Gamma e (.all t0 t) ->
-  has_type Phi Psi Delta Gamma (.tapp e t') (subst_ty .var_label (cons t' .var_ty) t)
+  has_typeX Phi Psi Delta Gamma (.tapp e t') (subst_ty .var_label (cons t' .var_ty) t)
 | T_IExist : forall e t t' t0,
   has_type Phi Psi Delta Gamma e (subst_ty .var_label (cons t' .var_ty) t) ->
   subtype Phi Psi Delta t' t0 ->
-  has_type Phi Psi Delta Gamma (.pack t' e) (.ex t0 t)
+  has_typeX Phi Psi Delta Gamma (.pack t' e) (.ex t0 t)
 | T_EExist : forall e e' t0 t t',
   has_type Phi Psi Delta Gamma e (.ex t0 t) ->
   has_type Phi Psi (lift_delta (cons t0 Delta)) (cons t (lift_gamma_d Gamma)) e' (ren_ty id shift t') ->
-  has_type Phi Psi Delta Gamma (.unpack e e') t'
+  has_typeX Phi Psi Delta Gamma (.unpack e e') t'
 | T_ILUniv : forall cs lab e t,
   has_type (lift_phi ((cons (cs, lab)) Phi))
            (lift_psi Psi) (lift_delta_l Delta) (lift_gamma_l Gamma) e t ->
-  has_type Phi Psi Delta Gamma (.l_lam e) (.all_l cs lab t)
+  has_typeX Phi Psi Delta Gamma (.l_lam e) (.all_l cs lab t)
 | T_ELUniv : forall cs lab lab' e t,
   (Phi |= (.condition cs lab lab')) ->
   has_type Phi Psi Delta Gamma e (.all_l cs lab t) ->
-  has_type Phi Psi Delta Gamma (.lapp e lab') (subst_ty (cons lab' .var_label) .var_ty t)
+  has_typeX Phi Psi Delta Gamma (.lapp e lab') (subst_ty (cons lab' .var_label) .var_ty t)
 | T_Sync : forall e,
   has_type Phi Psi Delta Gamma e .Public ->
-  has_type Phi Psi Delta Gamma (.sync e) .Public
+  has_typeX Phi Psi Delta Gamma (.sync e) .Public
 | T_IfCorr1 : forall lab t e1 e2,
   (phi_psi_entail_corr Phi Psi (.not_corr lab)) ->
   has_type Phi Psi Delta Gamma e2 t ->
-  has_type Phi Psi Delta Gamma (.if_c lab e1 e2) t
+  has_typeX Phi Psi Delta Gamma (.if_c lab e1 e2) t
 | T_IfCorr2 : forall lab t e1 e2,
   (phi_psi_entail_corr Phi Psi (.corr lab)) ->
   has_type Phi Psi Delta Gamma e1 t ->
-  has_type Phi Psi Delta Gamma (.if_c lab e1 e2) t
+  has_typeX Phi Psi Delta Gamma (.if_c lab e1 e2) t
 | T_Sub : forall e t t',
   subtype Phi Psi Delta t t' ->
-  has_type Phi Psi Delta Gamma e t ->
-  has_type Phi Psi Delta Gamma e t'
+  has_typeX Phi Psi Delta Gamma e t ->
+  has_typeX Phi Psi Delta Gamma e t'
 | T_CorrCase : forall lab e t,
   has_type Phi ((.corr lab) :: Psi) Delta Gamma e t ->
   has_type Phi ((.not_corr lab) :: Psi) Delta Gamma e t ->
-  has_type Phi Psi Delta Gamma (.corr_case lab e) t
+  has_typeX Phi Psi Delta Gamma (.corr_case lab e) t
 | T_CorrCase2 : forall lab e t,
-  has_type Phi ((.corr lab) :: Psi) Delta Gamma e t ->
-  has_type Phi ((.not_corr lab) :: Psi) Delta Gamma e t ->
-  has_type Phi Psi Delta Gamma e t
+  has_typeX Phi ((.corr lab) :: Psi) Delta Gamma e t ->
+  has_typeX Phi ((.not_corr lab) :: Psi) Delta Gamma e t ->
+  has_typeX Phi Psi Delta Gamma e t
 | T_Annot : forall e t,
   has_type Phi Psi Delta Gamma e t ->
-  has_type Phi Psi Delta Gamma (.annot e t) t
-
--- NEED TO ADD IF STATEMENTS BACK (RELFLECTING NEW CORR DEFS)
-
-theorem simple_var_typing :
-  forall x Phi Psi Delta (Gamma : gamma_context l d m),
-     has_type Phi Psi Delta Gamma (.var_tm x) (Gamma x) := by
-  intro x Phi Psi Delta Gamma
-  exact has_type.T_Var x
-
-theorem concrete_typing : @has_type 0 0 0  empty_phi (empty_psi 0) empty_delta empty_gamma .skip .Unit :=
-  has_type.T_IUnit
+  has_typeX Phi Psi Delta Gamma (.annot e t) t
+end

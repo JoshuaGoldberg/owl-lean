@@ -5,7 +5,7 @@ import OwlLean.OwlLang.Owl
 import Lean
 import Std.Data.HashMap
 import OwlLean.TypeChecker.OwlParser
-import OwlLean.TypeChecker.OwlTypecheck
+import OwlLean.TypeChecker.TcSimple
 
 open Lean PrettyPrinter Delaborator SubExpr
 

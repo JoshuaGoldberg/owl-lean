@@ -1,8 +1,11 @@
+import Lean
+
 namespace Owl
+
 
 structure Lattice where
   labels : Type
-  leq    : labels -> labels -> Bool
+  leq    : labels -> labels -> Prop
   bot    : labels
   bot_proof : forall (l : labels), (leq bot l) = true
   join   : labels -> labels -> labels
@@ -11,20 +14,52 @@ structure Lattice where
   leq_refl : forall l, leq l l
   bot_all : forall l, leq bot l
 
-def IL : Inhabited Lattice where
-  default :=
-    Lattice.mk
-    Unit
-    (fun _ _ => true)
-    ()
-    (by grind)
-    (fun _ _ => ())
-    (fun _ _ => ())
-    (by grind)
-    (by grind)
-    (by grind)
+inductive LabelTm where
+  | atom : String -> LabelTm
+  | and : LabelTm -> LabelTm -> LabelTm
+  | or : LabelTm -> LabelTm -> LabelTm
+  | bot : LabelTm
+  deriving Lean.ToExpr
 
-def L := IL.default
+def LabelTm.interp (t : LabelTm) (p : String -> Bool) : Bool :=
+  match t with
+  | .atom x => p x
+  | .and x y => x.interp p && y.interp p
+  | .or x y => x.interp p || y.interp p
+  | .bot => true
+
+-- l2 implies l1
+def LabelTm.leq (l1 : LabelTm) (l2 : LabelTm) :=
+  forall p, (! l2.interp p) || l1.interp p
+
+def L : Lattice := {
+    labels := LabelTm,
+    leq := LabelTm.leq,
+    bot := .bot,
+    bot_proof := by
+      intros l
+      simp [LabelTm.leq]
+      simp [LabelTm.interp]
+    join := .and,
+    meet := .or,
+    leq_trans := by
+      intros l1 l2 l3
+      unfold LabelTm.leq
+      intros h1 h2 p
+      grind
+    leq_refl := by
+      unfold LabelTm.leq
+      grind
+    bot_all := by
+      unfold LabelTm.leq
+      simp [LabelTm.interp]
+}
+
+
+instance : Lean.ToExpr L.labels := by
+  unfold L
+  simp
+  infer_instance
 
 def lattice_leq_trans : forall {l1 l2 l3}, L.leq l1 l2 -> L.leq l2 l3 -> L.leq l1 l3 :=
   fun {l1 l2 l3} =>
@@ -42,11 +77,22 @@ grind_pattern lattice_bot_all => L.leq L.bot l
 
 abbrev Lcarrier : Type := L.labels
 
+instance : BEq Lcarrier :=
+  { beq := fun _ _ => false }
+
+
+
+structure opaqueSyntax where
+  inner : Lean.Syntax
+
+instance : Repr opaqueSyntax where
+  reprPrec _ _ := f!"<syntax>"
+
 inductive binary : Type
 | bzero : binary -> binary
 | bone : binary -> binary
 | bend : binary
-deriving Repr
+deriving Repr, BEq
 
 inductive cond_sym : Type
 | leq : cond_sym
@@ -68,16 +114,16 @@ inductive label : Nat -> Type where
 | ljoin : label n -> label n -> label n
 | lmeet : label n -> label n -> label n
 | default : label n
-deriving Repr
+deriving Repr, BEq
 
 inductive corruption : Nat -> Type where
 | corr : label n -> corruption n
 | not_corr : label n -> corruption n
-deriving Repr
+deriving Repr, BEq
 
 inductive constr (n_label : Nat) : Type where
 | condition : cond_sym -> label n_label -> label n_label -> constr n_label
-deriving Repr
+deriving Repr, BEq
 
 inductive ty : Nat -> Nat-> Type where
 | var_ty : Fin n_ty -> ty n_label n_ty
@@ -95,53 +141,75 @@ inductive ty : Nat -> Nat-> Type where
 | Public : ty n_label n_ty
 | Sing : binary -> ty n_label n_ty
 | default : ty n_label n_ty
-deriving Repr
+deriving Repr, BEq
 
 inductive Dist (a : Type) : Type where
 | ret  : a -> Dist a
 | flip : (Bool -> Dist a) → Dist a
 
-inductive tm : Nat -> Nat -> Nat -> Type where
-| var_tm : Fin n_tm -> tm n_label n_ty n_tm
-| error : tm n_label n_ty n_tm
-| skip : tm n_label n_ty n_tm
-| bitstring : binary -> tm n_label n_ty n_tm
-| loc : Nat -> tm n_label n_ty n_tm
-| fixlam : tm n_label n_ty ((n_tm + 1) + 1) -> tm n_label n_ty n_tm
-| tlam : tm n_label (n_ty + 1) n_tm -> tm n_label n_ty n_tm
-| l_lam : tm (n_label + 1) n_ty n_tm -> tm n_label n_ty n_tm
-| Op : String -> tm n_label n_ty n_tm -> tm n_label n_ty n_tm -> tm n_label n_ty n_tm
-| zero : tm n_label n_ty n_tm -> tm n_label n_ty n_tm
-| app : tm n_label n_ty n_tm -> tm n_label n_ty n_tm -> tm n_label n_ty n_tm
-| alloc : tm n_label n_ty n_tm -> tm n_label n_ty n_tm
-| dealloc : tm n_label n_ty n_tm -> tm n_label n_ty n_tm
-| assign : tm n_label n_ty n_tm -> tm n_label n_ty n_tm -> tm n_label n_ty n_tm
-| tm_pair : tm n_label n_ty n_tm -> tm n_label n_ty n_tm -> tm n_label n_ty n_tm
-| left_tm : tm n_label n_ty n_tm -> tm n_label n_ty n_tm
-| right_tm : tm n_label n_ty n_tm -> tm n_label n_ty n_tm
-| inl : tm n_label n_ty n_tm -> tm n_label n_ty n_tm
-| inr {n_label n_ty n_tm} : tm n_label n_ty n_tm -> tm n_label n_ty n_tm
+
+mutual
+  inductive tm : Nat -> Nat -> Nat -> Type where
+   | mk : opaqueSyntax -> tmX l d m -> tm l d m
+   deriving Repr
+
+inductive tmX : Nat -> Nat -> Nat -> Type where
+| var_tm : Fin n_tm -> tmX n_label n_ty n_tm
+| error : tmX n_label n_ty n_tm
+| skip : tmX n_label n_ty n_tm
+| bitstring : binary -> tmX n_label n_ty n_tm
+| loc : Nat -> tmX n_label n_ty n_tm
+| fixlam : String -> tm n_label n_ty ((n_tm + 1) + 1) -> tmX n_label n_ty n_tm
+| tlam : tm n_label (n_ty + 1) n_tm -> tmX n_label n_ty n_tm
+| l_lam : tm (n_label + 1) n_ty n_tm -> tmX n_label n_ty n_tm
+| Op : String -> tm n_label n_ty n_tm -> tm n_label n_ty n_tm -> tmX n_label n_ty n_tm
+| zero : tm n_label n_ty n_tm -> tmX n_label n_ty n_tm
+| app : tm n_label n_ty n_tm -> tm n_label n_ty n_tm -> tmX n_label n_ty n_tm
+| alloc : tm n_label n_ty n_tm -> tmX n_label n_ty n_tm
+| dealloc : tm n_label n_ty n_tm -> tmX n_label n_ty n_tm
+| assign : tm n_label n_ty n_tm -> tm n_label n_ty n_tm -> tmX n_label n_ty n_tm
+| tm_pair : tm n_label n_ty n_tm -> tm n_label n_ty n_tm -> tmX n_label n_ty n_tm
+| left_tm : tm n_label n_ty n_tm -> tmX n_label n_ty n_tm
+| right_tm : tm n_label n_ty n_tm -> tmX n_label n_ty n_tm
+| inl : tm n_label n_ty n_tm -> tmX n_label n_ty n_tm
+| inr {n_label n_ty n_tm} : tm n_label n_ty n_tm -> tmX n_label n_ty n_tm
 | case :
     tm n_label n_ty n_tm ->
-    tm n_label n_ty (n_tm + 1) -> tm n_label n_ty (n_tm + 1) -> tm n_label n_ty n_tm
-| tapp : tm n_label n_ty n_tm -> ty n_label n_ty -> tm n_label n_ty n_tm
-| lapp : tm n_label n_ty n_tm -> label n_label -> tm n_label n_ty n_tm
-| pack : ty n_label n_ty -> tm n_label n_ty n_tm -> tm n_label n_ty n_tm
-| unpack : tm n_label n_ty n_tm -> tm n_label (n_ty + 1) (n_tm + 1) -> tm n_label n_ty n_tm
+    tm n_label n_ty (n_tm + 1) -> tm n_label n_ty (n_tm + 1) -> tmX n_label n_ty n_tm
+| tapp : tm n_label n_ty n_tm -> ty n_label n_ty -> tmX n_label n_ty n_tm
+| lapp : tm n_label n_ty n_tm -> label n_label -> tmX n_label n_ty n_tm
+| pack : ty n_label n_ty -> tm n_label n_ty n_tm -> tmX n_label n_ty n_tm
+| unpack : tm n_label n_ty n_tm -> tm n_label (n_ty + 1) (n_tm + 1) -> tmX n_label n_ty n_tm
 | if_tm :
     tm n_label n_ty n_tm ->
-    tm n_label n_ty n_tm -> tm n_label n_ty n_tm -> tm n_label n_ty n_tm
+    tm n_label n_ty n_tm -> tm n_label n_ty n_tm -> tmX n_label n_ty n_tm
 | if_c :
-    label n_label -> tm n_label n_ty n_tm -> tm n_label n_ty n_tm -> tm n_label n_ty n_tm
-| sync : tm n_label n_ty n_tm -> tm n_label n_ty n_tm
-| corr_case : label n_label -> tm n_label n_ty n_tm -> tm n_label n_ty n_tm
-| annot : tm n_label n_ty n_tm -> ty n_label n_ty -> tm n_label n_ty n_tm
-| default : tm n_label n_ty n_tm
+    label n_label -> tm n_label n_ty n_tm -> tm n_label n_ty n_tm -> tmX n_label n_ty n_tm
+| sync : tm n_label n_ty n_tm -> tmX n_label n_ty n_tm
+| corr_case : label n_label -> tm n_label n_ty n_tm -> tmX n_label n_ty n_tm
+| annot : tm n_label n_ty n_tm -> ty n_label n_ty -> tmX n_label n_ty n_tm
+| default : tmX n_label n_ty n_tm
 deriving Repr
 
--- sanity checks
-#check (tm.error : tm 0 0 0)
-#check (ty.Any : ty 0 0)
+end
+
+deriving instance Lean.ToExpr for Owl.Lcarrier
+deriving instance Lean.ToExpr for Owl.label
+deriving instance Lean.ToExpr for Owl.corruption
+deriving instance Lean.ToExpr for Owl.cond_sym
+deriving instance Lean.ToExpr for Owl.binary
+deriving instance Lean.ToExpr for Owl.constr
+deriving instance Lean.ToExpr for Owl.ty
+
+@[always_inline]
+abbrev tm.get (t : tm l d m) : tmX l d m :=
+  match t with
+  | .mk _ v => v
+
+@[simp]
+def tm.mkD (t : tmX l d m) : tm l d m :=
+  let stx := Lean.Syntax.missing
+  tm.mk (.mk stx) t
 
 def ren (m n : Nat) : Type := Fin m → Fin n
 
@@ -263,18 +331,28 @@ def upRen_label_tm (xi : Fin m -> Fin n) :
   Fin m -> Fin n :=
     xi
 
+mutual
+
 def ren_tm
 (xi_label : Fin m_label -> Fin n_label) (xi_ty : Fin m_ty -> Fin n_ty)
 (xi_tm : Fin m_tm -> Fin n_tm) (s : tm m_label m_ty m_tm) :
 tm n_label n_ty n_tm :=
+  match s with
+  | .mk stx inner => .mk stx (ren_tmX xi_label xi_ty xi_tm inner)
+
+
+def ren_tmX
+(xi_label : Fin m_label -> Fin n_label) (xi_ty : Fin m_ty -> Fin n_ty)
+(xi_tm : Fin m_tm -> Fin n_tm) (s : tmX m_label m_ty m_tm) :
+tmX n_label n_ty n_tm :=
   match s with
   | .var_tm s0 => .var_tm (xi_tm s0)
   | .error => .error
   | .skip => .skip
   | .bitstring s0 => .bitstring s0
   | .loc s0 => .loc s0
-  | .fixlam s0 =>
-      .fixlam
+  | .fixlam nm s0 =>
+      .fixlam nm
         (ren_tm (upRen_tm_label (upRen_tm_label xi_label))
            (upRen_tm_ty (upRen_tm_ty xi_ty))
            (upRen_tm_tm (upRen_tm_tm xi_tm)) s0)
@@ -336,6 +414,7 @@ tm n_label n_ty n_tm :=
   | .corr_case lab e => .corr_case (ren_label xi_label lab) (ren_tm xi_label xi_ty xi_tm e)
   | .annot e t => .annot (ren_tm xi_label xi_ty xi_tm e) (ren_ty xi_label xi_ty t)
   | .default => .default
+end
 
 @[simp]
 def subst_label
@@ -404,7 +483,7 @@ def up_tm_ty
 def up_tm_tm
   (sigma : Fin m -> tm n_label n_ty n_tm) :
   Fin (m + 1) -> tm n_label n_ty (n_tm + 1) :=
-  (cons (tm.var_tm var_zero)
+  (cons (tm.mkD (.var_tm var_zero))
     (funcomp (ren_tm id id shift) sigma))
 
 @[simp]
@@ -453,20 +532,31 @@ ty n_label n_ty :=
   | .Public => .Public
   | .default => .default
 
+mutual
+
+  @[simp]
+  def subst_tm
+  (sigma_label : Fin m_label -> label n_label)
+  (sigma_ty : Fin m_ty -> ty n_label n_ty)
+  (sigma_tm : Fin m_tm -> tm n_label n_ty n_tm) (s : tm m_label m_ty m_tm)
+  : tm n_label n_ty n_tm :=
+    match s with
+    | .mk stx v => .mk stx (subst_tmX sigma_label sigma_ty sigma_tm v)
+
 @[simp]
-def subst_tm
+def subst_tmX
 (sigma_label : Fin m_label -> label n_label)
 (sigma_ty : Fin m_ty -> ty n_label n_ty)
-(sigma_tm : Fin m_tm -> tm n_label n_ty n_tm) (s : tm m_label m_ty m_tm)
-: tm n_label n_ty n_tm :=
+(sigma_tm : Fin m_tm -> tm n_label n_ty n_tm) (s : tmX m_label m_ty m_tm)
+: tmX n_label n_ty n_tm :=
   match s with
-  | .var_tm s0 => sigma_tm s0
+  | .var_tm s0 => (sigma_tm s0).get
   | .error => .error
   | .skip => .skip
   | .bitstring s0 => .bitstring s0
   | .loc s0 => .loc s0
-  | .fixlam s0 =>
-      .fixlam
+  | .fixlam nm s0 =>
+      .fixlam nm
         (subst_tm (up_tm_label (up_tm_label sigma_label))
            (up_tm_ty (up_tm_ty sigma_ty)) (up_tm_tm (up_tm_tm sigma_tm)) s0)
   | .tlam s0 =>
@@ -539,6 +629,7 @@ def subst_tm
       .annot (subst_tm sigma_label sigma_ty sigma_tm s0)
         (subst_ty sigma_label sigma_ty s1)
   | .default => .default
+end
 
 def shift_bound_by (shift_num : Nat) : Fin n -> Fin (n + shift_num) :=
   fun x => (x.addNat shift_num)

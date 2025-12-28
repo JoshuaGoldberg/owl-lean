@@ -52,41 +52,49 @@ inductive STy : Type where
 | default : STy
 deriving Repr
 
-inductive SExpr : Type where
-| var_tm : String -> SExpr
-| error : SExpr
-| skip : SExpr
-| bitstring : SBinary -> SExpr
-| loc : Nat -> SExpr
-| fixlam : String -> String -> SExpr -> SExpr
-| tlam : String -> SExpr -> SExpr
-| l_lam : String -> SExpr -> SExpr
-| Op : String -> SExpr -> SExpr -> SExpr
-| zero : SExpr -> SExpr
-| app : SExpr -> SExpr -> SExpr
-| alloc : SExpr -> SExpr
-| dealloc : SExpr -> SExpr
-| assign : SExpr -> SExpr -> SExpr
-| tm_pair : SExpr -> SExpr -> SExpr
-| left_tm : SExpr -> SExpr
-| right_tm : SExpr -> SExpr
-| inl : SExpr -> SExpr
-| inr : SExpr -> SExpr
-| case : SExpr -> String -> SExpr -> String -> SExpr -> SExpr
-| tapp : SExpr -> STy -> SExpr
-| lapp : SExpr -> SLabel -> SExpr
-| pack : STy -> SExpr -> SExpr
-| unpack : SExpr -> String -> String -> SExpr -> SExpr
+mutual
+    inductive SExpr : Type where
+    | mk : Owl.opaqueSyntax -> SExprX -> SExpr
+    deriving Repr
+
+
+inductive SExprX : Type where
+| var_tm : String -> SExprX
+| error : SExprX
+| skip : SExprX
+| bitstring : SBinary -> SExprX
+| loc : Nat -> SExprX
+| fixlam : String -> String -> SExpr -> SExprX
+| elet : String -> SExpr -> SExpr -> SExprX
+| tlam : String -> SExpr -> SExprX
+| l_lam : String -> SExpr -> SExprX
+| Op : String -> SExpr -> SExpr -> SExprX
+| zero : SExpr -> SExprX
+| app : SExpr -> SExpr -> SExprX
+| alloc : SExpr -> SExprX
+| dealloc : SExpr -> SExprX
+| assign : SExpr -> SExpr -> SExprX
+| tm_pair : SExpr -> SExpr -> SExprX
+| left_tm : SExpr -> SExprX
+| right_tm : SExpr -> SExprX
+| inl : SExpr -> SExprX
+| inr : SExpr -> SExprX
+| case : SExpr -> String -> SExpr -> String -> SExpr -> SExprX
+| tapp : SExpr -> STy -> SExprX
+| lapp : SExpr -> SLabel -> SExprX
+| pack : STy -> SExpr -> SExprX
+| unpack : SExpr -> String -> String -> SExpr -> SExprX
 | if_tm :
-    SExpr -> SExpr -> SExpr -> SExpr
+    SExpr -> SExpr -> SExpr -> SExprX
 | if_c :
-    SLabel -> SExpr -> SExpr -> SExpr
-| sync : SExpr -> SExpr
-| embedtm : Owl.tm l d m -> List SLabel -> List STy -> List SExpr -> SExpr
-| annot : SExpr -> STy -> SExpr
-| corr_case : SLabel -> SExpr -> SExpr
-| default : SExpr
+    SLabel -> SExpr -> SExpr -> SExprX
+| sync : SExpr -> SExprX
+| embedtm : Owl.tm l d m -> List SLabel -> List STy -> List SExpr -> SExprX
+| annot : SExpr -> STy -> SExprX
+| corr_case : SLabel -> SExpr -> SExprX
+| default : SExprX
 deriving Repr
+end
 
 inductive SPhiEntry : Type where
 | PhiEntry : String -> SCondSym -> SLabel -> SPhiEntry
