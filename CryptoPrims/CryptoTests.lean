@@ -8,7 +8,13 @@ open OwlTc
 
 attribute [simp] Fin.foldr_succ
 
-#tc( · ; · ; · ; · ⊢
+#tc example0 :=  · ; · ; · ; · ⊢
+  ["0"] : Public  by {
+      unfold sideConditions
+      simp
+  }
+
+#tc example1 := · ; · ; · ; · ⊢
     Λβ betaK .
     Λβ betaM .
     Λ tau .
@@ -35,9 +41,9 @@ attribute [simp] Fin.foldr_succ
     ∀ tau <: Data betaM .
     (∃ alphaK <: (Data betaK) . (alphaK *
                                  ((corr (betaK) ? (Public * Public) -> Public : (alphaK * tau) -> Public) *
-                                  (corr (betaK) ? (Public * Public) -> Public : (alphaK * Public) -> (tau + unit))))))
+                                  (corr (betaK) ? (Public * Public) -> Public : (alphaK * Public) -> (tau + unit)))))
     by {
-      unfold freshDef
+      unfold sideConditions
       simp
       grind
     }

@@ -778,13 +778,13 @@ syntax "#tc" term "by" tacticSeq : command
 
 open OwlTc
 
+
 @[simp]
 def interpSideConditions (ls : List SideCondition) : Prop :=
   List.foldr (fun i acc => i.interp ∧ acc) True ls
 
-def mkFreshDefn (e : Expr) : Command.CommandElabM Ident := do
-  let lctx ← Command.liftTermElabM $ getLCtx
-  let name := LocalContext.getUnusedName lctx `freshDef
+def mkFreshDefn (n : TSyntax `ident) (e : Expr) : Command.CommandElabM Ident := do
+  let name := Name.mkStr2 (n.getId.toString) "sideConditions"
   let id := mkIdent name
   Command.liftTermElabM <| do
     -- add definition: freshDef := e
@@ -798,12 +798,12 @@ def mkFreshDefn (e : Expr) : Command.CommandElabM Ident := do
     }
   pure id
 
-def doTc (s : Sequent) tkp pf := do
+def doTc (n : TSyntax `ident) (s : Sequent) tkp pf := do
     match <- OwlTc.infer s.Phi s.Psi s.Delta s.Gamma s.e s.t (CheckState.init tcVisit tcLog) with
     | .ok (_, p) => do
       let sc := p.side_condition
-      let id <- mkFreshDefn (toExpr sc)
-      let lemmaName <- (Command.liftTermElabM $ mkFreshUserName `_)
+      let id <- mkFreshDefn n (toExpr sc)
+      let lemmaName := Name.mkStr2 (n.getId.toString) "soundness"
       let thmCmd <- withRef tkp `(command|
         theorem $(mkIdent lemmaName) : interpSideConditions $id := by $pf
       )
@@ -815,19 +815,14 @@ def doTc (s : Sequent) tkp pf := do
       | .some v =>
         logErrorAt v.inner e.2
 
-elab_rules : command
-  | `(#tc $e by%$tkp $pf:tacticSeq ) => do
-    let s ← Command.liftTermElabM $ Lean.Elab.Term.elabTerm e (.some (.const `Sequent []))
-    let s <- Command.liftTermElabM $ unsafe evalExpr Sequent (mkConst `Sequent) s
-    doTc s tkp pf
     -- Alternatively, use macros or custom translation if Sequent is not a constructor
     -- let s : Sequent := ... -- adjust as needed depending on the definition of Sequent
 
 -- For easier usage of the has_type inductive
 
-syntax "#tc(" owl_phi ";" owl_psi ";" owl_delta ";" owl_gamma "⊢" owl_tm ":" owl_type ")" "by" tacticSeq : command
+syntax "#tc" ident ":=" owl_phi ";" owl_psi ";" owl_delta ";" owl_gamma "⊢" owl_tm ":" owl_type "by" tacticSeq : command
 elab_rules : command
-  | `(#tc( $p ; $ps; $d; $g ⊢ $e : $t) by%$tkp $pf ) => do
+  | `(#tc $n := $p ; $ps; $d; $g ⊢ $e : $t by%$tkp $pf ) => do
     let seq_e <- Command.liftTermElabM $ withEnableInfoTree false do
 
       let sphiExpr2 ← elabPhi_closed p
@@ -894,4 +889,4 @@ elab_rules : command
 
       mkAppM ``Sequent.mk #[mkNatLit lvars.length, mkNatLit tvars.length, mkNatLit vars.length, phiExpr, psiExpr, deltaExpr, gammaExpr, tmExpr, tyExpr]
     let seq <- Command.liftTermElabM $ unsafe evalExpr Sequent (mkConst `Sequent) seq_e
-    doTc seq tkp pf
+    doTc n seq tkp pf
