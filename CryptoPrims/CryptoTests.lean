@@ -14,7 +14,7 @@ attribute [simp] Fin.foldr_succ
       simp
   }
 
-#tc example1 := · ; · ; · ; · ⊢
+#tc ENC_FUNC := · ; · ; · ; · ⊢
     Λβ betaK .
     Λβ betaM .
     Λ tau .
@@ -46,8 +46,13 @@ attribute [simp] Fin.foldr_succ
       unfold sideConditions
       simp
       grind
+
     }
 
+
+-- Bonus points: make it a record
+
+-- Type represention is a lean TreeMap from String to type
 def ENC_Inner := OwlTy [lK] [tM, tK] {
     ( tK *
         ((corr (lK) ? (Public * Public) -> Public : (tK * tM) -> Public) *
@@ -61,6 +66,7 @@ def ENC := OwlTy [ lK ] [ tM ] {
 
 
 #tc protocol := lM, lKL ⊐ lM, lKH ⊐ lKL; · ; aKH <: Data lKH, aKL <: Data lKL ;
+  --  Make it : instead of =>
   encH => ($ ENC_Inner [lKH] [aKL, aKH]),
   encL => ($ ENC_Inner [lKL] [Data lM, aKL] ),
   msg => Data lM,
@@ -77,49 +83,36 @@ def ENC := OwlTy [ lK ] [ tM ] {
   -- Alice's code
   let ctxt1 = (corr_case lKH in ( enc_high [ ⟨ key_high, key_low⟩ ] ))  in
   let ctxt2 = (corr_case lKL in ( enc_low [ ⟨ key_low, msg ⟩ ] )) in
-  let unused = io [ ctxt1 ]  in
+  -- TODO: Ask Michael about parsing this better vvv
+  let unused = io [ ctxt1 ]  in -- Should be "let _ "
   let unused = io [ ctxt2 ]  in
 
   -- Bob's code
   corr_case lKH in
-  case dec_high [ ⟨key_high, io [ [""] ]⟩ ] in
+  -- For the binary: 0x1234. Represent this as a list of U8s.
+  case dec_high [ ⟨key_high, io [ [""] ]⟩ ] in -- Case "with"
   | inl key_low' =>
     corr_case lKL in
     case dec_low [ ⟨key_low', io [ [""] ] ⟩ ] in
-    | inl success => *
+    | inl success => * -- Use () instead of *
     | inr _fail => *
+  --  Make "_" work as an identifier
   | inr _fail => *
   :
     unit
+
+  /-
+    Unit -> (
+      (Public -> Public) // Oracle for the adversary to call alice
+      *
+      (Public -> Public) // oracle for the adversary to call bob
+    )
+  -/
 by {
     unfold sideConditions
     simp
     grind
 }
-
-
-
-
-syntax "#tst" "by" tacticSeq : command
-
-elab_rules : command
-  | `(#tst by%$tkp $pf:tacticSeq) => do
-
-    let lemmaName <- (Command.liftTermElabM $ mkFreshUserName `_)
-
-    let thmCmd <- withRef tkp `(command|
-      theorem $(mkIdent lemmaName) : True := by $pf
-    )
-    Command.elabCommand thmCmd
-
-#tst by {
-    sorry
-}
-
-#check
-
-
-
 
 
 

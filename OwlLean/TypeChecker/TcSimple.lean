@@ -34,6 +34,8 @@ def Owl.ty.simplify (t : ty l d) (corrs : List (corruption l)): ty l d :=
   | .default => .default
   | .all_l cs l t => .all_l cs l (t.simplify $ lift_psi corrs)
 
+
+-- Useful TODO
 theorem Owl.ty.simplify_rec_sound (phi : phi_context l) (psi : psi_context l) delta (t : ty l d) :
   subtype phi psi delta t (t.simplify psi) ∧ subtype phi psi delta (t.simplify psi) t := by
     revert psi
@@ -238,6 +240,17 @@ def to_data [Monad m] (fuel : Nat) (Delta : delta_context l d) (t : ty l d)
       | .Sing _ => pure (.latl L.bot)
       | .var_ty x => to_data n Delta (Delta x)
       | _ => throw s!"to_data: unhandled case: {t}"
+
+
+/-
+
+  t : if corr(L) then t1 else t2
+
+  corr_case L in
+  ... t : t1 ...
+
+
+-/
 
 
 -- Infer performs the dual roles of synthesis and checking
@@ -461,6 +474,7 @@ def has_type_infer M [Monad M] (visit : forall l d, Owl.opaqueSyntax -> ty l d -
   | .ok (_, p) => pure $ .ok $ p.side_condition
   | .err e => pure $ .err $ TypeError e.1 e.2
 
+-- Useful TODO
 /-
 theorem infer_sound Phi Psi Delta Gamma (e : tm l d m) (exp : ty l d) :
   has_type_infer Id (fun _ _ _ _ => ()) Phi Psi Delta Gamma e exp ->

@@ -21,6 +21,7 @@ inductive LabelTm where
   | bot : LabelTm
   deriving Lean.ToExpr
 
+
 def LabelTm.interp (t : LabelTm) (p : String -> Bool) : Bool :=
   match t with
   | .atom x => p x
