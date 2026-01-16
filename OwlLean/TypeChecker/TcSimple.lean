@@ -7,10 +7,77 @@ open Lean Elab Meta
 open Owl
 open Lean Meta Elab Tactic
 
+@[simp]
+def Owl.ty.simplify (t : ty l d) (corrs : List (corruption l)): ty l d :=
+  match t with
+  | .var_ty _ => t
+  | .Any => t
+  | .Unit => t
+  | .Data _ => t
+  | .Sing _ => t
+  | .Public => t
+  | .Ref t0 => .Ref t0
+  | .arr t0 t1 => .arr (t0.simplify corrs) (t1.simplify corrs)
+  | .ex t0 t1 => .ex (t0.simplify corrs) (t1.simplify corrs)
+  | .all t0 t1 => .all (t0.simplify corrs) (t1.simplify corrs)
+  | .t_if l t0 t1 =>
+    match List.find? (fun corr =>
+      match corr with
+      | .corr l' => l == l'
+      | .not_corr l' => l == l') corrs with
+    | .none => .t_if l (t0.simplify $ (.corr l) :: corrs) (t1.simplify $ (.not_corr l) :: corrs)
+    | .some corr => match corr with
+      | .corr _ => t0.simplify corrs
+      | .not_corr _ => t1.simplify corrs
+  | .sum t0 t1 => .sum (t0.simplify corrs) (t1.simplify corrs)
+  | .prod t0 t1 => .prod (t0.simplify corrs) (t1.simplify corrs)
+  | .default => .default
+  | .all_l cs l t => .all_l cs l (t.simplify $ lift_psi corrs)
+
+theorem Owl.ty.simplify_rec_sound (phi : phi_context l) (psi : psi_context l) delta (t : ty l d) :
+  subtype phi psi delta t (t.simplify psi) ∧ subtype phi psi delta (t.simplify psi) t := by
+    revert psi
+    induction t <;> intros psi <;> simp  <;> try apply subtype.ST_Refl
+    constructor <;> apply subtype.ST_Func <;> grind only
+    constructor <;> apply subtype.ST_Prod <;> grind only
+    constructor <;> apply subtype.ST_Sum <;> grind only
+    constructor <;> apply subtype.ST_Univ <;> grind only
+    constructor <;> apply subtype.ST_Exist <;> grind only
+    constructor
+    apply subtype.ST_LatUniv
+    {
+      intros pm Hpm
+      sorry
+    }
+    sorry
+    apply subtype.ST_LatUniv
+    sorry
+    sorry
+
+    sorry
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 namespace OwlTc
 
 
-#check phi_context
+
+
 
 inductive SideCondition where
   | PhiEntails : phi_context_repr l -> Owl.constr l -> SideCondition
@@ -18,7 +85,7 @@ inductive SideCondition where
   | TyVarEq : Fin d -> Fin d -> SideCondition
   | TyEq : ty l d -> ty l d -> SideCondition
   | CondSymEq : cond_sym -> cond_sym -> SideCondition
-  | PsiContextInconsistent : phi_context_repr l -> psi_context l -> SideCondition
+  | PsiContextInconsistent : String -> phi_context_repr l -> psi_context l -> SideCondition
 deriving ToExpr
 
 instance : ToString SideCondition where
@@ -36,7 +103,7 @@ def SideCondition.interp (p : SideCondition) : Prop :=
   | TyVarEq x y => x = y
   | TyEq t1 t2 => t1 = t2
   | CondSymEq c1 c2 => c1 = c2
-  | PsiContextInconsistent phi psi => psi_context_inconsistent (vec.to_fn phi) psi
+  | PsiContextInconsistent _ phi psi => psi_context_inconsistent (vec.to_fn phi) psi
 
 inductive Result ε α :=
   | ok : α -> Result ε α
@@ -144,7 +211,8 @@ def check_subtype  [Monad m] (fuel : Nat) (Phi : phi_context l) (Psi : psi_conte
         check_subtype n Phi ((.corr lab) :: Psi) Delta t t1'
         check_subtype n Phi ((.not_corr lab) :: Psi) Delta t t2'
       | _, _ =>
-        emit (.PsiContextInconsistent (vec.from_fn Phi) Psi)
+        let s := s!"Could not prove {t1} <: {t2}"
+        emit (.PsiContextInconsistent s (vec.from_fn Phi) Psi)
         -- throw s!"check_subtype: cannot prove {t1.pretty} <= {t2.pretty}}"
 
 
@@ -186,6 +254,7 @@ def infer [Monad M] (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_c
       match e with
       | .mk stx v => do
         let t <- withSyntax stx $ inferX Phi Psi Delta Gamma v exp
+        let t := t.simplify Psi
         visit stx t
         return t
 
@@ -257,7 +326,7 @@ def inferX [Monad M] (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_
       | .arr t t' => do
         let _ <- infer Phi Psi Delta Gamma e2 (.some t)
         pure t'
-      | _ => throw ".app"
+      | t => throw s!"app: got unexpected type for function: {t} "
     | .some expected => do
       let t1 <- infer Phi Psi Delta Gamma e2 .none
       let _ <- infer Phi Psi Delta Gamma e1 (.some (.arr t1 expected))
@@ -277,13 +346,10 @@ def inferX [Monad M] (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_
   | .case e e1 e2 => do
     match <- infer Phi Psi Delta Gamma e .none with
     | .sum t1 t2 => do
-      let r1 <- infer Phi Psi Delta (cons t1 Gamma) e1 (.some t1)
-      let r2 <- infer Phi Psi Delta (cons t2 Gamma) e2 (.some t2)
+      let r1 <- infer Phi Psi Delta (cons t1 Gamma) e1 exp
+      let r2 <- infer Phi Psi Delta (cons t2 Gamma) e2 exp
       match exp with
-      | .some res =>  do
-        check_subtype subtype_fuel Phi Psi Delta r1 res
-        check_subtype subtype_fuel Phi Psi Delta r2 res
-        pure res
+      | .some res => return res
       | none => do
         check_subtype subtype_fuel Phi Psi Delta r2 r1
         pure r1

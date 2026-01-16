@@ -48,6 +48,55 @@ attribute [simp] Fin.foldr_succ
       grind
     }
 
+def ENC_Inner := OwlTy [lK] [tM, tK] {
+    ( tK *
+        ((corr (lK) ? (Public * Public) -> Public : (tK * tM) -> Public) *
+        (corr (lK) ? (Public * Public) -> (Public + unit) : (tK * Public) -> (tM + unit))))
+
+}
+
+def ENC := OwlTy [ lK ] [ tM ] {
+  ∃ alphaK <: (Data lK). $ ENC_Inner [ lK ] [ tM, alphaK ]
+}
+
+
+#tc protocol := lM, lKL ⊐ lM, lKH ⊐ lKL; · ; aKH <: Data lKH, aKL <: Data lKL ;
+  encH => ($ ENC_Inner [lKH] [aKL, aKH]),
+  encL => ($ ENC_Inner [lKL] [Data lM, aKL] ),
+  msg => Data lM,
+  io => Public -> Public
+ ⊢
+  let key_low = π1 encL in
+  let enc_low = π1 (π2 encL) in
+  let dec_low = π2 (π2 encL) in
+
+  let key_high = π1 encH in
+  let enc_high = π1 (π2 encH) in
+  let dec_high = π2 (π2 encH) in
+
+  -- Alice's code
+  let ctxt1 = (corr_case lKH in ( enc_high [ ⟨ key_high, key_low⟩ ] ))  in
+  let ctxt2 = (corr_case lKL in ( enc_low [ ⟨ key_low, msg ⟩ ] )) in
+  let unused = io [ ctxt1 ]  in
+  let unused = io [ ctxt2 ]  in
+
+  -- Bob's code
+  corr_case lKH in
+  case dec_high [ ⟨key_high, io [ [""] ]⟩ ] in
+  | inl key_low' =>
+    corr_case lKL in
+    case dec_low [ ⟨key_low', io [ [""] ] ⟩ ] in
+    | inl success => *
+    | inr _fail => *
+  | inr _fail => *
+  :
+    unit
+by {
+    unfold sideConditions
+    simp
+    grind
+}
+
 
 
 
