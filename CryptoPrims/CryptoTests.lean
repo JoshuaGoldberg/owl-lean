@@ -9,7 +9,7 @@ open OwlTc
 attribute [simp] Fin.foldr_succ
 
 #tc example0 :=  · ; · ; · ; · ⊢
-  ["0"] : Public  by {
+  ["0"] : (Public -> Public)  by {
       unfold sideConditions
       simp
   }
@@ -65,6 +65,118 @@ def ENC := OwlTy [ lK ] [ tM ] {
 }
 
 
+/-
+
+  A                   B
+  --                 ---
+
+        enc(kH, kL)
+        enc(kL, m)
+        --->
+
+
+
+                        --> "ok" or "bad", depending on if decryption succeeded
+
+
+
+
+  A has some state type S_A
+
+  A has a transition function S_A -> Public -> (Public * S_A)
+
+
+  B has some state type S_B
+
+  B has a transition function S_B -> Public -> (Public * S_B)
+
+
+
+  A, B: StateMachine := ∃ S. (S * (S -> Public -> (Public * S)))
+
+
+
+  TODO:
+
+  1.
+  - Define a function of type StateMachine -> StateMachine -> ((Public * Public) -> Public)
+    - First public input: who is running
+      - "0" for alice
+      - not "0" for bob
+
+
+    - Second public input: the input to the state machine
+    - Output: output from the state machine
+
+    - Need to create references to the internal states
+
+    - Implement in OCaml first?
+
+
+  2.
+  - re-Implement below protocol as state machines
+
+
+  3.
+  - future: beef up protocol
+
+
+  ----------------
+  Option 2 (do this after the above)
+
+  - Give a coroutine semantics to the protocol
+
+
+  output:
+    Public  -- Thing to output
+    -> (Unit -> Public)  -- Continuation that is given to the adversary
+    -> Public -- "final return value"
+
+
+  input:
+    (Public -> Public)  -- Continuation given to adversary, where input is adv's input from network
+    -> Public -- "Final return value"
+
+
+  Alice:
+
+  let (c1, c2) = do_encrypts () in
+  output c1 (fun _ =>
+    output c2 (fun _ =>
+      return "ok"
+    )
+  )
+
+  State := (Public -> Public)
+
+
+  Bob:
+
+  input (fun i =>
+    if decrypt_ok(i) then
+      output "ok" (fun _ => ())
+    else
+      output "bad" (fun _ => ())
+  )
+
+
+  ==========
+
+
+  Along the way:
+  - Fix the syntax
+  - Fix error messages
+
+
+  ==========
+
+  - Prove soundness theorems in TcSimple
+
+
+-/
+
+
+
 #tc protocol := lM, lKL ⊐ lM, lKH ⊐ lKL; · ; aKH <: Data lKH, aKL <: Data lKL ;
   --  Make it : instead of =>
   encH => ($ ENC_Inner [lKH] [aKL, aKH]),
@@ -113,9 +225,6 @@ by {
     simp
     grind
 }
-
-
-
 
 
 
