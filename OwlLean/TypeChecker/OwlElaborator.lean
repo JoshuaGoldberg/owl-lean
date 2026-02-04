@@ -182,12 +182,15 @@ partial def elabType : Syntax → TermElabM Expr
     mkAppM ``STy.embedty #[t', ls_list, ts_list]
   | _ => throwUnsupportedSyntax
 
+notation:100 "PURE" => pure ()
+notation:100 "THROW" => throw ()
+
 -- syntax for terms
 syntax "(" owl_tm ")" : owl_tm
 syntax ident : owl_tm
 syntax num : owl_tm
 syntax "error" : owl_tm
-syntax "*" : owl_tm
+syntax "()" : owl_tm
 syntax "[" owl_binary "]" : owl_tm
 syntax "fix" ident "(" ident ")" owl_tm : owl_tm
 syntax "Λ" owl_type "." owl_tm : owl_tm
@@ -250,7 +253,7 @@ partial def elabTmX : Syntax → TermElabM Expr
   | `(owl_tm| $n:num) =>
     mkAppM ``SExprX.loc #[mkNatLit n.getNat]
   | `(owl_tm| error) => mkAppM ``SExprX.error #[]
-  | `(owl_tm| *) => mkAppM ``SExprX.skip #[]
+  | `(owl_tm| ()) => mkAppM ``SExprX.skip #[]
   | `(owl_tm| [ $b:owl_binary ] ) => do
     let elab_b <- elabBinary b
     mkAppM ``SExprX.bitstring #[elab_b]
@@ -477,7 +480,7 @@ partial def elabTmX_closed : Syntax → TermElabM Expr
   | `(owl_tm| $n:num) =>
     mkAppM ``SExprX.loc #[mkNatLit n.getNat]
   | `(owl_tm| error) => mkAppM ``SExprX.error #[]
-  | `(owl_tm| *) => mkAppM ``SExprX.skip #[]
+  | `(owl_tm| ()) => mkAppM ``SExprX.skip #[]
   | `(owl_tm| [ $b:owl_binary ] ) => do
     let elab_b <- elabBinary b
     mkAppM ``SExprX.bitstring #[elab_b]

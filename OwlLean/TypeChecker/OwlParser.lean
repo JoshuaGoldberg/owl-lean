@@ -635,16 +635,16 @@ def addTypeInfo (stx : Syntax) (s : String) := do
         expr := forgedExpr
         isBinder := false
       }
-    pure ()
+    PURE
 
 def tcVisit l d (o : Owl.opaqueSyntax) (t : Owl.ty l d) : Command.CommandElabM Unit  := do
   Command.liftTermElabM $ addTypeInfo o.inner (toString t)
-  pure ()
+  PURE
 
 def tcLog (s : String) : Command.CommandElabM Unit := do
   -- Command.liftTermElabM $ logInfo s
   IO.println s
-  pure ()
+  PURE
 
 syntax "#tc" term "by" tacticSeq : command
 
@@ -683,7 +683,7 @@ def doTc (n : TSyntax `ident) (s : Sequent) tkp pf := do
     | .err e =>
       logInfo s!"err: {e.2}"
       match e.1 with
-      | .none => pure ()
+      | .none => PURE
       | .some v =>
         logErrorAt v.inner e.2
 
@@ -716,19 +716,19 @@ elab_rules : command
       -- ensure all things are properly typed
       match SPhi.elab sphi with
       | .error _ => throwError "owl: ill-formed phi context: {p}"
-      | .ok _ => pure ()
+      | .ok _ => PURE
 
       match SPsi.elab spsi lvars with
       | .error _ => throwError "owl: ill-formed phi context {ps}"
-      | .ok _ => pure ()
+      | .ok _ => PURE
 
       match SDelta.elab sdelta lvars with
       | .error _ => throwError "owl: ill-formed delta context {d}"
-      | .ok _ => pure ()
+      | .ok _ => PURE
 
       match SGamma.elab sgamma lvars tvars with
       | .error _ => throwError "owl: ill-formed gamma context {g}"
-      | .ok _ => pure ()
+      | .ok _ => PURE
 
       let stmExpr2 ← elabTm_closed e
       let stm : SExpr ← unsafe do Meta.evalExpr SExpr (mkConst ``SExpr) stmExpr2
@@ -738,11 +738,11 @@ elab_rules : command
 
       match SExpr.elab stm lvars tvars vars with
       | .error _ => throwError "owl: ill-formed term {e}"
-      | .ok _ => pure ()
+      | .ok _ => PURE
 
       match STy.elab sty lvars tvars with
       | .error _ => throwError "owl: ill-formed type {t}"
-      | .ok _ => pure ()
+      | .ok _ => PURE
 
       -- prepare to do full evaluation
       let lvarsExpr ← mkListLit (mkConst ``String) (← lvars.mapM (fun s => return mkStrLit s))

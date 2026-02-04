@@ -47,4 +47,4 @@ def delabLeq : Delab := do
 @[app_unexpander Owl.Lattice.bot]
 def unexpOwlBot : Unexpander
 | `($_ $_) => `(⊥)
-| _        => throw ()
+| _        => THROW

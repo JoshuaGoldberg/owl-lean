@@ -19,7 +19,7 @@ attribute [simp] Fin.foldr_succ
     Λβ betaM .
     Λ tau .
     let k = (⟨"genKey"⟩ (["0"], ["0"]) : Data betaK) in
-    let L = alloc (λ (null : Public) : (tau + unit) => ı2 *) in
+    let L = alloc (λ (null : Public) : (tau + unit) => ı2 ()) in
     let enc' = (corr_case betaK in
                 (if corr ( betaK )
                   then (λ (x : (Public * Public)) : Public => ⟨"enc"⟩ (π1 x, π2 x))
@@ -206,10 +206,10 @@ def ENC := OwlTy [ lK ] [ tM ] {
   | inl key_low' =>
     corr_case lKL in
     case dec_low [ ⟨key_low', io [ [""] ] ⟩ ] in
-    | inl success => * -- Use () instead of *
-    | inr _fail => *
+    | inl success => () -- Use () instead of *
+    | inr _fail => ()
   --  Make "_" work as an identifier
-  | inr _fail => *
+  | inr _fail => ()
   :
     unit
 
