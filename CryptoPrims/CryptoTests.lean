@@ -9,7 +9,7 @@ open OwlTc
 attribute [simp] Fin.foldr_succ
 
 #tc example0 :=  · ; · ; · ; · ⊢
-  ["0"] : (Public -> Public)  by {
+  ["0"] : (Public)  by {
       unfold sideConditions
       simp
   }
@@ -53,14 +53,14 @@ attribute [simp] Fin.foldr_succ
 -- Bonus points: make it a record
 
 -- Type represention is a lean TreeMap from String to type
-def ENC_Inner := OwlTy [lK] [tM, tK] {
+def ENC_Inner := OwlTy [lK] [] [tM, tK] {
     ( tK *
         ((corr (lK) ? (Public * Public) -> Public : (tK * tM) -> Public) *
         (corr (lK) ? (Public * Public) -> (Public + unit) : (tK * Public) -> (tM + unit))))
 
 }
 
-def ENC := OwlTy [ lK ] [ tM ] {
+def ENC := OwlTy [ lK ] [] [ tM ] {
   ∃ alphaK <: (Data lK). $ ENC_Inner [ lK ] [ tM, alphaK ]
 }
 

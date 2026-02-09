@@ -8,6 +8,8 @@ open Lean Meta Elab Tactic
 
 namespace OwlTypecheck
 
+/-
+
 theorem derived_if_typing_annot : forall lab e,
   has_type Phi ((.corr lab) :: Psi) Delta Gamma e t1 ->
   has_type Phi ((.not_corr lab) :: Psi) Delta Gamma e t2 ->
@@ -1249,3 +1251,5 @@ elab_rules : tactic
       | solve_phi_validation_anon_no_simp))
 
 end OwlTypecheck
+
+-/

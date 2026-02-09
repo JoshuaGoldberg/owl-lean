@@ -100,7 +100,7 @@ elab "binary_parse" "(" p:owl_binary ")" : term =>
     elabBinary p
 
 @[simp]
-def STy.elab (s : STy) (P : TCtx) (D : TCtx): Except String (Owl.ty P.length D.length) :=
+def STy.elab (s : STy) (P : TCtx) (R : TCtx) (D : TCtx): Except String (Owl.ty P.length R.length D.length) :=
   match s with
   | .var_ty i =>
     match TCtx.lookup D i with
@@ -113,56 +113,59 @@ def STy.elab (s : STy) (P : TCtx) (D : TCtx): Except String (Owl.ty P.length D.l
     let l' ← SLabel.elab l P
     return ty.Data l'
   | .Ref t => do
-    let t' ← STy.elab t P D
+    let t' ← STy.elab t P R D
     return ty.Ref t'
   | .arr t1 t2 => do
-    let t1' ← STy.elab t1 P D
-    let t2' ← STy.elab t2 P D
+    let t1' ← STy.elab t1 P R D
+    let t2' ← STy.elab t2 P R D
     return ty.arr t1' t2'
   | .prod t1 t2 => do
-    let t1' ← STy.elab t1 P D
-    let t2' ← STy.elab t2 P D
+    let t1' ← STy.elab t1 P R D
+    let t2' ← STy.elab t2 P R D
     return ty.prod t1' t2'
   | .sum t1 t2 => do
-    let t1' ← STy.elab t1 P D
-    let t2' ← STy.elab t2 P D
+    let t1' ← STy.elab t1 P R D
+    let t2' ← STy.elab t2 P R D
     return ty.sum t1' t2'
   | .all a t1 t2 => do
-    let t1' ← STy.elab t1 P D
-    let t2' ← STy.elab t2 P (a :: D)
+    let t1' ← STy.elab t1 P R D
+    let t2' ← STy.elab t2 P R (a :: D)
     return ty.all t1' t2'
   | .ex a t1 t2 => do
-    let t1' ← STy.elab t1 P D
-    let t2' ← STy.elab t2 P (a :: D)
+    let t1' ← STy.elab t1 P R D
+    let t2' ← STy.elab t2 P R (a :: D)
     return ty.ex t1' t2'
   | .all_l s c l t => do
     let c' ← SCondSym.elab c
     let l' ← SLabel.elab l P
-    let t' ← STy.elab t (s :: P) D
+    let t' ← STy.elab t (s :: P) R D
     return ty.all_l c' l' t'
   | .t_if c t1 t2 => do
     let c' ← SLabel.elab c P
-    let t1' ← STy.elab t1 P D
-    let t2' ← STy.elab t2 P D
+    let t1' ← STy.elab t1 P R D
+    let t2' ← STy.elab t2 P R D
     return ty.t_if c' t1' t2'
-  | @embedty llen tlen t ls ts => do
+  | @embedty llen rlen tlen t ls _ ts => do
     let rec go1 : List SLabel → Except String (List (label P.length))
       | [] => return []
       | x::xs => do
         let res ← SLabel.elab x P
         let rest ← go1 xs
         return (res :: rest)
-    let rec go2 : List STy → Except String (List (ty P.length D.length))
+    let rec go3 : List STy → Except String (List (ty P.length R.length D.length))
       | [] => return []
       | x::xs => do
-        let res ← STy.elab x P D
-        let rest ← go2 xs
+        let res ← STy.elab x P R D
+        let rest ← go3 xs
         return (res :: rest)
     let elab_ls ← go1 ls
-    let elab_ts ← go2 ts
+    let elab_ts ← go3 ts
     if h : llen = elab_ls.length then
       if k : tlen = elab_ts.length then
-        return subst_ty (list_to_finmap elab_ls) (list_to_finmap elab_ts) (k ▸ (h ▸ t))
+        if h2 : rlen = R.length then
+          return subst_ty (list_to_finmap elab_ls) id (list_to_finmap elab_ts) (k ▸ (h ▸ (h2 ▸ t)))
+        else
+          throw s!"embedty: refinement argument length mismatch"
       else
         throw s!"embedty: type argument length mismatch: expected {tlen}, got {elab_ts.length}"
     else
@@ -175,14 +178,14 @@ elab "type_parse" "(" p:owl_type ")" : term =>
 
 mutual
   @[simp]
-  def SExpr.elab (s : SExpr) (P : TCtx) (D : TCtx) (G : TCtx): Except String (Owl.tm P.length D.length G.length) :=
+  def SExpr.elab (s : SExpr) (P : TCtx) (R : TCtx) (D : TCtx) (G : TCtx): Except String (Owl.tm P.length R.length D.length G.length) :=
     match s with
     | .mk stx v => do
-      let v2 <- SExprX.elab v P D G
+      let v2 <- SExprX.elab v P R D G
       return (.mk stx v2)
 
 @[simp]
-def SExprX.elab (s : SExprX) (P : TCtx) (D : TCtx) (G : TCtx): Except String (Owl.tmX P.length D.length G.length) :=
+def SExprX.elab (s : SExprX) (P : TCtx) (R:TCtx) (D : TCtx) (G : TCtx): Except String (Owl.tmX P.length R.length D.length G.length) :=
   match s with
   | .var_tm i =>
     match TCtx.lookup G i with
@@ -196,35 +199,35 @@ def SExprX.elab (s : SExprX) (P : TCtx) (D : TCtx) (G : TCtx): Except String (Ow
     | .some b' => return tmX.bitstring b'
   | .loc n => return tmX.loc n
   | .fixlam f x e => do
-    let e' ← SExpr.elab e P D (f::x::G)
+    let e' ← SExpr.elab e P R D (f::x::G)
     return tmX.fixlam x e'
   | .tlam t e => do
-    let e' ← SExpr.elab e P (t::D) G
+    let e' ← SExpr.elab e P R (t::D) G
     return tmX.tlam e'
   | .l_lam l e => do
-    let e' ← SExpr.elab e (l::P) D G
+    let e' ← SExpr.elab e (l::P) R D G
     return tmX.l_lam e'
   | .Op op e1 e2 => do
-    let e1' ← SExpr.elab e1 P D G
-    let e2' ← SExpr.elab e2 P D G
+    let e1' ← SExpr.elab e1 P R D G
+    let e2' ← SExpr.elab e2 P R D G
     return tmX.Op op e1' e2'
-  | @SExprX.embedtm llen tlen mlen e ls ts es => do
+  | @SExprX.embedtm llen rlen tlen mlen e ls rs ts es => do
     let rec go1 : List SLabel → Except String (List (label P.length))
       | [] => return []
       | x::xs => do
         let res ← SLabel.elab x P
         let rest ← go1 xs
         return (res :: rest)
-    let rec go2 : List STy → Except String (List (ty P.length D.length))
+    let rec go2 : List STy → Except String (List (ty P.length R.length D.length))
       | [] => return []
       | x::xs => do
-        let res ← STy.elab x P D
+        let res ← STy.elab x P R D
         let rest ← go2 xs
         return (res :: rest)
-    let rec go3 : List SExpr → Except String (List (tm P.length D.length G.length))
+    let rec go3 : List SExpr → Except String (List (tm P.length R.length D.length G.length))
       | [] => return []
       | x::xs => do
-        let res ← SExpr.elab x P D G
+        let res ← SExpr.elab x P R D G
         let rest ← go3 xs
         return (res :: rest)
     let elab_ls ← go1 ls
@@ -233,89 +236,92 @@ def SExprX.elab (s : SExprX) (P : TCtx) (D : TCtx) (G : TCtx): Except String (Ow
     if h : llen = elab_ls.length then
       if k : tlen = elab_ts.length then
         if j : mlen = elab_es.length then
-          return subst_tmX (list_to_finmap elab_ls) (list_to_finmap elab_ts) (list_to_finmap elab_es) (j ▸ (k ▸ (h ▸ e.get)))
+          if h2 : rlen = R.length then
+            return subst_tmX (list_to_finmap elab_ls) id (list_to_finmap elab_ts) (list_to_finmap elab_es) (j ▸ (k ▸ (h ▸ (h2 ▸ e.get))))
+          else
+            throw s!"SExprX.elab: refinement term argument length mismatch"
         else throw s!"SExprX.elab: embedtm term argument length mismatch: expected {mlen}, got {elab_es.length}"
       else throw s!"SExprX.elab: embedtm type argument length mismatch: expected {tlen}, got {elab_ts.length}"
     else throw s!"SExprX.elab: embedtm label argument length mismatch: expected {llen}, got {elab_ls.length}"
   | .zero e => do
-    let e' ← SExpr.elab e P D G
+    let e' ← SExpr.elab e P R D G
     return tmX.zero e'
   | .app e1 e2 => do
-    let e1' ← SExpr.elab e1 P D G
-    let e2' ← SExpr.elab e2 P D G
+    let e1' ← SExpr.elab e1 P R D G
+    let e2' ← SExpr.elab e2 P R D G
     return tmX.app e1' e2'
   | .alloc e => do
-    let e' ← SExpr.elab e P D G
+    let e' ← SExpr.elab e P R D G
     return tmX.alloc e'
   | .dealloc e => do
-    let e' ← SExpr.elab e P D G
+    let e' ← SExpr.elab e P R D G
     return tmX.dealloc e'
   | .assign e1 e2 => do
-    let e1' ← SExpr.elab e1 P D G
-    let e2' ← SExpr.elab e2 P D G
+    let e1' ← SExpr.elab e1 P R D G
+    let e2' ← SExpr.elab e2 P R D G
     return tmX.assign e1' e2'
   | .tm_pair e1 e2 => do
-    let e1' ← SExpr.elab e1 P D G
-    let e2' ← SExpr.elab e2 P D G
+    let e1' ← SExpr.elab e1 P R D G
+    let e2' ← SExpr.elab e2 P R D G
     return tmX.tm_pair e1' e2'
   | .left_tm e => do
-    let e' ← SExpr.elab e P D G
+    let e' ← SExpr.elab e P R D G
     return tmX.left_tm e'
   | .right_tm e => do
-    let e' ← SExpr.elab e P D G
+    let e' ← SExpr.elab e P R D G
     return tmX.right_tm e'
   | .inl e => do
-    let e' ← SExpr.elab e P D G
+    let e' ← SExpr.elab e P R D G
     return tmX.inl e'
   | .inr e => do
-    let e' ← SExpr.elab e P D G
+    let e' ← SExpr.elab e P R D G
     return tmX.inr e'
   | .case e x1 e1 x2 e2 => do
-    let e' ← SExpr.elab e P D G
-    let e1' ← SExpr.elab e1 P D (x1 :: G)
-    let e2' ← SExpr.elab e2 P D (x2 :: G)
+    let e' ← SExpr.elab e P R D G
+    let e1' ← SExpr.elab e1 P R D (x1 :: G)
+    let e2' ← SExpr.elab e2 P R D (x2 :: G)
     return tmX.case e' e1' e2'
   | .tapp e t => do
-    let e' ← SExpr.elab e P D G
-    let t' ← STy.elab t P D
+    let e' ← SExpr.elab e P R D G
+    let t' ← STy.elab t P R D
     return tmX.tapp e' t'
   | .lapp e l => do
-    let e' ← SExpr.elab e P D G
+    let e' ← SExpr.elab e P R D G
     let l' ← SLabel.elab l P
     return tmX.lapp e' l'
   | .pack t e => do
-    let e' ← SExpr.elab e P D G
-    let t' ← STy.elab t P D
+    let e' ← SExpr.elab e P R D G
+    let t' ← STy.elab t P R D
     return tmX.pack t' e'
   | .unpack e a x e1 => do
-    let e' ← SExpr.elab e P D G
-    let e1' ← SExpr.elab e1 P (a::D) (x::G)
+    let e' ← SExpr.elab e P R D G
+    let e1' ← SExpr.elab e1 P R (a::D) (x::G)
     return tmX.unpack e' e1'
   | .if_tm e1 e2 e3 => do
-    let e1' ← SExpr.elab e1 P D G
-    let e2' ← SExpr.elab e2 P D G
-    let e3' ← SExpr.elab e3 P D G
+    let e1' ← SExpr.elab e1 P R D G
+    let e2' ← SExpr.elab e2 P R D G
+    let e3' ← SExpr.elab e3 P R D G
     return tmX.if_tm e1' e2' e3'
   | .if_c c e1 e2 => do
-    let e1' ← SExpr.elab e1 P D G
-    let e2' ← SExpr.elab e2 P D G
+    let e1' ← SExpr.elab e1 P R D G
+    let e2' ← SExpr.elab e2 P R D G
     let c'  ← SLabel.elab c P
     return tmX.if_c c' e1' e2'
   | .sync e => do
-    let e' ← SExpr.elab e P D G
+    let e' ← SExpr.elab e P R D G
     return tmX.sync e'
   | .corr_case lab e => do
-    let e' ← SExpr.elab e P D G
+    let e' ← SExpr.elab e P R D G
     let lab' ← SLabel.elab lab P
     return tmX.corr_case lab' e'
   | .annot e t => do
-    let e' ← SExpr.elab e P D G
-    let t' ← STy.elab t P D
+    let e' ← SExpr.elab e P R D G
+    let t' ← STy.elab t P R D
     return tmX.annot e' t'
   | .default => return tmX.default
   | .elet s e1 e2 => do
-    let arg ← SExpr.elab e1 P D G
-    let bdy ← SExpr.elab e2 P D ("_" :: s :: G)
+    let arg ← SExpr.elab e1 P R D G
+    let bdy ← SExpr.elab e2 P R D ("_" :: s :: G)
     return tmX.app (tm.mkD (tmX.fixlam s bdy)) arg
 
 end
@@ -337,17 +343,17 @@ def SPhiEntry.elab (S : SPhiEntry) (P : TCtx) : Except String (String × (cond_s
     return (varName, (cond', lab'))
 
 @[simp]
-def SDeltaEntry.elab (S : SDeltaEntry) (P : TCtx) (D : TCtx) : Except String (String × ty P.length D.length) :=
+def SDeltaEntry.elab (S : SDeltaEntry) (P : TCtx) (R: TCtx) (D : TCtx) : Except String (String × ty P.length R.length D.length) :=
   match S with
   | .DeltaEntry varName t => do
-    let t' <- t.elab P D
+    let t' <- t.elab P R D
     return (varName, t')
 
 @[simp]
-def SGammaEntry.elab (S : SGammaEntry) (P : TCtx) (D : TCtx) : Except String (String × ty P.length D.length) :=
+def SGammaEntry.elab (S : SGammaEntry) (P R : TCtx) (D : TCtx) : Except String (String × ty P.length R.length D.length) :=
   match S with
   | .GammaEntry varName t => do
-    let t' <- t.elab P D
+    let t' <- t.elab P R D
     return (varName, t')
 
 
@@ -387,12 +393,12 @@ def SPhi.getVars (phi : SPhi) : (List String) :=
   | .Phi_Cons ⟨varName, _, _⟩ rest => varName :: SPhi.getVars rest
 
 @[simp]
-def SDelta.elab (delta : SDelta) (lvars : List String) : Except String ((tvars : List String) × delta_context lvars.length tvars.length) :=
+def SDelta.elab (delta : SDelta) (lvars : List String) (rvars : List String) : Except String ((tvars : List String) × delta_context lvars.length rvars.length tvars.length) :=
   match delta with
   | .Delta_End => return ⟨[], empty_delta⟩
   | .Delta_Cons entry rest => do
-    let ⟨varst, delta'⟩ <- rest.elab lvars
-    let ⟨varName, t'⟩ <- entry.elab lvars varst
+    let ⟨varst, delta'⟩ <- rest.elab lvars rvars
+    let ⟨varName, t'⟩ <- entry.elab lvars rvars varst
     return ⟨varName :: varst, dcons t' delta'⟩
 
 @[simp]
@@ -402,12 +408,12 @@ def SDelta.getVars (delta : SDelta) : (List String) :=
   | .Delta_Cons ⟨varName, _⟩ rest => varName :: SDelta.getVars rest
 
 @[simp]
-def SGamma.elab (gamma : SGamma) (lvars : List String) (tvars : List String) : Except String ((vars : List String) × gamma_context lvars.length tvars.length vars.length) :=
+def SGamma.elab (gamma : SGamma) (lvars rvars : List String) (tvars : List String) : Except String ((vars : List String) × gamma_context lvars.length rvars.length tvars.length vars.length) :=
   match gamma with
   | .Gamma_End => return ⟨[], empty_gamma⟩
   | .Gamma_Cons t rest => do
-    let ⟨vars, gamma'⟩ <- rest.elab lvars tvars
-    let ⟨varName, t'⟩ <- t.elab lvars tvars
+    let ⟨vars, gamma'⟩ <- rest.elab lvars rvars tvars
+    let ⟨varName, t'⟩ <- t.elab lvars rvars tvars
     return ⟨varName :: vars, cons t' gamma'⟩
 
 @[simp]
@@ -417,8 +423,8 @@ def SGamma.getVars (gamma : SGamma) : (List String) :=
   | .Gamma_Cons ⟨varName, _⟩ rest => varName :: SGamma.getVars rest
 
 @[simp]
-def elabHelperTy (s : STy) (lvars : List String) (tvars : List String) : ty lvars.length tvars.length :=
-  match STy.elab s lvars tvars with
+def elabHelperTy (s : STy) (lvars rvars : List String) (tvars : List String) : ty lvars.length rvars.length tvars.length :=
+  match STy.elab s lvars rvars tvars with
   | .ok e => e
   | _ => ty.Any --default value
 
@@ -436,8 +442,8 @@ def elabHelperConstr (s : SConstr) (lvars : List String) : constr lvars.length :
   | _ => (.condition .leq .default .default)
 
 @[simp]
-def elabHelper (s : SExpr) (lvars : List String) (tvars : List String) (vars : List String) : tm lvars.length tvars.length vars.length :=
-  match SExpr.elab s lvars tvars vars with
+def elabHelper (s : SExpr) (lvars rvars : List String) (tvars : List String) (vars : List String) : tm lvars.length rvars.length tvars.length vars.length :=
+  match SExpr.elab s lvars rvars tvars vars with
   | .ok e => e
   | _ => tm.mkD tmX.skip
 
@@ -456,41 +462,45 @@ def phiWithLength (n : Nat) (sphi : SPhi) : phi_context n :=
   | _ => emptyPhiOfLength n
 
 @[simp]
-def emptyDeltaOfLength : (l : Nat) -> (t : Nat) -> delta_context l t
-  | 0, 0 => empty_delta
-  | n+1, t => lift_delta_l (emptyDeltaOfLength n t)
-  | n, k+1 => dcons .default (emptyDeltaOfLength n k)
+def emptyDeltaOfLength : (l : Nat) -> (r : Nat) -> (t : Nat) -> delta_context l r t
+  | 0, r, 0 => empty_delta
+  | n+1, r, t => lift_delta_l (emptyDeltaOfLength n r t)
+  | n, r, k+1 => dcons .default (emptyDeltaOfLength n r k)
 
 @[simp]
-def deltaWithLength (l : Nat) (t : Nat) (sdelta : SDelta) (lvars : List String) : delta_context l t :=
-  match SDelta.elab sdelta lvars with
+def deltaWithLength (l r : Nat) (t : Nat) (sdelta : SDelta) (lvars rvars : List String) : delta_context l r t :=
+  match SDelta.elab sdelta lvars rvars with
   | .ok ⟨tvars, delta⟩ =>
     if h1 : lvars.length = l then
       if h2 : tvars.length = t then
-        (h2 ▸ (h1 ▸ delta))
-      else emptyDeltaOfLength l t
-    else emptyDeltaOfLength l t
-  | _ => emptyDeltaOfLength l t
+        if h3 : rvars.length = r then
+          (h2 ▸ (h1 ▸ (h3 ▸ delta)))
+      else emptyDeltaOfLength l r t
+      else emptyDeltaOfLength l r t
+    else emptyDeltaOfLength l r t
+  | _ => emptyDeltaOfLength l r t
 
 @[simp]
-def emptyGammaOfLength : (l : Nat) -> (t : Nat) -> (m : Nat) -> gamma_context l t m
-  | 0, 0, 0 => empty_gamma
-  | n+1, t, m => lift_gamma_l (emptyGammaOfLength n t m)
-  | l, k+1, m => lift_gamma_d (emptyGammaOfLength l k m)
-  | l, t, j+1 => cons .default (emptyGammaOfLength l t j)
+def emptyGammaOfLength : (l : Nat) -> (r : Nat) -> (t : Nat) -> (m : Nat) -> gamma_context l r t m
+  | 0, r, 0, 0 => empty_gamma
+  | n+1, r, t, m => lift_gamma_l (emptyGammaOfLength n r t m)
+  | l, r, k+1, m => lift_gamma_d (emptyGammaOfLength l r k m)
+  | l, r, t, j+1 => cons .default (emptyGammaOfLength l r t j)
 
 @[simp]
-def gammaWithLength (l : Nat) (t : Nat) (m : Nat) (sgamma : SGamma) (lvars : List String) (tvars : List String) : gamma_context l t m :=
-  match SGamma.elab sgamma lvars tvars with
+def gammaWithLength (l r : Nat) (t : Nat) (m : Nat) (sgamma : SGamma) (lvars rvars : List String) (tvars : List String) : gamma_context l r t m :=
+  match SGamma.elab sgamma lvars rvars tvars with
   | .ok ⟨vars, gamma⟩ =>
     if h1 : lvars.length = l then
       if h2 : tvars.length = t then
         if h3 : vars.length = m then
-          (h3 ▸ (h2 ▸ (h1 ▸ gamma)))
-        else emptyGammaOfLength l t m
-      else emptyGammaOfLength l t m
-    else emptyGammaOfLength l t m
-  | _ => emptyGammaOfLength l t m
+          if h4 : rvars.length = r then
+            (h3 ▸ (h2 ▸ (h1 ▸ (h4 ▸ gamma))))
+        else emptyGammaOfLength l r t m
+        else emptyGammaOfLength l r t m
+      else emptyGammaOfLength l r t m
+    else emptyGammaOfLength l r t m
+  | _ => emptyGammaOfLength l r t m
 
 @[simp]
 def emptyPsiOfLength : (n : Nat) → psi_context n
@@ -547,49 +557,57 @@ elab "(" phi:owl_phi " ⊨ " cond:owl_constr ")" : term => do
 
 -- define/parse terms easier
 @[simp]
-elab "Owl" "[" lvars:ident,* "]" "[" tvars:ident,* "]" "[" vars:ident,* "]" "{" p:owl_tm "}" : term => do
+elab "Owl" "[" lvars:ident,* "]" "[" rvars:ident,* "]" "[" tvars:ident,* "]" "[" vars:ident,* "]" "{" p:owl_tm "}" : term => do
   let varNames := vars.getElems.map (fun id => id.getId.toString)
   let lvarNames := lvars.getElems.map (fun id => id.getId.toString)
+  let rvarNames := rvars.getElems.map (fun id => id.getId.toString)
   let tvarNames := tvars.getElems.map (fun id => id.getId.toString)
   let varList := varNames.toList
   let tvarList := tvarNames.toList
   let lvarList := lvarNames.toList
+  let rvarList := rvarNames.toList
 
   let varEList ← varNames.mapM (fun s => return mkStrLit s)
   let lvarEList ← lvarNames.mapM (fun s => return mkStrLit s)
+  let rvarEList ← rvarNames.mapM (fun s => return mkStrLit s)
   let tvarEList ← tvarNames.mapM (fun s => return mkStrLit s)
 
   let varEListExpr ← mkListLit (mkConst ``String) varEList.toList
   let lvarEListExpr ← mkListLit (mkConst ``String) lvarEList.toList
+  let rvarEListExpr ← mkListLit (mkConst ``String) rvarEList.toList
   let tvarEListExpr ← mkListLit (mkConst ``String) tvarEList.toList
 
   let sexprTerm ← elabTm p
   let sexprTerm2 ← elabTm_closed p
   let sVal : SExpr ← unsafe do Meta.evalExpr SExpr (mkConst ``SExpr) sexprTerm2
-  match SExpr.elab sVal lvarList tvarList varList with
+  match SExpr.elab sVal lvarList rvarList tvarList varList with
   | .error s   => throwError "owl: ill-formed term: {s}"
-  | .ok _ => mkAppM ``elabHelper #[sexprTerm, lvarEListExpr, tvarEListExpr, varEListExpr]
+  | .ok _ => mkAppM ``elabHelper #[sexprTerm, lvarEListExpr, rvarEListExpr, tvarEListExpr, varEListExpr]
 
 -- define/parse types easier
 @[simp]
-elab "OwlTy" "[" lvars:ident,* "]" "[" tvars:ident,* "]" "{" p:owl_type "}" : term => do
+elab "OwlTy" "[" lvars:ident,* "]" "[" rvars:ident,* "]" "[" tvars:ident,* "]" "{" p:owl_type "}" : term => do
   let lvarNames := lvars.getElems.map (fun id => id.getId.toString)
+  let rvarNames := rvars.getElems.map (fun id => id.getId.toString)
   let tvarNames := tvars.getElems.map (fun id => id.getId.toString)
   let tvarList := tvarNames.toList
   let lvarList := lvarNames.toList
+  let rvarList := rvarNames.toList
 
   let lvarEList ← lvarNames.mapM (fun s => return mkStrLit s)
+  let rvarEList ← rvarNames.mapM (fun s => return mkStrLit s)
   let tvarEList ← tvarNames.mapM (fun s => return mkStrLit s)
   let lvarEListExpr ← mkListLit (mkConst ``String) lvarEList.toList
+  let rvarEListExpr ← mkListLit (mkConst ``String) rvarEList.toList
   let tvarEListExpr ← mkListLit (mkConst ``String) tvarEList.toList
 
   let sexprTerm ← elabType p
   let sexprTerm2 ← elabType_closed p
 
   let sVal : STy ← unsafe do Meta.evalExpr STy (mkConst ``STy) sexprTerm2
-  match STy.elab sVal lvarList tvarList with
+  match STy.elab sVal lvarList rvarList tvarList with
   | .error s  => throwError "owl: ill-formed type: {s}"
-  | .ok _ => mkAppM ``elabHelperTy #[sexprTerm, lvarEListExpr, tvarEListExpr]
+  | .ok _ => mkAppM ``elabHelperTy #[sexprTerm, lvarEListExpr, rvarEListExpr, tvarEListExpr]
 
 @[simp]
 elab "OwlLabel" "[" lvars:ident,* "]" "{" p:owl_label "}" : term => do
@@ -610,17 +628,16 @@ elab "OwlLabel" "[" lvars:ident,* "]" "{" p:owl_label "}" : term => do
 
 structure Sequent where
   l : Nat
+  r : Nat
   d : Nat
   m : Nat
   Phi : phi_context l
   Psi : psi_context l
-  Delta : delta_context l d
-  Gamma : gamma_context l d m
-  e : tm l d m
-  t : ty l d
+  Delta : delta_context l r d
+  Gamma : gamma_context l r d m
+  e : tm l r d m
+  t : ty l r d
 
-def Sequent.has_ty (s : Sequent) :=
-  has_type s.Phi s.Psi s.Delta s.Gamma s.e s.t
 
 def addTypeInfo (stx : Syntax) (s : String) := do
     let n : Name := Name.mkSimple s
@@ -637,7 +654,7 @@ def addTypeInfo (stx : Syntax) (s : String) := do
       }
     PURE
 
-def tcVisit l d (o : Owl.opaqueSyntax) (t : Owl.ty l d) : Command.CommandElabM Unit  := do
+def tcVisit l r d (o : Owl.opaqueSyntax) (t : Owl.ty l r d) : Command.CommandElabM Unit  := do
   Command.liftTermElabM $ addTypeInfo o.inner (toString t)
   PURE
 
@@ -710,6 +727,9 @@ elab_rules : command
       let sgamma : SGamma ← unsafe do Meta.evalExpr SGamma (mkConst ``SGamma) sgammaExpr2
 
       let lvars := SPhi.getVars sphi
+      let rvars : List String := []
+        --rs.raw.getArgs.toList.map (fun s => s.getId.toString)
+
       let tvars := SDelta.getVars sdelta
       let vars := SGamma.getVars sgamma
 
@@ -722,11 +742,11 @@ elab_rules : command
       | .error _ => throwError "owl: ill-formed phi context {ps}"
       | .ok _ => PURE
 
-      match SDelta.elab sdelta lvars with
+      match SDelta.elab sdelta lvars rvars with
       | .error _ => throwError "owl: ill-formed delta context {d}"
       | .ok _ => PURE
 
-      match SGamma.elab sgamma lvars tvars with
+      match SGamma.elab sgamma lvars rvars tvars with
       | .error _ => throwError "owl: ill-formed gamma context {g}"
       | .ok _ => PURE
 
@@ -736,29 +756,30 @@ elab_rules : command
       let styExpr2 ← elabType_closed t
       let sty : STy ← unsafe do Meta.evalExpr STy (mkConst ``STy) styExpr2
 
-      match SExpr.elab stm lvars tvars vars with
+      match SExpr.elab stm lvars rvars tvars vars with
       | .error _ => throwError "owl: ill-formed term {e}"
       | .ok _ => PURE
 
-      match STy.elab sty lvars tvars with
+      match STy.elab sty lvars rvars tvars with
       | .error _ => throwError "owl: ill-formed type {t}"
       | .ok _ => PURE
 
       -- prepare to do full evaluation
       let lvarsExpr ← mkListLit (mkConst ``String) (← lvars.mapM (fun s => return mkStrLit s))
+      let rvarsExpr ← mkListLit (mkConst ``String) (← rvars.mapM (fun s => return mkStrLit s))
       let tvarsExpr ← mkListLit (mkConst ``String) (← tvars.mapM (fun s => return mkStrLit s))
       let varsExpr ← mkListLit (mkConst ``String) (← vars.mapM (fun s => return mkStrLit s))
 
       let phiExpr ← mkAppM ``phiWithLength #[mkNatLit lvars.length, ← elabPhi p]
       let psiExpr ← mkAppM ``psiWithLength #[mkNatLit lvars.length, ← elabPsi ps, lvarsExpr]
-      let deltaExpr ← mkAppM ``deltaWithLength #[mkNatLit lvars.length, mkNatLit tvars.length,
-                                              ← elabDelta d, lvarsExpr]
-      let gammaExpr ← mkAppM ``gammaWithLength #[mkNatLit lvars.length, mkNatLit tvars.length,
+      let deltaExpr ← mkAppM ``deltaWithLength #[mkNatLit lvars.length, mkNatLit rvars.length, mkNatLit tvars.length,
+                                              ← elabDelta d, lvarsExpr, rvarsExpr]
+      let gammaExpr ← mkAppM ``gammaWithLength #[mkNatLit lvars.length, mkNatLit rvars.length, mkNatLit tvars.length,
                                                 mkNatLit vars.length, ← elabGamma g,
-                                                lvarsExpr, tvarsExpr]
-      let tyExpr ← mkAppM ``elabHelperTy #[← elabType t, lvarsExpr, tvarsExpr]
-      let tmExpr ← mkAppM ``elabHelper #[← elabTm e, lvarsExpr, tvarsExpr, varsExpr]
+                                                lvarsExpr, rvarsExpr, tvarsExpr]
+      let tyExpr ← mkAppM ``elabHelperTy #[← elabType t, lvarsExpr, rvarsExpr, tvarsExpr]
+      let tmExpr ← mkAppM ``elabHelper #[← elabTm e, lvarsExpr, rvarsExpr, tvarsExpr, varsExpr]
 
-      mkAppM ``Sequent.mk #[mkNatLit lvars.length, mkNatLit tvars.length, mkNatLit vars.length, phiExpr, psiExpr, deltaExpr, gammaExpr, tmExpr, tyExpr]
+      mkAppM ``Sequent.mk #[mkNatLit lvars.length, mkNatLit rvars.length, mkNatLit tvars.length, mkNatLit vars.length, phiExpr, psiExpr, deltaExpr, gammaExpr, tmExpr, tyExpr]
     let seq <- Command.liftTermElabM $ unsafe evalExpr Sequent (mkConst `Sequent) seq_e
     doTc n seq tkp pf

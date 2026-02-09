@@ -47,7 +47,8 @@ inductive STy : Type where
 | ex : String -> STy -> STy -> STy
 | all_l : String -> SCondSym -> SLabel -> STy -> STy
 | t_if : SLabel -> STy -> STy -> STy
-| embedty : Owl.ty l d -> List SLabel -> List STy -> STy
+-- TODO: for the List Unit, make it a List RefinementExp
+| embedty : Owl.ty l r d -> List SLabel -> List Unit -> List STy -> STy
 | Public : STy
 | default : STy
 deriving Repr
@@ -89,7 +90,8 @@ inductive SExprX : Type where
 | if_c :
     SLabel -> SExpr -> SExpr -> SExprX
 | sync : SExpr -> SExprX
-| embedtm : Owl.tm l d m -> List SLabel -> List STy -> List SExpr -> SExprX
+-- TODO: for the List Unit, make it a List RefinementExp
+| embedtm : Owl.tm l r d m -> List SLabel -> List Unit -> List STy -> List SExpr -> SExprX
 | annot : SExpr -> STy -> SExprX
 | corr_case : SLabel -> SExpr -> SExprX
 | default : SExprX

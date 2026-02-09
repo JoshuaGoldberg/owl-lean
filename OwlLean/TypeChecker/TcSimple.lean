@@ -8,7 +8,7 @@ open Owl
 open Lean Meta Elab Tactic
 
 @[simp]
-def Owl.ty.simplify (t : ty l d) (corrs : List (corruption l)): ty l d :=
+def Owl.ty.simplify (t : ty l r d ) (corrs : List (corruption l)): ty l r d  :=
   match t with
   | .var_ty _ => t
   | .Any => t
@@ -35,6 +35,7 @@ def Owl.ty.simplify (t : ty l d) (corrs : List (corruption l)): ty l d :=
   | .all_l cs l t => .all_l cs l (t.simplify $ lift_psi corrs)
 
 
+/-
 -- Useful TODO
 theorem Owl.ty.simplify_rec_sound (phi : phi_context l) (psi : psi_context l) delta (t : ty l d) :
   subtype phi psi delta t (t.simplify psi) ∧ subtype phi psi delta (t.simplify psi) t := by
@@ -57,6 +58,8 @@ theorem Owl.ty.simplify_rec_sound (phi : phi_context l) (psi : psi_context l) de
     sorry
 
     sorry
+
+  -/
 
 
 
@@ -85,7 +88,7 @@ inductive SideCondition where
   | PhiEntails : phi_context_repr l -> Owl.constr l -> SideCondition
   | PhiPsiEntailCorr : phi_context_repr l -> psi_context l -> label l -> SideCondition
   | TyVarEq : Fin d -> Fin d -> SideCondition
-  | TyEq : ty l d -> ty l d -> SideCondition
+  | TyEq : ty l d r -> ty l d r -> SideCondition
   | CondSymEq : cond_sym -> cond_sym -> SideCondition
   | PsiContextInconsistent : String -> phi_context_repr l -> psi_context l -> SideCondition
 deriving ToExpr
@@ -113,12 +116,12 @@ inductive Result ε α :=
 
 
 structure CheckState M [Monad M] where
-  visitTm : forall l d, Owl.opaqueSyntax -> ty l d -> M Unit
+  visitTm : forall l r d , Owl.opaqueSyntax -> ty l r d -> M Unit
   log : String -> M Unit
   curSyntax : Option Owl.opaqueSyntax
   side_condition : List SideCondition
 
-abbrev CheckState.init [Monad M] (visit : forall l d, Owl.opaqueSyntax -> ty l d -> M Unit) (log : String -> M Unit) : CheckState M :=
+abbrev CheckState.init [Monad M] (visit : forall l d r, Owl.opaqueSyntax -> ty l d r -> M Unit) (log : String -> M Unit) : CheckState M :=
   { visitTm := visit, curSyntax := .none, side_condition := [], log := log }
 
 abbrev CheckT m [Monad m] α := CheckState m -> m (Result (Option opaqueSyntax × String) (α × CheckState m))
@@ -140,8 +143,8 @@ def withSyntax [Monad m] (s : Owl.opaqueSyntax) (k : CheckT m α) : CheckT m α 
 
 def throw [Monad m] (s : String) : CheckT m α := fun st => pure $ .err (st.curSyntax, s)
 
-def visit [Monad m] (s : Owl.opaqueSyntax) (t : ty l d) : CheckT m Unit := fun st => do
-  st.visitTm _ _ s t
+def visit [Monad m] (s : Owl.opaqueSyntax) (t : ty l d r) : CheckT m Unit := fun st => do
+  st.visitTm _ _ _ s t
   pure (.ok ((), st))
 
 def log [Monad m] (s : String) : CheckT m Unit := fun st => do
@@ -154,8 +157,8 @@ abbrev subtype_fuel := 10
 
 -- TODO : Finish up various cases that have not yet been completed (for check_subtype and infer)!
 
-def check_subtype  [Monad m] (fuel : Nat) (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_context l d)
-                           (t1 : ty l d) (t2 : ty l d) : CheckT m Unit := do
+def check_subtype  [Monad m] (fuel : Nat) (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_context l r d )
+                           (t1 : ty l r d ) (t2 : ty l r d) : CheckT m Unit := do
     log s!"check subtype: {t1} <= {t2}"
     if t1 == t2 then pure () else
     match fuel with
@@ -219,9 +222,9 @@ def check_subtype  [Monad m] (fuel : Nat) (Phi : phi_context l) (Psi : psi_conte
 
 
 @[simp]
-def from_synth [Monad m] (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_context l d)
-          (t : ty l d) (exp : Option (ty l d)) :
-          CheckT m (ty l d) :=
+def from_synth [Monad m] (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_context l r d)
+          (t : ty l r d) (exp : Option (ty l r d)) :
+          CheckT m (ty l r d) :=
     match exp with
     | .none => pure t
     | .some t' => do
@@ -229,7 +232,7 @@ def from_synth [Monad m] (Phi : phi_context l) (Psi : psi_context l) (Delta : de
       pure t'
 
 @[simp]
-def to_data [Monad m] (fuel : Nat) (Delta : delta_context l d) (t : ty l d)
+def to_data [Monad m] (fuel : Nat) (Delta : delta_context l r d) (t : ty l r d)
   : CheckT m (Owl.label l) :=
     match fuel with
     | 0 => throw "to_data: out of fuel"
@@ -261,9 +264,9 @@ def to_data [Monad m] (fuel : Nat) (Delta : delta_context l d) (t : ty l d)
 -- If successful, it will return the synthesized type, and a proof that the input term has that type
 
 mutual
-def infer [Monad M] (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_context l d)
-          (Gamma : gamma_context l d m) (e : tm l d m) (exp : Option (ty l d)) :
-          CheckT M (ty l d) :=
+def infer [Monad M] (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_context l r d)
+          (Gamma : gamma_context l r d m) (e : tm l r d m) (exp : Option (ty l r  d)) :
+          CheckT M (ty l r  d) :=
       match e with
       | .mk stx v => do
         let t <- withSyntax stx $ inferX Phi Psi Delta Gamma v exp
@@ -271,9 +274,9 @@ def infer [Monad M] (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_c
         visit stx t
         return t
 
-def inferX [Monad M] (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_context l d)
-          (Gamma : gamma_context l d m) (e : tmX l d m) (exp : Option (ty l d)) :
-          CheckT M (ty l d) :=
+def inferX [Monad M] (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_context l r d)
+          (Gamma : gamma_context l r d m) (e : tmX l r d m) (exp : Option (ty l r  d)) :
+          CheckT M (ty l r  d) :=
   match e with
   | .var_tm x =>
       from_synth Phi Psi Delta (Gamma x) exp
@@ -377,14 +380,14 @@ def inferX [Monad M] (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_
     match <- infer Phi Psi Delta Gamma e .none with
     | .all t0 t => do
       check_subtype subtype_fuel Phi Psi Delta t' t0
-      let result_ty := subst_ty .var_label (cons t' .var_ty) t;
+      let result_ty := subst_ty .var_label id (cons t' .var_ty) t;
       from_synth Phi Psi Delta result_ty exp
     | _ => throw "tapp"
   | .pack t' e =>
     match exp with
     | .none => throw "pack: empty expected"
     | .some (.ex t0 t) => do
-      let substituted_type := subst_ty .var_label (cons t' .var_ty) t
+      let substituted_type := subst_ty .var_label id (cons t' .var_ty) t
       check_subtype subtype_fuel Phi Psi Delta t' t0
       let r <- infer Phi Psi Delta Gamma e (.some substituted_type)
       pure (.ex t0 t)
@@ -397,7 +400,7 @@ def inferX [Monad M] (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_
       | .ex t0 t => do
         let extended_delta := lift_delta (cons t0 Delta)
         let extended_gamma := cons t (lift_gamma_d Gamma)
-        let renamed_t' := ren_ty id shift exp_ty
+        let renamed_t' := ren_ty id id shift exp_ty
         let res <- infer Phi Psi extended_delta extended_gamma e' (.some renamed_t')
         pure exp_ty
       | _ => throw "unpack"
@@ -418,14 +421,14 @@ def inferX [Monad M] (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_
     | .none => do
       match <- infer Phi Psi Delta Gamma e .none with
       | .all_l cs lab t  => do
-        let result_ty := subst_ty (cons lab' .var_label) .var_ty t
+        let result_ty := subst_ty (cons lab' .var_label) id .var_ty t
         emit (.PhiEntails (vec.from_fn Phi) (.condition cs lab lab'))
         pure result_ty
       | _ => throw "lapp"
     | .some exp_ty => do
       match <- infer Phi Psi Delta Gamma e .none with
       | .all_l cs lab t => do
-        let result_ty := subst_ty (cons lab' .var_label) .var_ty t
+        let result_ty := subst_ty (cons lab' .var_label) id .var_ty t
         check_subtype subtype_fuel Phi Psi Delta result_ty exp_ty
         emit (.PhiEntails (vec.from_fn Phi) (.condition cs lab lab'))
         pure exp_ty
@@ -467,9 +470,9 @@ def delabTypeError : Unexpander
   | _ => set_option hygiene false in `(bad)
 
 
-def has_type_infer M [Monad M] (visit : forall l d, Owl.opaqueSyntax -> ty l d -> M Unit)
-   (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_context l d)
-    (Gamma : gamma_context l d m) (e : tm l d m) (exp : ty l d) : M (Result Prop (List SideCondition)) := do
+def has_type_infer M [Monad M] (visit : forall l r d, Owl.opaqueSyntax -> ty l r d -> M Unit)
+   (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_context l r d)
+    (Gamma : gamma_context l r d m) (e : tm l r d m) (exp : ty l r d) : M (Result Prop (List SideCondition)) := do
   match <- (infer Phi Psi Delta Gamma e (.some exp)) (CheckState.init visit (fun _ => pure ())) with
   | .ok (_, p) => pure $ .ok $ p.side_condition
   | .err e => pure $ .err $ TypeError e.1 e.2

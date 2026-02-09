@@ -38,7 +38,7 @@ instance : ToString binary where
   toString := binary.pretty
 
 
-def ty.pretty (t : ty l d) : String :=
+def ty.pretty (t : ty l r d ) : String :=
   match t with
   | .var_ty i => "X" ++ toString i.toNat
   | .Any => "Any"
@@ -58,5 +58,5 @@ def ty.pretty (t : ty l d) : String :=
   | .Sing b => "Sing(" ++ b.pretty ++ ")"
   | .default => "default"
 
-instance : ToString (ty l d) where
+instance : ToString (ty l r d ) where
   toString := ty.pretty

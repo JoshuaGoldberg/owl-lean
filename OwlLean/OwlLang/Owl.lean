@@ -126,22 +126,22 @@ inductive constr (n_label : Nat) : Type where
 | condition : cond_sym -> label n_label -> label n_label -> constr n_label
 deriving Repr, BEq
 
-inductive ty : Nat -> Nat-> Type where
-| var_ty : Fin n_ty -> ty n_label n_ty
-| Any : ty n_label n_ty
-| Unit : ty n_label n_ty
-| Data : label n_label -> ty n_label n_ty
-| Ref : ty n_label n_ty -> ty n_label n_ty
-| arr : ty n_label n_ty -> ty n_label n_ty -> ty n_label n_ty
-| prod : ty n_label n_ty -> ty n_label n_ty -> ty n_label n_ty
-| sum : ty n_label n_ty -> ty n_label n_ty -> ty n_label n_ty
-| all : ty n_label n_ty -> ty n_label (n_ty + 1) -> ty n_label n_ty
-| ex : ty n_label n_ty -> ty n_label (n_ty + 1) -> ty n_label n_ty
-| all_l : cond_sym -> label n_label -> ty (n_label + 1) n_ty -> ty n_label n_ty
-| t_if : label n_label -> ty n_label n_ty -> ty n_label n_ty -> ty n_label n_ty
-| Public : ty n_label n_ty
-| Sing : binary -> ty n_label n_ty
-| default : ty n_label n_ty
+inductive ty : Nat -> Nat -> Nat -> Type where
+| var_ty : Fin n_ty -> ty n_label n_ref n_ty
+| Any : ty n_label n_ref n_ty
+| Unit : ty n_label n_ref n_ty
+| Data : label n_label -> ty n_label n_ref n_ty
+| Ref : ty n_label n_ref n_ty -> ty n_label n_ref n_ty
+| arr : ty n_label n_ref n_ty -> ty n_label n_ref n_ty -> ty n_label n_ref n_ty
+| prod : ty n_label n_ref n_ty -> ty n_label n_ref n_ty -> ty n_label n_ref n_ty
+| sum : ty n_label n_ref n_ty -> ty n_label n_ref n_ty -> ty n_label n_ref n_ty
+| all : ty n_label n_ref n_ty -> ty n_label n_ref (n_ty + 1) -> ty n_label n_ref n_ty
+| ex : ty n_label n_ref n_ty -> ty n_label n_ref (n_ty + 1) -> ty n_label n_ref n_ty
+| all_l : cond_sym -> label n_label -> ty (n_label + 1) n_ref n_ty -> ty n_label n_ref n_ty
+| t_if : label n_label -> ty n_label n_ref n_ty -> ty n_label n_ref n_ty -> ty n_label n_ref n_ty
+| Public : ty n_label n_ref n_ty
+| Sing : binary -> ty n_label n_ref n_ty
+| default : ty n_label n_ref n_ty
 deriving Repr, BEq
 
 inductive Dist (a : Type) : Type where
@@ -150,46 +150,46 @@ inductive Dist (a : Type) : Type where
 
 
 mutual
-  inductive tm : Nat -> Nat -> Nat -> Type where
-   | mk : opaqueSyntax -> tmX l d m -> tm l d m
+  inductive tm : Nat -> Nat -> Nat -> Nat -> Type where
+   | mk : opaqueSyntax -> tmX l d m r -> tm l d m r
    deriving Repr
 
-inductive tmX : Nat -> Nat -> Nat -> Type where
-| var_tm : Fin n_tm -> tmX n_label n_ty n_tm
-| error : tmX n_label n_ty n_tm
-| skip : tmX n_label n_ty n_tm
-| bitstring : binary -> tmX n_label n_ty n_tm
-| loc : Nat -> tmX n_label n_ty n_tm
-| fixlam : String -> tm n_label n_ty ((n_tm + 1) + 1) -> tmX n_label n_ty n_tm
-| tlam : tm n_label (n_ty + 1) n_tm -> tmX n_label n_ty n_tm
-| l_lam : tm (n_label + 1) n_ty n_tm -> tmX n_label n_ty n_tm
-| Op : String -> tm n_label n_ty n_tm -> tm n_label n_ty n_tm -> tmX n_label n_ty n_tm
-| zero : tm n_label n_ty n_tm -> tmX n_label n_ty n_tm
-| app : tm n_label n_ty n_tm -> tm n_label n_ty n_tm -> tmX n_label n_ty n_tm
-| alloc : tm n_label n_ty n_tm -> tmX n_label n_ty n_tm
-| dealloc : tm n_label n_ty n_tm -> tmX n_label n_ty n_tm
-| assign : tm n_label n_ty n_tm -> tm n_label n_ty n_tm -> tmX n_label n_ty n_tm
-| tm_pair : tm n_label n_ty n_tm -> tm n_label n_ty n_tm -> tmX n_label n_ty n_tm
-| left_tm : tm n_label n_ty n_tm -> tmX n_label n_ty n_tm
-| right_tm : tm n_label n_ty n_tm -> tmX n_label n_ty n_tm
-| inl : tm n_label n_ty n_tm -> tmX n_label n_ty n_tm
-| inr {n_label n_ty n_tm} : tm n_label n_ty n_tm -> tmX n_label n_ty n_tm
+inductive tmX : Nat -> Nat -> Nat -> Nat -> Type where
+| var_tm : Fin n_tm -> tmX n_label n_ref n_ty n_tm
+| error : tmX n_label n_ref n_ty n_tm
+| skip : tmX n_label n_ref n_ty n_tm
+| bitstring : binary -> tmX n_label n_ref n_ty n_tm
+| loc : Nat -> tmX n_label n_ref n_ty n_tm
+| fixlam : String -> tm n_label n_ref n_ty ((n_tm + 1) + 1) -> tmX n_label n_ref n_ty n_tm
+| tlam : tm n_label n_ref (n_ty + 1) n_tm -> tmX n_label n_ref n_ty n_tm
+| l_lam : tm (n_label + 1) n_ref n_ty n_tm -> tmX n_label n_ref n_ty n_tm
+| Op : String -> tm n_label n_ref n_ty n_tm -> tm n_label n_ref n_ty n_tm -> tmX n_label n_ref n_ty n_tm
+| zero : tm n_label n_ref n_ty n_tm -> tmX n_label n_ref n_ty n_tm
+| app : tm n_label n_ref n_ty n_tm -> tm n_label n_ref n_ty n_tm -> tmX n_label n_ref n_ty n_tm
+| alloc : tm n_label n_ref n_ty n_tm -> tmX n_label n_ref n_ty n_tm
+| dealloc : tm n_label n_ref n_ty n_tm -> tmX n_label n_ref n_ty n_tm
+| assign : tm n_label n_ref n_ty n_tm -> tm n_label n_ref n_ty n_tm -> tmX n_label n_ref n_ty n_tm
+| tm_pair : tm n_label n_ref n_ty n_tm -> tm n_label n_ref n_ty n_tm -> tmX n_label n_ref n_ty n_tm
+| left_tm : tm n_label n_ref n_ty n_tm -> tmX n_label n_ref n_ty n_tm
+| right_tm : tm n_label n_ref n_ty n_tm -> tmX n_label n_ref n_ty n_tm
+| inl : tm n_label n_ref n_ty n_tm -> tmX n_label n_ref n_ty n_tm
+| inr {n_label n_ref n_ty n_tm} : tm n_label n_ref n_ty n_tm -> tmX n_label n_ref n_ty n_tm
 | case :
-    tm n_label n_ty n_tm ->
-    tm n_label n_ty (n_tm + 1) -> tm n_label n_ty (n_tm + 1) -> tmX n_label n_ty n_tm
-| tapp : tm n_label n_ty n_tm -> ty n_label n_ty -> tmX n_label n_ty n_tm
-| lapp : tm n_label n_ty n_tm -> label n_label -> tmX n_label n_ty n_tm
-| pack : ty n_label n_ty -> tm n_label n_ty n_tm -> tmX n_label n_ty n_tm
-| unpack : tm n_label n_ty n_tm -> tm n_label (n_ty + 1) (n_tm + 1) -> tmX n_label n_ty n_tm
+    tm n_label n_ref n_ty n_tm ->
+    tm n_label n_ref n_ty (n_tm + 1) -> tm n_label n_ref n_ty (n_tm + 1) -> tmX n_label n_ref n_ty n_tm
+| tapp : tm n_label n_ref n_ty n_tm -> ty n_label n_ref n_ty -> tmX n_label n_ref n_ty n_tm
+| lapp : tm n_label n_ref n_ty n_tm -> label n_label -> tmX n_label n_ref n_ty n_tm
+| pack : ty n_label n_ref n_ty -> tm n_label n_ref n_ty n_tm -> tmX n_label n_ref n_ty n_tm
+| unpack : tm n_label n_ref n_ty n_tm -> tm n_label n_ref (n_ty + 1) (n_tm + 1) -> tmX n_label n_ref n_ty n_tm
 | if_tm :
-    tm n_label n_ty n_tm ->
-    tm n_label n_ty n_tm -> tm n_label n_ty n_tm -> tmX n_label n_ty n_tm
+    tm n_label n_ref n_ty n_tm ->
+    tm n_label n_ref n_ty n_tm -> tm n_label n_ref n_ty n_tm -> tmX n_label n_ref n_ty n_tm
 | if_c :
-    label n_label -> tm n_label n_ty n_tm -> tm n_label n_ty n_tm -> tmX n_label n_ty n_tm
-| sync : tm n_label n_ty n_tm -> tmX n_label n_ty n_tm
-| corr_case : label n_label -> tm n_label n_ty n_tm -> tmX n_label n_ty n_tm
-| annot : tm n_label n_ty n_tm -> ty n_label n_ty -> tmX n_label n_ty n_tm
-| default : tmX n_label n_ty n_tm
+    label n_label -> tm n_label n_ref n_ty n_tm -> tm n_label n_ref n_ty n_tm -> tmX n_label n_ref n_ty n_tm
+| sync : tm n_label n_ref n_ty n_tm -> tmX n_label n_ref n_ty n_tm
+| corr_case : label n_label -> tm n_label n_ref n_ty n_tm -> tmX n_label n_ref n_ty n_tm
+| annot : tm n_label n_ref n_ty n_tm -> ty n_label n_ref n_ty -> tmX n_label n_ref n_ty n_tm
+| default : tmX n_label n_ref n_ty n_tm
 deriving Repr
 
 end
@@ -203,12 +203,12 @@ deriving instance Lean.ToExpr for Owl.constr
 deriving instance Lean.ToExpr for Owl.ty
 
 @[always_inline]
-abbrev tm.get (t : tm l d m) : tmX l d m :=
+abbrev tm.get (t : tm l d m r) : tmX l d m r :=
   match t with
   | .mk _ v => v
 
 @[simp]
-def tm.mkD (t : tmX l d m) : tm l d m :=
+def tm.mkD (t : tmX l d m r) : tm l d m r :=
   let stx := Lean.Syntax.missing
   tm.mk (.mk stx) t
 
@@ -279,33 +279,35 @@ def ren_corruption
 
 @[simp]
 def ren_ty
-(xi_label : Fin m_label -> Fin n_label) (xi_ty : Fin m_ty -> Fin n_ty)
-(s : ty m_label m_ty) : ty n_label n_ty :=
+(xi_label : Fin m_label -> Fin n_label)
+(xi_ref : Fin m_ref -> Fin n_ref )
+(xi_ty : Fin m_ty -> Fin n_ty)
+(s : ty m_label m_ref m_ty )  : ty n_label n_ref n_ty :=
   match s with
   | .Sing s => .Sing s
   | .var_ty s0 => .var_ty (xi_ty s0)
   | .Any => .Any
   | .Unit => .Unit
   | .Data s0 => .Data (ren_label xi_label s0)
-  | .Ref s0 => .Ref (ren_ty xi_label xi_ty s0)
+  | .Ref s0 => .Ref (ren_ty xi_label xi_ref xi_ty s0)
   | .arr s0 s1 =>
-      .arr (ren_ty xi_label xi_ty s0) (ren_ty xi_label xi_ty s1)
+      .arr (ren_ty xi_label xi_ref xi_ty s0) (ren_ty xi_label xi_ref xi_ty s1)
   | .prod s0 s1 =>
-      .prod (ren_ty xi_label xi_ty s0) (ren_ty xi_label xi_ty s1)
+      .prod (ren_ty xi_label xi_ref xi_ty s0) (ren_ty xi_label xi_ref xi_ty s1)
   | .sum s0 s1 =>
-      .sum (ren_ty xi_label xi_ty s0) (ren_ty xi_label xi_ty s1)
+      .sum (ren_ty xi_label xi_ref xi_ty s0) (ren_ty xi_label xi_ref xi_ty s1)
   | .all s0 s1 =>
-      .all (ren_ty xi_label xi_ty s0)
-        (ren_ty (upRen_ty_label xi_label) (upRen_ty_ty xi_ty) s1)
+      .all (ren_ty xi_label xi_ref xi_ty s0)
+        (ren_ty (upRen_ty_label xi_label) xi_ref (upRen_ty_ty xi_ty) s1)
   | .ex s0 s1 =>
-      .ex (ren_ty xi_label xi_ty s0)
-        (ren_ty (upRen_ty_label xi_label) (upRen_ty_ty xi_ty) s1)
+      .ex (ren_ty xi_label xi_ref xi_ty s0)
+        (ren_ty (upRen_ty_label xi_label) xi_ref (upRen_ty_ty xi_ty) s1)
   | .all_l s0 s1 s2 =>
       .all_l s0 (ren_label xi_label s1)
-        (ren_ty (upRen_label_label xi_label) (upRen_label_ty xi_ty) s2)
+        (ren_ty (upRen_label_label xi_label) xi_ref (upRen_label_ty xi_ty) s2)
   | .t_if s0 s1 s2 =>
-      .t_if (ren_label xi_label s0) (ren_ty xi_label xi_ty s1)
-        (ren_ty xi_label xi_ty s2)
+      .t_if (ren_label xi_label s0) (ren_ty xi_label xi_ref xi_ty s1)
+        (ren_ty xi_label xi_ref xi_ty s2)
   | .Public => .Public
   | .default => .default
 
@@ -335,17 +337,25 @@ def upRen_label_tm (xi : Fin m -> Fin n) :
 mutual
 
 def ren_tm
-(xi_label : Fin m_label -> Fin n_label) (xi_ty : Fin m_ty -> Fin n_ty)
-(xi_tm : Fin m_tm -> Fin n_tm) (s : tm m_label m_ty m_tm) :
-tm n_label n_ty n_tm :=
+(xi_label : Fin m_label -> Fin n_label)
+(xi_ref : Fin m_ref -> Fin n_ref)
+(xi_ty : Fin m_ty -> Fin n_ty)
+(xi_tm : Fin m_tm -> Fin n_tm)
+
+(s : tm m_label m_ref m_ty m_tm ) :
+tm n_label n_ref n_ty n_tm :=
   match s with
-  | .mk stx inner => .mk stx (ren_tmX xi_label xi_ty xi_tm inner)
+  | .mk stx inner => .mk stx (ren_tmX xi_label xi_ref xi_ty xi_tm inner)
 
 
 def ren_tmX
-(xi_label : Fin m_label -> Fin n_label) (xi_ty : Fin m_ty -> Fin n_ty)
-(xi_tm : Fin m_tm -> Fin n_tm) (s : tmX m_label m_ty m_tm) :
-tmX n_label n_ty n_tm :=
+(xi_label : Fin m_label -> Fin n_label)
+(xi_ref : Fin m_ref -> Fin n_ref)
+
+(xi_ty : Fin m_ty -> Fin n_ty)
+(xi_tm : Fin m_tm -> Fin n_tm)
+(s : tmX m_label m_ref m_ty m_tm ) :
+tmX n_label n_ref n_ty n_tm :=
   match s with
   | .var_tm s0 => .var_tm (xi_tm s0)
   | .error => .error
@@ -355,65 +365,68 @@ tmX n_label n_ty n_tm :=
   | .fixlam nm s0 =>
       .fixlam nm
         (ren_tm (upRen_tm_label (upRen_tm_label xi_label))
+           xi_ref
            (upRen_tm_ty (upRen_tm_ty xi_ty))
            (upRen_tm_tm (upRen_tm_tm xi_tm)) s0)
   | .tlam s0 =>
       .tlam
-        (ren_tm (upRen_ty_label xi_label) (upRen_ty_ty xi_ty)
+        (ren_tm (upRen_ty_label xi_label) xi_ref
+           (upRen_ty_ty xi_ty)
            (upRen_ty_tm xi_tm) s0)
   | .l_lam s0 =>
       .l_lam
-        (ren_tm (upRen_label_label xi_label) (upRen_label_ty xi_ty)
+        (ren_tm (upRen_label_label xi_label) xi_ref
+           (upRen_label_ty xi_ty)
            (upRen_label_tm xi_tm) s0)
   | .Op s0 s1 s2 =>
-      .Op s0 (ren_tm xi_label xi_ty xi_tm s1)
-        (ren_tm xi_label xi_ty xi_tm s2)
-  | .zero s0 => .zero (ren_tm xi_label xi_ty xi_tm s0)
+      .Op s0 (ren_tm xi_label xi_ref xi_ty xi_tm s1)
+        (ren_tm xi_label xi_ref xi_ty xi_tm s2)
+  | .zero s0 => .zero (ren_tm xi_label xi_ref xi_ty xi_tm s0)
   | .app s0 s1 =>
-     .app (ren_tm xi_label xi_ty xi_tm s0)
-        (ren_tm xi_label xi_ty xi_tm s1)
+     .app (ren_tm xi_label xi_ref xi_ty xi_tm s0)
+        (ren_tm xi_label xi_ref xi_ty xi_tm s1)
   | .alloc s0 =>
-      .alloc (ren_tm xi_label xi_ty xi_tm s0)
+      .alloc (ren_tm xi_label xi_ref xi_ty xi_tm s0)
   | .dealloc s0 =>
-      .dealloc (ren_tm xi_label xi_ty xi_tm s0)
+      .dealloc (ren_tm xi_label xi_ref xi_ty xi_tm s0)
   | .assign s0 s1 =>
-      .assign (ren_tm xi_label xi_ty xi_tm s0)
-        (ren_tm xi_label xi_ty xi_tm s1)
+      .assign (ren_tm xi_label xi_ref xi_ty xi_tm s0)
+        (ren_tm xi_label xi_ref xi_ty xi_tm s1)
   | .tm_pair s0 s1 =>
-      .tm_pair (ren_tm xi_label xi_ty xi_tm s0)
-        (ren_tm xi_label xi_ty xi_tm s1)
+      .tm_pair (ren_tm xi_label xi_ref xi_ty xi_tm s0)
+        (ren_tm xi_label xi_ref xi_ty xi_tm s1)
   | .left_tm s0 =>
-      .left_tm (ren_tm xi_label xi_ty xi_tm s0)
+      .left_tm (ren_tm xi_label xi_ref xi_ty xi_tm s0)
   | .right_tm s0 =>
-      .right_tm (ren_tm xi_label xi_ty xi_tm s0)
-  | .inl s0 => .inl (ren_tm xi_label xi_ty xi_tm s0)
-  | .inr s0 => .inr (ren_tm xi_label xi_ty xi_tm s0)
+      .right_tm (ren_tm xi_label xi_ref xi_ty xi_tm s0)
+  | .inl s0 => .inl (ren_tm xi_label xi_ref xi_ty xi_tm s0)
+  | .inr s0 => .inr (ren_tm xi_label xi_ref xi_ty xi_tm s0)
   | .case s0 s1 s2 =>
-      .case (ren_tm xi_label xi_ty xi_tm s0)
-        (ren_tm (upRen_tm_label xi_label) (upRen_tm_ty xi_ty)
+      .case (ren_tm xi_label xi_ref xi_ty xi_tm s0)
+        (ren_tm (upRen_tm_label xi_label) xi_ref (upRen_tm_ty xi_ty)
            (upRen_tm_tm xi_tm) s1)
-        (ren_tm (upRen_tm_label xi_label) (upRen_tm_ty xi_ty)
+        (ren_tm (upRen_tm_label xi_label) xi_ref (upRen_tm_ty xi_ty)
            (upRen_tm_tm xi_tm) s2)
   | .tapp s0 s1 =>
-      .tapp (ren_tm xi_label xi_ty xi_tm s0)
-        (ren_ty xi_label xi_ty s1)
+      .tapp (ren_tm xi_label xi_ref xi_ty xi_tm s0)
+        (ren_ty xi_label xi_ref xi_ty s1)
   | .lapp s0 s1 =>
-      .lapp (ren_tm xi_label xi_ty xi_tm s0)
+      .lapp (ren_tm xi_label xi_ref xi_ty xi_tm s0)
         (ren_label xi_label s1)
-  | .pack s s0 => .pack (ren_ty xi_label xi_ty s) (ren_tm xi_label xi_ty xi_tm s0)
+  | .pack s s0 => .pack (ren_ty xi_label xi_ref xi_ty s) (ren_tm xi_label xi_ref xi_ty xi_tm s0)
   | .unpack s0 s1 =>
-      .unpack (ren_tm xi_label xi_ty xi_tm s0)
-        (ren_tm (upRen_tm_label xi_label) (upRen_tm_ty (upRen_ty_ty xi_ty))
+      .unpack (ren_tm xi_label xi_ref xi_ty xi_tm s0)
+        (ren_tm (upRen_tm_label xi_label) xi_ref (upRen_tm_ty (upRen_ty_ty xi_ty))
            (upRen_tm_tm xi_tm) s1)
   | .if_tm s0 s1 s2 =>
-      .if_tm (ren_tm xi_label xi_ty xi_tm s0)
-        (ren_tm xi_label xi_ty xi_tm s1) (ren_tm xi_label xi_ty xi_tm s2)
+      .if_tm (ren_tm xi_label xi_ref xi_ty xi_tm s0)
+        (ren_tm xi_label xi_ref xi_ty xi_tm s1) (ren_tm xi_label xi_ref xi_ty xi_tm s2)
   | .if_c s0 s1 s2 =>
       .if_c (ren_label xi_label s0)
-        (ren_tm xi_label xi_ty xi_tm s1) (ren_tm xi_label xi_ty xi_tm s2)
-  | .sync s0 => .sync (ren_tm xi_label xi_ty xi_tm s0)
-  | .corr_case lab e => .corr_case (ren_label xi_label lab) (ren_tm xi_label xi_ty xi_tm e)
-  | .annot e t => .annot (ren_tm xi_label xi_ty xi_tm e) (ren_ty xi_label xi_ty t)
+        (ren_tm xi_label xi_ref xi_ty xi_tm s1) (ren_tm xi_label xi_ref xi_ty xi_tm s2)
+  | .sync s0 => .sync (ren_tm xi_label xi_ref xi_ty xi_tm s0)
+  | .corr_case lab e => .corr_case (ren_label xi_label lab) (ren_tm xi_label xi_ref xi_ty xi_tm e)
+  | .annot e t => .annot (ren_tm xi_label xi_ref xi_ty xi_tm e) (ren_ty xi_label xi_ref xi_ty t)
   | .default => .default
 end
 
@@ -454,9 +467,9 @@ def up_ty_label (sigma : Fin m -> label n_label)
 
 @[simp]
 def up_ty_ty
-  (sigma : Fin m -> ty n_label n_ty) : Fin (m + 1) -> ty n_label (n_ty + 1) :=
+  (sigma : Fin m -> ty n_label n_ref n_ty ) : Fin (m + 1) -> ty n_label n_ref (n_ty + 1) :=
     (cons (.var_ty var_zero)
-         (funcomp (ren_ty id shift) sigma))
+         (funcomp (ren_ty id id shift ) sigma))
 
 @[simp]
 def up_label_label
@@ -466,8 +479,8 @@ def up_label_label
 
 @[simp]
 def up_label_ty
-  (sigma : Fin m -> ty n_label n_ty) : Fin m -> ty (n_label + 1) n_ty :=
-    (funcomp (ren_ty shift id) sigma)
+  (sigma : Fin m -> ty n_label n_ty n_ref) : Fin m -> ty (n_label + 1) n_ty n_ref :=
+    (funcomp (ren_ty shift id id) sigma)
 
 @[simp]
 def up_tm_label
@@ -477,59 +490,62 @@ def up_tm_label
 
 @[simp]
 def up_tm_ty
-  (sigma : Fin m -> ty n_label n_ty) : Fin m -> ty n_label n_ty :=
-  (funcomp (ren_ty id id) sigma)
+  (sigma : Fin m -> ty n_label n_ty n_ref) : Fin m -> ty n_label n_ty n_ref :=
+  (funcomp (ren_ty id id id) sigma)
 
 @[simp]
 def up_tm_tm
-  (sigma : Fin m -> tm n_label n_ty n_tm) :
-  Fin (m + 1) -> tm n_label n_ty (n_tm + 1) :=
+  (sigma : Fin m -> tm n_label n_ref n_ty n_tm ) :
+  Fin (m + 1) -> tm n_label n_ref n_ty (n_tm + 1) :=
   (cons (tm.mkD (.var_tm var_zero))
-    (funcomp (ren_tm id id shift) sigma))
+    (funcomp (ren_tm id id id shift ) sigma))
 
 @[simp]
 def up_ty_tm
-  (sigma : Fin m -> tm n_label n_ty n_tm) : Fin m -> tm n_label (n_ty + 1) n_tm :=
-  (funcomp (ren_tm id shift id) sigma)
+  (sigma : Fin m -> tm n_label n_ref n_ty n_tm ) : Fin m -> tm n_label n_ref (n_ty + 1) n_tm :=
+  (funcomp (ren_tm id id shift id) sigma)
+
 
 @[simp]
 def up_label_tm
-  (sigma : Fin m -> tm n_label n_ty n_tm) : Fin m -> tm (n_label + 1) n_ty n_tm :=
-  (funcomp (ren_tm shift id id) sigma)
+  (sigma : Fin m -> tm n_label n_ty n_tm n_ref) : Fin m -> tm (n_label + 1) n_ty n_tm n_ref :=
+  (funcomp (ren_tm shift id id id) sigma)
 
 @[simp]
 def subst_ty
 (sigma_label : Fin m_label -> label n_label)
-(sigma_ty : Fin m_ty -> ty n_label n_ty) (s : ty m_label m_ty) :
-ty n_label n_ty :=
+(sigma_ref : Fin m_ref -> Fin n_ref)
+(sigma_ty : Fin m_ty -> ty n_label n_ref n_ty )
+(s : ty m_label m_ref m_ty ) :
+ty n_label n_ref n_ty :=
   match s with
   | .Sing s => .Sing s
   | .var_ty s0 => sigma_ty s0
   | .Any => .Any
   | .Unit => .Unit
   | .Data s0 => .Data (subst_label sigma_label s0)
-  | .Ref s0 => .Ref (subst_ty sigma_label sigma_ty s0)
+  | .Ref s0 => .Ref (subst_ty sigma_label sigma_ref sigma_ty s0)
   | .arr s0 s1 =>
-      .arr (subst_ty sigma_label sigma_ty s0)
-        (subst_ty sigma_label sigma_ty s1)
+      .arr (subst_ty sigma_label sigma_ref sigma_ty s0)
+        (subst_ty sigma_label sigma_ref sigma_ty s1)
   | .prod s0 s1 =>
-      .prod (subst_ty sigma_label sigma_ty s0)
-        (subst_ty sigma_label sigma_ty s1)
+      .prod (subst_ty sigma_label sigma_ref sigma_ty s0)
+        (subst_ty sigma_label sigma_ref sigma_ty s1)
   | .sum s0 s1 =>
-      .sum (subst_ty sigma_label sigma_ty s0)
-        (subst_ty sigma_label sigma_ty s1)
+      .sum (subst_ty sigma_label sigma_ref sigma_ty s0)
+        (subst_ty sigma_label sigma_ref sigma_ty s1)
   | .all s0 s1 =>
-      .all (subst_ty sigma_label sigma_ty s0)
-        (subst_ty (up_ty_label sigma_label) (up_ty_ty sigma_ty) s1)
+      .all (subst_ty sigma_label sigma_ref sigma_ty s0)
+        (subst_ty (up_ty_label sigma_label) sigma_ref (up_ty_ty sigma_ty) s1)
   | .ex s0 s1 =>
-      .ex (subst_ty sigma_label sigma_ty s0)
-        (subst_ty (up_ty_label sigma_label) (up_ty_ty sigma_ty) s1)
+      .ex (subst_ty sigma_label sigma_ref sigma_ty s0)
+        (subst_ty (up_ty_label sigma_label) sigma_ref (up_ty_ty sigma_ty) s1)
   | .all_l s0 s1 s2 =>
       .all_l s0 (subst_label sigma_label s1)
-        (subst_ty (up_label_label sigma_label) (up_label_ty sigma_ty) s2)
+        (subst_ty (up_label_label sigma_label) sigma_ref (up_label_ty sigma_ty) s2)
   | .t_if s0 s1 s2 =>
       .t_if (subst_label sigma_label s0)
-        (subst_ty sigma_label sigma_ty s1) (subst_ty sigma_label sigma_ty s2)
+        (subst_ty sigma_label sigma_ref sigma_ty s1) (subst_ty sigma_label sigma_ref sigma_ty s2)
   | .Public => .Public
   | .default => .default
 
@@ -538,18 +554,20 @@ mutual
   @[simp]
   def subst_tm
   (sigma_label : Fin m_label -> label n_label)
-  (sigma_ty : Fin m_ty -> ty n_label n_ty)
-  (sigma_tm : Fin m_tm -> tm n_label n_ty n_tm) (s : tm m_label m_ty m_tm)
-  : tm n_label n_ty n_tm :=
+  (sigma_ref : Fin m_ref -> Fin n_ref)
+  (sigma_ty : Fin m_ty -> ty n_label n_ref n_ty )
+  (sigma_tm : Fin m_tm -> tm n_label n_ref n_ty n_tm ) (s : tm m_label m_ref m_ty m_tm )
+  : tm n_label n_ref n_ty n_tm :=
     match s with
-    | .mk stx v => .mk stx (subst_tmX sigma_label sigma_ty sigma_tm v)
+    | .mk stx v => .mk stx (subst_tmX sigma_label sigma_ref sigma_ty sigma_tm v)
 
 @[simp]
 def subst_tmX
 (sigma_label : Fin m_label -> label n_label)
-(sigma_ty : Fin m_ty -> ty n_label n_ty)
-(sigma_tm : Fin m_tm -> tm n_label n_ty n_tm) (s : tmX m_label m_ty m_tm)
-: tmX n_label n_ty n_tm :=
+(sigma_ref : Fin m_ref -> Fin n_ref)
+(sigma_ty : Fin m_ty -> ty n_label n_ref n_ty )
+(sigma_tm : Fin m_tm -> tm n_label n_ref n_ty n_tm ) (s : tmX m_label m_ref m_ty m_tm )
+: tmX n_label n_ref n_ty n_tm :=
   match s with
   | .var_tm s0 => (sigma_tm s0).get
   | .error => .error
@@ -558,77 +576,77 @@ def subst_tmX
   | .loc s0 => .loc s0
   | .fixlam nm s0 =>
       .fixlam nm
-        (subst_tm (up_tm_label (up_tm_label sigma_label))
+        (subst_tm (up_tm_label (up_tm_label sigma_label)) sigma_ref
            (up_tm_ty (up_tm_ty sigma_ty)) (up_tm_tm (up_tm_tm sigma_tm)) s0)
   | .tlam s0 =>
       .tlam
-        (subst_tm (up_ty_label sigma_label) (up_ty_ty sigma_ty)
+        (subst_tm (up_ty_label sigma_label) sigma_ref (up_ty_ty sigma_ty)
            (up_ty_tm sigma_tm) s0)
   | .l_lam s0 =>
       .l_lam
-        (subst_tm (up_label_label sigma_label) (up_label_ty sigma_ty)
+        (subst_tm (up_label_label sigma_label) sigma_ref  (up_label_ty sigma_ty)
            (up_label_tm sigma_tm) s0)
   | .Op s0 s1 s2 =>
-      .Op s0 (subst_tm sigma_label sigma_ty sigma_tm s1)
-        (subst_tm sigma_label sigma_ty sigma_tm s2)
+      .Op s0 (subst_tm sigma_label sigma_ref sigma_ty sigma_tm s1)
+        (subst_tm sigma_label sigma_ref sigma_ty sigma_tm s2)
   | .zero s0 =>
-      .zero (subst_tm sigma_label sigma_ty sigma_tm s0)
+      .zero (subst_tm sigma_label sigma_ref sigma_ty sigma_tm s0)
   | .app s0 s1 =>
-      .app (subst_tm sigma_label sigma_ty sigma_tm s0)
-        (subst_tm sigma_label sigma_ty sigma_tm s1)
+      .app (subst_tm sigma_label sigma_ref sigma_ty sigma_tm s0)
+        (subst_tm sigma_label sigma_ref sigma_ty sigma_tm s1)
   | .alloc s0 =>
-      .alloc (subst_tm sigma_label sigma_ty sigma_tm s0)
+      .alloc (subst_tm sigma_label sigma_ref sigma_ty sigma_tm s0)
   | .dealloc s0 =>
-      .dealloc (subst_tm sigma_label sigma_ty sigma_tm s0)
+      .dealloc (subst_tm sigma_label sigma_ref sigma_ty sigma_tm s0)
   | .assign s0 s1 =>
-      .assign (subst_tm sigma_label sigma_ty sigma_tm s0)
-        (subst_tm sigma_label sigma_ty sigma_tm s1)
+      .assign (subst_tm sigma_label sigma_ref sigma_ty sigma_tm s0)
+        (subst_tm sigma_label sigma_ref sigma_ty sigma_tm s1)
   | .tm_pair s0 s1 =>
-      .tm_pair (subst_tm sigma_label sigma_ty sigma_tm s0)
-        (subst_tm sigma_label sigma_ty sigma_tm s1)
+      .tm_pair (subst_tm sigma_label sigma_ref sigma_ty sigma_tm s0)
+        (subst_tm sigma_label sigma_ref sigma_ty sigma_tm s1)
   | .left_tm s0 =>
-      .left_tm (subst_tm sigma_label sigma_ty sigma_tm s0)
+      .left_tm (subst_tm sigma_label sigma_ref sigma_ty sigma_tm s0)
   | .right_tm s0 =>
-      .right_tm (subst_tm sigma_label sigma_ty sigma_tm s0)
+      .right_tm (subst_tm sigma_label sigma_ref sigma_ty sigma_tm s0)
   | .inl s0 =>
-      .inl (subst_tm sigma_label sigma_ty sigma_tm s0)
+      .inl (subst_tm sigma_label sigma_ref sigma_ty sigma_tm s0)
   | .inr s0 =>
-      .inr (subst_tm sigma_label sigma_ty sigma_tm s0)
+      .inr (subst_tm sigma_label sigma_ref sigma_ty sigma_tm s0)
   | .case s0 s1 s2 =>
-      .case (subst_tm sigma_label sigma_ty sigma_tm s0)
-        (subst_tm (up_tm_label sigma_label) (up_tm_ty sigma_ty)
+      .case (subst_tm sigma_label sigma_ref sigma_ty sigma_tm s0)
+        (subst_tm (up_tm_label sigma_label) sigma_ref (up_tm_ty sigma_ty)
            (up_tm_tm sigma_tm) s1)
-        (subst_tm (up_tm_label sigma_label) (up_tm_ty sigma_ty)
+        (subst_tm (up_tm_label sigma_label) sigma_ref (up_tm_ty sigma_ty)
            (up_tm_tm sigma_tm) s2)
   | .tapp s0 s1 =>
-      .tapp (subst_tm sigma_label sigma_ty sigma_tm s0)
-        (subst_ty sigma_label sigma_ty s1)
+      .tapp (subst_tm sigma_label sigma_ref sigma_ty sigma_tm s0)
+        (subst_ty sigma_label sigma_ref sigma_ty s1)
   | .lapp s0 s1 =>
-      .lapp (subst_tm sigma_label sigma_ty sigma_tm s0)
+      .lapp (subst_tm sigma_label sigma_ref sigma_ty sigma_tm s0)
         (subst_label sigma_label s1)
   | .pack s0 s1 =>
-      .pack (subst_ty sigma_label sigma_ty s0)
-        (subst_tm sigma_label sigma_ty sigma_tm s1)
+      .pack (subst_ty sigma_label sigma_ref sigma_ty s0)
+        (subst_tm sigma_label sigma_ref sigma_ty sigma_tm s1)
   | .unpack s0 s1 =>
-      .unpack (subst_tm sigma_label sigma_ty sigma_tm s0)
-        (subst_tm (up_tm_label (up_ty_label sigma_label))
+      .unpack (subst_tm sigma_label sigma_ref sigma_ty sigma_tm s0)
+        (subst_tm (up_tm_label (up_ty_label sigma_label)) sigma_ref
            (up_tm_ty (up_ty_ty sigma_ty)) (up_tm_tm (up_ty_tm sigma_tm)) s1)
   | .if_tm s0 s1 s2 =>
-      .if_tm (subst_tm sigma_label sigma_ty sigma_tm s0)
-        (subst_tm sigma_label sigma_ty sigma_tm s1)
-        (subst_tm sigma_label sigma_ty sigma_tm s2)
+      .if_tm (subst_tm sigma_label sigma_ref sigma_ty sigma_tm s0)
+        (subst_tm sigma_label sigma_ref sigma_ty sigma_tm s1)
+        (subst_tm sigma_label sigma_ref sigma_ty sigma_tm s2)
   | .if_c s0 s1 s2 =>
       .if_c (subst_label sigma_label s0)
-        (subst_tm sigma_label sigma_ty sigma_tm s1)
-        (subst_tm sigma_label sigma_ty sigma_tm s2)
+        (subst_tm sigma_label sigma_ref sigma_ty sigma_tm s1)
+        (subst_tm sigma_label sigma_ref sigma_ty sigma_tm s2)
   | .sync s0 =>
-      .sync (subst_tm sigma_label sigma_ty sigma_tm s0)
+      .sync (subst_tm sigma_label sigma_ref sigma_ty sigma_tm s0)
   | .corr_case s0 s =>
       .corr_case (subst_label sigma_label s0)
-        (subst_tm sigma_label sigma_ty sigma_tm s)
+        (subst_tm sigma_label sigma_ref sigma_ty sigma_tm s)
   | .annot s0 s1 =>
-      .annot (subst_tm sigma_label sigma_ty sigma_tm s0)
-        (subst_ty sigma_label sigma_ty s1)
+      .annot (subst_tm sigma_label sigma_ref sigma_ty sigma_tm s0)
+        (subst_ty sigma_label sigma_ref sigma_ty s1)
   | .default => .default
 end
 
