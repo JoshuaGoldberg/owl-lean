@@ -191,14 +191,14 @@ syntax ident : owl_tm
 syntax num : owl_tm
 syntax "error" : owl_tm
 syntax "()" : owl_tm
-syntax "[" owl_binary "]" : owl_tm
+syntax owl_binary : owl_tm
 syntax "fix" ident "(" ident ")" owl_tm : owl_tm
 syntax "Λ" owl_type "." owl_tm : owl_tm
 syntax "Λβ" owl_label "." owl_tm : owl_tm
 syntax "⟨" owl_tm "," owl_tm "⟩" : owl_tm
 syntax "⟨" term "⟩" "(" owl_tm "," owl_tm ")" : owl_tm -- Op case
 syntax "zero" owl_tm : owl_tm
-syntax owl_tm "[" owl_tm "]" : owl_tm
+syntax owl_tm owl_tm : owl_tm
 syntax "alloc" owl_tm : owl_tm
 syntax "!" owl_tm : owl_tm
 syntax owl_tm ":=" owl_tm : owl_tm
@@ -207,8 +207,8 @@ syntax "π2" owl_tm : owl_tm
 syntax "ı1" owl_tm : owl_tm
 syntax "ı2" owl_tm : owl_tm
 syntax "case" owl_tm "in" "|" "inl" owl_tm "=>" owl_tm "|" "inr" owl_tm "=>" owl_tm : owl_tm
-syntax owl_tm "[[" owl_type "]]" : owl_tm
-syntax owl_tm "[[[" owl_label "]]]" : owl_tm
+syntax owl_tm "[" owl_type "]" : owl_tm
+syntax owl_tm "⟨" owl_label "⟩" : owl_tm
 syntax "pack" "(" owl_type "," owl_tm ")" : owl_tm
 syntax "unpack" owl_tm "as" "(" ident "," ident ")" "in" owl_tm : owl_tm
 syntax "if" owl_tm "then" owl_tm "else" owl_tm : owl_tm
@@ -254,7 +254,7 @@ partial def elabTmX : Syntax → TermElabM Expr
     mkAppM ``SExprX.loc #[mkNatLit n.getNat]
   | `(owl_tm| error) => mkAppM ``SExprX.error #[]
   | `(owl_tm| ()) => mkAppM ``SExprX.skip #[]
-  | `(owl_tm| [ $b:owl_binary ] ) => do
+  | `(owl_tm| $b:owl_binary ) => do
     let elab_b <- elabBinary b
     mkAppM ``SExprX.bitstring #[elab_b]
   | `(owl_tm| fix $f:ident ( $id:ident ) $e:owl_tm) => do
@@ -287,7 +287,7 @@ partial def elabTmX : Syntax → TermElabM Expr
   | `(owl_tm| zero $e:owl_tm) => do
     let elab_e <- elabTm e
     mkAppM ``SExprX.zero #[elab_e]
-  | `(owl_tm| $e1:owl_tm [ $e2:owl_tm ]) => do
+  | `(owl_tm| $e1:owl_tm $e2:owl_tm) => do
     let elab_e1 <- elabTm e1
     let elab_e2 <- elabTm e2
     mkAppM ``SExprX.app #[elab_e1, elab_e2]
@@ -318,11 +318,11 @@ partial def elabTmX : Syntax → TermElabM Expr
     let elab_e2 <- elabTm e2
     let elab_e3 <- elabTm e3
     mkAppM ``SExprX.case #[elab_e1, mkStrLit id1.getId.toString, elab_e2, mkStrLit id2.getId.toString, elab_e3]
-  | `(owl_tm| $e:owl_tm [[ $t:owl_type ]]) => do
+  | `(owl_tm| $e:owl_tm [ $t:owl_type ]) => do
     let elab_e <- elabTm e
     let elab_t <- elabType t
     mkAppM ``SExprX.tapp #[elab_e, elab_t]
-  | `(owl_tm| $e:owl_tm [[[ $l:owl_label ]]]) => do
+  | `(owl_tm| $e:owl_tm ⟨ $l:owl_label ⟩) => do
     let elab_e <- elabTm e
     let elab_l <- elabLabel l
     mkAppM ``SExprX.lapp #[elab_e, elab_l]
@@ -481,7 +481,7 @@ partial def elabTmX_closed : Syntax → TermElabM Expr
     mkAppM ``SExprX.loc #[mkNatLit n.getNat]
   | `(owl_tm| error) => mkAppM ``SExprX.error #[]
   | `(owl_tm| ()) => mkAppM ``SExprX.skip #[]
-  | `(owl_tm| [ $b:owl_binary ] ) => do
+  | `(owl_tm| $b:owl_binary ) => do
     let elab_b <- elabBinary b
     mkAppM ``SExprX.bitstring #[elab_b]
   | `(owl_tm| fix $f:ident ( $id:ident ) $e:owl_tm) => do
@@ -506,7 +506,7 @@ partial def elabTmX_closed : Syntax → TermElabM Expr
   | `(owl_tm| zero $e:owl_tm) => do
     let elab_e <- elabTm_closed e
     mkAppM ``SExprX.zero #[elab_e]
-  | `(owl_tm| $e1:owl_tm [ $e2:owl_tm ]) => do
+  | `(owl_tm| $e1:owl_tm $e2:owl_tm) => do
     let elab_e1 <- elabTm_closed e1
     let elab_e2 <- elabTm_closed e2
     mkAppM ``SExprX.app #[elab_e1, elab_e2]
@@ -537,11 +537,11 @@ partial def elabTmX_closed : Syntax → TermElabM Expr
     let elab_e2 <- elabTm_closed e2
     let elab_e3 <- elabTm_closed e3
     mkAppM ``SExprX.case #[elab_e1, mkStrLit id1.getId.toString, elab_e2, mkStrLit id2.getId.toString, elab_e3]
-  | `(owl_tm| $e:owl_tm [[ $t:owl_type ]]) => do
+  | `(owl_tm| $e:owl_tm [ $t:owl_type ]) => do
     let elab_e <- elabTm_closed e
     let elab_t <- elabType_closed t
     mkAppM ``SExprX.tapp #[elab_e, elab_t]
-  | `(owl_tm| $e:owl_tm [[[ $l:owl_label ]]]) => do
+  | `(owl_tm| $e:owl_tm ⟨ $l:owl_label ⟩) => do
     let elab_e <- elabTm_closed e
     let elab_l <- elabLabel l
     mkAppM ``SExprX.lapp #[elab_e, elab_l]

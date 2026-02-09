@@ -5,11 +5,10 @@ open Lean Meta Elab Tactic
 
 open OwlTc
 
-
 attribute [simp] Fin.foldr_succ
 
 #tc example0 :=  · ; · ; · ; · ⊢
-  ["0"] : (Public -> Public)  by {
+  λ (x : Public) : Public => "0" : (Public -> Public)  by {
       unfold sideConditions
       simp
   }
@@ -18,21 +17,21 @@ attribute [simp] Fin.foldr_succ
     Λβ betaK .
     Λβ betaM .
     Λ tau .
-    let k = (⟨"genKey"⟩ (["0"], ["0"]) : Data betaK) in
+    let k = (⟨"genKey"⟩ ("0", "0") : Data betaK) in
     let L = alloc (λ (null : Public) : (tau + unit) => ı2 ()) in
     let enc' = (corr_case betaK in
                 (if corr ( betaK )
                   then (λ (x : (Public * Public)) : Public => ⟨"enc"⟩ (π1 x, π2 x))
                   else
                     λ (x : (Data betaK * tau)) : Public =>
-                    let c = ⟨"rand"⟩ (zero ((π2 x) : Data betaM), ["0"]) in
+                    let c = ⟨"rand"⟩ (zero ((π2 x) : Data betaM), "0") in
                     let L_old = (! L) in
-                    let sc = (L := (λ (y : Public) : (tau + unit) => if ⟨"eq"⟩(y, c) then ı1 (π2 x) else (L_old [y]))) in
+                    let sc = (L := (λ (y : Public) : (tau + unit) => if ⟨"eq"⟩(y, c) then ı1 (π2 x) else (L_old y))) in
                     c))
     in
     let dec' : corr (betaK) ? (Public * Public) -> Public : (Data betaK * Public) -> (tau + unit) = (corr_case betaK in
                (if corr (betaK) then λ (x : (Public * Public)) : Public => ⟨"dec"⟩(π1 x, π2 x)
-                else λ (x : (Data betaK * Public)) : (tau + unit) => (!L) [π2 x]))
+                else λ (x : (Data betaK * Public)) : (tau + unit) => (!L) π2 x))
     in
     pack (Data betaK, ⟨k, ⟨(corr_case betaK in enc'), dec'⟩⟩)
     :
@@ -193,19 +192,19 @@ def ENC := OwlTy [ lK ] [ tM ] {
   let dec_high = π2 (π2 encH) in
 
   -- Alice's code
-  let ctxt1 = (corr_case lKH in ( enc_high [ ⟨ key_high, key_low⟩ ] ))  in
-  let ctxt2 = (corr_case lKL in ( enc_low [ ⟨ key_low, msg ⟩ ] )) in
+  let ctxt1 = (corr_case lKH in ( enc_high ⟨ key_high, key_low⟩ ))  in
+  let ctxt2 = (corr_case lKL in ( enc_low ⟨ key_low, msg ⟩ )) in
   -- TODO: Ask Michael about parsing this better vvv
-  let unused = io [ ctxt1 ]  in -- Should be "let _ "
-  let unused = io [ ctxt2 ]  in
+  let unused = io ctxt1  in -- Should be "let _ "
+  let unused = io ctxt2  in
 
   -- Bob's code
   corr_case lKH in
   -- For the binary: 0x1234. Represent this as a list of U8s.
-  case dec_high [ ⟨key_high, io [ [""] ]⟩ ] in -- Case "with"
+  case dec_high ⟨key_high, io ""⟩ in -- Case "with"
   | inl key_low' =>
     corr_case lKL in
-    case dec_low [ ⟨key_low', io [ [""] ] ⟩ ] in
+    case dec_low ⟨key_low', io ""⟩ in
     | inl success => () -- Use () instead of *
     | inr _fail => ()
   --  Make "_" work as an identifier
