@@ -82,22 +82,6 @@ def SConstr.elab (s : SConstr) (P : TCtx) : Except String (Owl.constr P.length) 
 elab "constraint_parse" "(" p:owl_constr ")" : term =>
     elabConstr p
 
-@[simp]
-def SBinary.elab (s : SBinary) : Option Owl.binary :=
-  match s with
-  | .bend => .some .bend
-  | .bzero b =>
-      match (SBinary.elab b) with
-      | .none => .none
-      | .some b' => .some (.bzero b')
-  | .bone b =>
-      match (SBinary.elab b) with
-      | .none => .none
-      | .some b' => .some (.bone b')
-
--- test parser for binary
-elab "binary_parse" "(" p:owl_binary ")" : term =>
-    elabBinary p
 
 def SRexp.elab (sr : SRexp) (rctx : TCtx) : Except String (Owl.rexp rctx.length) :=
   match sr with
@@ -109,7 +93,8 @@ def SRexp.elab (sr : SRexp) (rctx : TCtx) : Except String (Owl.rexp rctx.length)
     let e1 <- r1.elab rctx
     let e2 <- r2.elab rctx
     return .op s e1 e2
-  | .const i => return .const i
+  | .const i => do
+    return .const i
 
 
 @[simp]
@@ -206,9 +191,7 @@ def SExprX.elab (s : SExprX) (P : TCtx) (R:TCtx) (D : TCtx) (G : TCtx): Except S
   | .error => return tmX.error
   | .skip  => return tmX.skip
   | .bitstring b =>
-    match SBinary.elab b with
-    | .none    => throw s!"SExprX.elab: failed to elaborate bitstring"
-    | .some b' => return tmX.bitstring b'
+    return tmX.bitstring b
   | .loc n => return tmX.loc n
   | .fixlam f x e => do
     let e' ← SExpr.elab e P R D (f::x::G)

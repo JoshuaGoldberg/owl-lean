@@ -100,7 +100,7 @@ instance : ToString SideCondition where
   toString := fun _ => "<sc>"
 
 
-def rexp_interp (re : rexp r) (f : String -> binary -> binary -> binary ) (m : Fin r -> binary) :=
+def rexp_interp (re : rexp r) (f : String -> String -> String -> String ) (m : Fin r -> String) :=
   match re with
   | .var i => m i
   | .op s r1 r2 => f s (rexp_interp r1 f m) (rexp_interp r2 f m)

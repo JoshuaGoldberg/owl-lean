@@ -28,20 +28,11 @@ instance : ToString (label n) where
   toString := label.pretty
 
 
-def binary.pretty (b : binary) : String :=
-  match b with
-  | .bend => "ε"
-  | .bzero b' => "0" ++ b'.pretty
-  | .bone b' => "1" ++ b'.pretty
-
-instance : ToString binary where
-  toString := binary.pretty
-
 def rexp.pretty (re : rexp r) : String :=
   match re with
   | .var i => "r" ++ toString i.toNat
   | .op s r1 r2 => s ++ "(" ++ r1.pretty ++ "," ++ r2.pretty ++ ")"
-  | .const b => b.pretty
+  | .const b => b
 
 def ty.pretty (t : ty l r d ) : String :=
   match t with

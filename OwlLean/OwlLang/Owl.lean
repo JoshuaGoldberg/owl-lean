@@ -104,11 +104,6 @@ structure opaqueSyntax where
 instance : Repr opaqueSyntax where
   reprPrec _ _ := f!"<syntax>"
 
-inductive binary : Type
-| bzero : binary -> binary
-| bone : binary -> binary
-| bend : binary
-deriving Repr, BEq
 
 inductive cond_sym : Type
 | leq : cond_sym
@@ -144,7 +139,7 @@ deriving Repr, BEq
 inductive rexp : Nat -> Type where
   | var : Fin r -> rexp r
   | op : String -> rexp r -> rexp r -> rexp r
-  | const : binary -> rexp r
+  | const : String -> rexp r
 deriving Repr, BEq
 
 def rexp.free (i : Fin r) (re : rexp r) :=
@@ -243,7 +238,7 @@ inductive tmX : Nat -> Nat -> Nat -> Nat -> Type where
 | var_tm : Fin n_tm -> tmX n_label n_ref n_ty n_tm
 | error : tmX n_label n_ref n_ty n_tm
 | skip : tmX n_label n_ref n_ty n_tm
-| bitstring : binary -> tmX n_label n_ref n_ty n_tm
+| bitstring : String -> tmX n_label n_ref n_ty n_tm
 | loc : Nat -> tmX n_label n_ref n_ty n_tm
 | fixlam : String -> tm n_label n_ref n_ty ((n_tm + 1) + 1) -> tmX n_label n_ref n_ty n_tm
 | letr : tm n_label n_ref n_ty n_tm -> tm n_label (n_ref + 1) n_ty (n_tm + 1) -> tmX n_label n_ref n_ty n_tm
@@ -284,7 +279,6 @@ deriving instance Lean.ToExpr for Owl.Lcarrier
 deriving instance Lean.ToExpr for Owl.label
 deriving instance Lean.ToExpr for Owl.corruption
 deriving instance Lean.ToExpr for Owl.cond_sym
-deriving instance Lean.ToExpr for Owl.binary
 deriving instance Lean.ToExpr for Owl.constr
 deriving instance Lean.ToExpr for Owl.rexp
 deriving instance Lean.ToExpr for Owl.ty

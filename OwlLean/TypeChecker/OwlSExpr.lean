@@ -4,12 +4,6 @@ import Std.Data.HashMap
 
 open Owl
 
-inductive SBinary : Type
-| bzero : SBinary -> SBinary
-| bone : SBinary -> SBinary
-| bend : SBinary
-deriving Repr
-
 inductive SLabel : Type
 | var_label : String -> SLabel
 | latl : Owl.Lcarrier -> SLabel
@@ -37,7 +31,7 @@ deriving Repr
 inductive SRexp where
 | var : String -> SRexp
 | op : String -> SRexp -> SRexp -> SRexp
-| const : binary -> SRexp
+| const : String -> SRexp
 deriving Repr
 
 inductive STy : Type where
@@ -70,7 +64,7 @@ inductive SExprX : Type where
 | var_tm : String -> SExprX
 | error : SExprX
 | skip : SExprX
-| bitstring : SBinary -> SExprX
+| bitstring : String -> SExprX
 | loc : Nat -> SExprX
 | fixlam : String -> String -> SExpr -> SExprX
 | elet : String -> SExpr -> SExpr -> SExprX

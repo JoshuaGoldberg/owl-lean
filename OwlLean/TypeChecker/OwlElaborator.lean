@@ -13,7 +13,6 @@ deriving instance ToExpr for STy
 declare_syntax_cat owl_tm
 declare_syntax_cat owl_label
 declare_syntax_cat owl_type
-declare_syntax_cat owl_binary
 declare_syntax_cat owl_constr
 declare_syntax_cat owl_cond_sym
 declare_syntax_cat owl_phi
@@ -97,28 +96,10 @@ partial def elabConstr : Syntax → TermElabM Expr
       mkAppM ``SConstr.condition #[elab_c, elab_l1, elab_l2]
   | _ => throwUnsupportedSyntax
 
--- syntax for binary
-syntax str : owl_binary
-
-partial def buildSBinaryExpr (chars : List Char) : TermElabM Expr :=
-  match chars with
-  | [] => return mkConst ``SBinary.bend
-  | '0' :: rest => do
-    let restExpr <- buildSBinaryExpr rest
-    mkAppM ``SBinary.bzero #[restExpr]
-  | '1' :: rest => do
-    let restExpr <- buildSBinaryExpr rest
-    mkAppM ``SBinary.bone #[restExpr]
-  | _ :: _ => throwError "Invalid binary character"
-
-partial def elabBinary : Syntax → TermElabM Expr
-  | `(owl_binary| $val:str) => buildSBinaryExpr val.getString.toList
-  | _ => throwUnsupportedSyntax
-
 
 syntax ident : owl_rexp
 syntax ident "(" owl_rexp "," owl_rexp ")" : owl_rexp
-syntax "[" owl_binary "]" : owl_rexp
+syntax str : owl_rexp
 
 partial def elab_rexp : Syntax -> TermElabM Expr
   | `(owl_rexp | $op:ident ( $e1, $e2 )) => do
@@ -127,8 +108,8 @@ partial def elab_rexp : Syntax -> TermElabM Expr
     mkAppM ``SRexp.op #[mkStrLit op.getId.toString, r1, r2]
   | `(owl_rexp | $i:ident ) => do
     mkAppM ``SRexp.var #[mkStrLit i.getId.toString]
-  | `(owl_rexp | [ $ob ] ) => do
-    mkAppM ``SRexp.const #[<- elabBinary ob]
+  | `(owl_rexp |  $ob:str  ) => do
+    mkAppM ``SRexp.const #[mkStrLit ob.getString]
   | _ => throwUnsupportedSyntax
 
 
@@ -163,7 +144,7 @@ partial def elabType : Syntax → TermElabM Expr
   | `(owl_type| RData $l:owl_label [ $re ] ) => do
     let elab_l <- elabLabel l
     let elab_r <- elab_rexp re
-    mkAppM ``STy.Data #[elab_l, elab_r]
+    mkAppM ``STy.RData #[elab_l, elab_r]
   | `(owl_type| Ref $t:owl_type) => do
     let elab_t <- elabType t
     mkAppM ``STy.Ref #[elab_t]
@@ -215,7 +196,7 @@ syntax ident : owl_tm
 syntax num : owl_tm
 syntax "error" : owl_tm
 syntax "()" : owl_tm
-syntax "[" owl_binary "]" : owl_tm
+syntax str : owl_tm
 syntax "fix" ident "(" ident ")" owl_tm : owl_tm
 syntax "Λ" owl_type "." owl_tm : owl_tm
 syntax "Λβ" owl_label "." owl_tm : owl_tm
@@ -278,9 +259,8 @@ partial def elabTmX : Syntax → TermElabM Expr
     mkAppM ``SExprX.loc #[mkNatLit n.getNat]
   | `(owl_tm| error) => mkAppM ``SExprX.error #[]
   | `(owl_tm| ()) => mkAppM ``SExprX.skip #[]
-  | `(owl_tm| [ $b:owl_binary ] ) => do
-    let elab_b <- elabBinary b
-    mkAppM ``SExprX.bitstring #[elab_b]
+  | `(owl_tm| $b:str  ) => do
+    mkAppM ``SExprX.bitstring #[mkStrLit b.getString]
   | `(owl_tm| fix $f:ident ( $id:ident ) $e:owl_tm) => do
     let elab_e <- elabTm e
     mkAppM ``SExprX.fixlam #[mkStrLit f.getId.toString, mkStrLit id.getId.toString, elab_e]
@@ -509,9 +489,8 @@ partial def elabTmX_closed : Syntax → TermElabM Expr
     mkAppM ``SExprX.loc #[mkNatLit n.getNat]
   | `(owl_tm| error) => mkAppM ``SExprX.error #[]
   | `(owl_tm| ()) => mkAppM ``SExprX.skip #[]
-  | `(owl_tm| [ $b:owl_binary ] ) => do
-    let elab_b <- elabBinary b
-    mkAppM ``SExprX.bitstring #[elab_b]
+  | `(owl_tm| $b:str ) => do
+    mkAppM ``SExprX.bitstring #[mkStrLit b.getString]
   | `(owl_tm| fix $f:ident ( $id:ident ) $e:owl_tm) => do
     let elab_e <- elabTm_closed e
     mkAppM ``SExprX.fixlam #[mkStrLit f.getId.toString, mkStrLit id.getId.toString, elab_e]
