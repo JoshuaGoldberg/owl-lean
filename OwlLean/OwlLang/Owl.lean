@@ -181,6 +181,7 @@ inductive ty : Nat -> Nat -> Nat -> Type where
 | all : ty n_label n_ref n_ty -> ty n_label n_ref (n_ty + 1) -> ty n_label n_ref n_ty
 | ex : ty n_label n_ref n_ty -> ty n_label n_ref (n_ty + 1) -> ty n_label n_ref n_ty
 | ex_r : ty n_label (n_ref + 1) n_ty -> ty n_label n_ref n_ty
+| all_r : ty n_label (n_ref + 1) n_ty -> ty n_label n_ref n_ty
 | all_l : cond_sym -> label n_label -> ty (n_label + 1) n_ref n_ty -> ty n_label n_ref n_ty
 | t_if : label n_label -> ty n_label n_ref n_ty -> ty n_label n_ref n_ty -> ty n_label n_ref n_ty
 | Public : ty n_label n_ref n_ty
@@ -201,6 +202,7 @@ def ty.r_free {l r d : Nat} (i : Fin r) : ty l r d → Bool
 | .all t1 t2 => ty.r_free i t1 && ty.r_free i t2
 | .ex t1 t2 => ty.r_free i t1 && ty.r_free i t2
 | .ex_r t0 => ty.r_free (Fin.succ i) t0
+| .all_r t0 => ty.r_free (Fin.succ i) t0
 | .all_l _ _ t => ty.r_free i t
 | .t_if _ t1 t2 => ty.r_free i t1 && ty.r_free i t2
 | .Public => true
@@ -220,6 +222,7 @@ match t with
 | .all t1 t2 => .all (t1.down i (by grind [r_free])) (t2.down i (by grind [r_free]))
 | .ex t1 t2 => .ex (t1.down i (by grind [r_free])) (t2.down i (by grind [r_free]))
 | .ex_r t1 => .ex_r (t1.down i.succ (by grind [r_free]))
+| .all_r t1 => .all_r (t1.down i.succ (by grind [r_free]))
 | .all_l cs l t0 => .all_l cs l (t0.down i (by grind [r_free]))
 | .t_if l t1 t2 => .t_if l (t1.down i (by grind [r_free])) (t2.down i (by grind [r_free]))
 | .Public => .Public
@@ -395,6 +398,7 @@ def ren_ty
       .ex (ren_ty xi_label xi_ref xi_ty s0)
         (ren_ty (upRen_ty_label xi_label) xi_ref (upRen_ty_ty xi_ty) s1)
   | .ex_r t0 => .ex_r (ren_ty xi_label (up_ren xi_ref) xi_ty t0)
+  | .all_r t0 => .all_r (ren_ty xi_label (up_ren xi_ref) xi_ty t0)
   | .all_l s0 s1 s2 =>
       .all_l s0 (ren_label xi_label s1)
         (ren_ty (upRen_label_label xi_label) xi_ref (upRen_label_ty xi_ty) s2)
@@ -662,6 +666,8 @@ ty n_label n_ref n_ty :=
         (subst_ty (up_ty_label sigma_label) sigma_ref (up_ty_ty sigma_ty) s1)
   | .ex_r t0 =>
       .ex_r (subst_ty sigma_label (up_rexp sigma_ref) (up_rexp_ty sigma_ty) t0)
+  | .all_r t0 =>
+      .all_r (subst_ty sigma_label (up_rexp sigma_ref) (up_rexp_ty sigma_ty) t0)
   | .all_l s0 s1 s2 =>
       .all_l s0 (subst_label sigma_label s1)
         (subst_ty (up_label_label sigma_label) sigma_ref (up_label_ty sigma_ty) s2)

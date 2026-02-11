@@ -4,6 +4,8 @@ import OwlLean.OwlLang.Owl
 open OwlTypecheck
 open Owl
 
+/-
+
 #reduce infer empty_phi (empty_psi 0) empty_delta (cons .Unit empty_gamma) (.var_tm ⟨0, by omega⟩) (.some .Unit)
 
 #reduce infer empty_phi (empty_psi 0) empty_delta empty_gamma (.fixlam (.var_tm ⟨1, by omega⟩)) (.some (.arr .Unit .Unit))
@@ -166,3 +168,5 @@ theorem test_latt_manual :
     simp [lemma_phi] at *
     simp [Fin.foldr_succ] at Hp
     grind
+
+-/

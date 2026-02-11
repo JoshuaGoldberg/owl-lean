@@ -57,6 +57,7 @@ def ty.pretty (t : ty l r d ) : String :=
   | .all t0 t => "forall (" ++ t0.pretty ++ "), " ++ t.pretty
   | .ex t0 t => "exists (" ++ t0.pretty ++ "), " ++ t.pretty
   | .ex_r t0 => "exists_r" ++ t0.pretty
+  | .all_r t0 => "exists_r" ++ t0.pretty
   | .all_l cs l t =>
       "forall(" ++ cs.pretty ++ " " ++ l.pretty ++ "). " ++ t.pretty
   | .t_if l t1 t2 =>

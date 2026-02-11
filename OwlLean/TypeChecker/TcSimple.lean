@@ -20,6 +20,7 @@ def Owl.ty.simplify (t : ty l r d ) (corrs : List (corruption l)): ty l r d  :=
   | .arr t0 t1 => .arr (t0.simplify corrs) (t1.simplify corrs)
   | .ex t0 t1 => .ex (t0.simplify corrs) (t1.simplify corrs)
   | .ex_r t0 => .ex_r (t0.simplify corrs)
+  | .all_r t0 => .all_r (t0.simplify corrs)
   | .all t0 t1 => .all (t0.simplify corrs) (t1.simplify corrs)
   | .t_if l t0 t1 =>
     match List.find? (fun corr =>
@@ -409,7 +410,7 @@ def inferX [Monad M] (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_
     | .some (.all t0 t) => do
       let _ <- infer Phi Psi (lift_delta (cons t0 Delta)) (lift_gamma_d Gamma) e (.some t)
       pure (.all t0 t)
-    | _ => throw "tlam"
+    | _ => throw s!"Error when type checking Λ: expected type must be a ∀. Instead, got {exp} "
   | .tapp e t' => do
     match <- infer Phi Psi Delta Gamma e .none with
     | .all t0 t => do
