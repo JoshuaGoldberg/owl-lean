@@ -87,7 +87,9 @@ inductive SExprX : Type where
 | case : SExpr -> String -> SExpr -> String -> SExpr -> SExprX
 | tapp : SExpr -> STy -> SExprX
 | lapp : SExpr -> SLabel -> SExprX
+| rapp : SExpr -> SRexp -> SExprX
 | pack : STy -> SExpr -> SExprX
+| rpack : SRexp -> SExpr -> SExprX
 | unpack : SExpr -> String -> String -> SExpr -> SExprX
 | if_tm :
     SExpr -> SExpr -> SExpr -> SExprX

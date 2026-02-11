@@ -417,6 +417,12 @@ def inferX [Monad M] (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_
       let _ <- infer Phi Psi (lift_delta (cons t0 Delta)) (lift_gamma_d Gamma) e (.some t)
       pure (.all t0 t)
     | _ => throw s!"Error when type checking Λ: expected type must be a ∀. Instead, got {exp} "
+  | .rapp e re => do
+    match <- infer Phi Psi Delta Gamma e .none with
+    | .all_r t0 => do
+      let result_ty := subst_ty (.var_label "_") (cons re .var) .var_ty t0;
+      from_synth Phi Psi Delta result_ty exp
+    | _ => throw "rapp: expected type must be of the form ∀r x. τ"
   | .tapp e t' => do
     match <- infer Phi Psi Delta Gamma e .none with
     | .all t0 t => do
@@ -424,6 +430,13 @@ def inferX [Monad M] (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_
       let result_ty := subst_ty (.var_label "_") .var (cons t' .var_ty) t;
       from_synth Phi Psi Delta result_ty exp
     | _ => throw "tapp"
+  | .rpack re e =>
+    match exp with
+     | .some (.ex_r t0) => do
+      let substituted_type := subst_ty (.var_label "_") (cons re .var) .var_ty t0
+      let _ <- infer Phi Psi Delta Gamma e (.some substituted_type)
+      pure (.ex_r t0)
+     | _ => throw "rpack: need expected type of form rpack(r, e)"
   | .pack t' e =>
     match exp with
     | .none => throw "pack: empty expected"

@@ -261,7 +261,9 @@ inductive tmX : Nat -> Nat -> Nat -> Nat -> Type where
     tm n_label n_ref n_ty (n_tm + 1) -> tm n_label n_ref n_ty (n_tm + 1) -> tmX n_label n_ref n_ty n_tm
 | tapp : tm n_label n_ref n_ty n_tm -> ty n_label n_ref n_ty -> tmX n_label n_ref n_ty n_tm
 | lapp : tm n_label n_ref n_ty n_tm -> label n_label -> tmX n_label n_ref n_ty n_tm
+| rapp : tm n_label n_ref n_ty n_tm -> rexp n_ref -> tmX n_label n_ref n_ty n_tm
 | pack : ty n_label n_ref n_ty -> tm n_label n_ref n_ty n_tm -> tmX n_label n_ref n_ty n_tm
+| rpack : rexp n_ref -> tm n_label n_ref n_ty n_tm -> tmX n_label n_ref n_ty n_tm
 | unpack : tm n_label n_ref n_ty n_tm -> tm n_label n_ref (n_ty + 1) (n_tm + 1) -> tmX n_label n_ref n_ty n_tm
 | if_tm :
     tm n_label n_ref n_ty n_tm ->
@@ -511,7 +513,11 @@ tmX n_label n_ref n_ty n_tm :=
   | .lapp s0 s1 =>
       .lapp (ren_tm xi_label xi_ref xi_ty xi_tm s0)
         (ren_label xi_label s1)
+  | .rapp e0 re =>
+    .rapp (ren_tm xi_label xi_ref xi_ty xi_tm e0)
+          (ren_rexp xi_ref re)
   | .pack s s0 => .pack (ren_ty xi_label xi_ref xi_ty s) (ren_tm xi_label xi_ref xi_ty xi_tm s0)
+  | .rpack re t0 => .rpack (ren_rexp xi_ref re) (ren_tm xi_label xi_ref xi_ty xi_tm t0)
   | .unpack s0 s1 =>
       .unpack (ren_tm xi_label xi_ref xi_ty xi_tm s0)
         (ren_tm (upRen_tm_label xi_label) xi_ref (upRen_tm_ty (upRen_ty_ty xi_ty))
@@ -764,9 +770,15 @@ def subst_tmX
   | .lapp s0 s1 =>
       .lapp (subst_tm sigma_label sigma_ref sigma_ty sigma_tm s0)
         (subst_label sigma_label s1)
+  | .rapp s0 s1 =>
+      .rapp (subst_tm sigma_label sigma_ref sigma_ty sigma_tm s0)
+        (subst_rexp sigma_ref s1)
   | .pack s0 s1 =>
       .pack (subst_ty sigma_label sigma_ref sigma_ty s0)
         (subst_tm sigma_label sigma_ref sigma_ty sigma_tm s1)
+  | .rpack re s1 =>
+    .rpack (subst_rexp sigma_ref re)
+           (subst_tm sigma_label sigma_ref sigma_ty sigma_tm s1)
   | .unpack s0 s1 =>
       .unpack (subst_tm sigma_label sigma_ref sigma_ty sigma_tm s0)
         (subst_tm (up_tm_label (up_ty_label sigma_label)) sigma_ref

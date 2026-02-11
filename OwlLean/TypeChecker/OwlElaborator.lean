@@ -222,8 +222,10 @@ syntax "ı1" owl_tm : owl_tm
 syntax "ı2" owl_tm : owl_tm
 syntax "case" owl_tm "in" "|" "inl" owl_tm "=>" owl_tm "|" "inr" owl_tm "=>" owl_tm : owl_tm
 syntax owl_tm "[[" owl_type "]]" : owl_tm
+syntax owl_tm "[{" owl_rexp "}]" : owl_tm
 syntax owl_tm "[[[" owl_label "]]]" : owl_tm
 syntax "pack" "(" owl_type "," owl_tm ")" : owl_tm
+syntax "rpack" "(" owl_rexp "," owl_tm ")" : owl_tm
 syntax "unpack" owl_tm "as" "(" ident "," ident ")" "in" owl_tm : owl_tm
 syntax "if" owl_tm "then" owl_tm "else" owl_tm : owl_tm
 syntax "if" "corr" "(" owl_label ")" "then" owl_tm "else" owl_tm : owl_tm
@@ -338,6 +340,10 @@ partial def elabTmX : Syntax → TermElabM Expr
     let elab_e <- elabTm e
     let elab_t <- elabType t
     mkAppM ``SExprX.tapp #[elab_e, elab_t]
+  | `(owl_tm| $e:owl_tm [{ $r:owl_rexp }]) => do
+    let elab_e <- elabTm e
+    let elab_t <- elab_rexp r
+    mkAppM ``SExprX.rapp #[elab_e, elab_t]
   | `(owl_tm| $e:owl_tm [[[ $l:owl_label ]]]) => do
     let elab_e <- elabTm e
     let elab_l <- elabLabel l
@@ -350,6 +356,10 @@ partial def elabTmX : Syntax → TermElabM Expr
     let elab_t <- elabType t
     let elab_e <- elabTm e
     mkAppM ``SExprX.pack #[elab_t, elab_e]
+  | `(owl_tm| rpack ($re:owl_rexp, $e:owl_tm)) => do
+    let elab_r <- elab_rexp re
+    let elab_e <- elabTm e
+    mkAppM ``SExprX.rpack #[elab_r, elab_e]
   | `(owl_tm| if $e1:owl_tm then $e2:owl_tm else $e3:owl_tm) => do
     let elab_e1 <- elabTm e1
     let elab_e2 <- elabTm e2
@@ -569,6 +579,10 @@ partial def elabTmX_closed : Syntax → TermElabM Expr
     let elab_e <- elabTm_closed e
     let elab_t <- elabType_closed t
     mkAppM ``SExprX.tapp #[elab_e, elab_t]
+  | `(owl_tm| $e:owl_tm [{ $r:owl_rexp }]) => do
+    let elab_e <- elabTm_closed e
+    let elab_t <- elab_rexp r
+    mkAppM ``SExprX.rapp #[elab_e, elab_t]
   | `(owl_tm| $e:owl_tm [[[ $l:owl_label ]]]) => do
     let elab_e <- elabTm_closed e
     let elab_l <- elabLabel l
@@ -581,6 +595,10 @@ partial def elabTmX_closed : Syntax → TermElabM Expr
     let elab_t <- elabType_closed t
     let elab_e <- elabTm_closed e
     mkAppM ``SExprX.pack #[elab_t, elab_e]
+  | `(owl_tm| rpack ($re:owl_rexp, $e:owl_tm)) => do
+    let elab_r <- elab_rexp re
+    let elab_e <- elabTm_closed e
+    mkAppM ``SExprX.rpack #[elab_r, elab_e]
   | `(owl_tm| if $e1:owl_tm then $e2:owl_tm else $e3:owl_tm) => do
     let elab_e1 <- elabTm_closed e1
     let elab_e2 <- elabTm_closed e2

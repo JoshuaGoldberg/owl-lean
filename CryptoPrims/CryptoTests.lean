@@ -8,6 +8,17 @@ open OwlTc
 
 attribute [simp] Fin.foldr_succ
 
+#tc example_rpack := · ; · ; · ; ·  ⊢
+  let x = "0" in
+  rpack ("0", x)
+  :
+  ∃ x. RData ⟨Owl.L.bot⟩ [x]
+  by {
+    unfold sideConditions
+    simp
+    grind
+  }
+
 #tc example_rlam := · ; · ; · ; ·  ⊢
   Λr r.
     λ (x : RData ⟨Owl.L.bot⟩ [ r ]) : RData ⟨Owl.L.bot⟩ [ r ] =>

@@ -272,6 +272,10 @@ def SExprX.elab (s : SExprX) (P : TCtx) (R:TCtx) (D : TCtx) (G : TCtx): Except S
     let e' ← SExpr.elab e P R D G
     let t' ← STy.elab t P R D
     return tmX.tapp e' t'
+  | .rapp e t => do
+    let e' ← SExpr.elab e P R D G
+    let t' ← SRexp.elab t R
+    return tmX.rapp e' t'
   | .lapp e l => do
     let e' ← SExpr.elab e P R D G
     let l' ← SLabel.elab l P
@@ -280,6 +284,10 @@ def SExprX.elab (s : SExprX) (P : TCtx) (R:TCtx) (D : TCtx) (G : TCtx): Except S
     let e' ← SExpr.elab e P R D G
     let t' ← STy.elab t P R D
     return tmX.pack t' e'
+  | .rpack re e => do
+    let re' <- SRexp.elab re R
+    let e' <- SExpr.elab e P R D G
+    return tmX.rpack re' e'
   | .unpack e a x e1 => do
     let e' ← SExpr.elab e P R D G
     let e1' ← SExpr.elab e1 P R (a::D) (x::G)
