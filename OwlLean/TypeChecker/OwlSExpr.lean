@@ -34,10 +34,17 @@ inductive SConstr : Type where
 | condition : SCondSym -> SLabel -> SLabel -> SConstr
 deriving Repr
 
+inductive SRexp where
+| var : String -> SRexp
+| op : String -> SRexp -> SRexp -> SRexp
+| const : binary -> SRexp
+deriving Repr
+
 inductive STy : Type where
 | var_ty : String -> STy
 | Any : STy
 | Unit : STy
+| RData : SLabel -> SRexp -> STy
 | Data : SLabel -> STy
 | Ref : STy -> STy
 | arr : STy -> STy -> STy

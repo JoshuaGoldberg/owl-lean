@@ -7,6 +7,7 @@ open Lean Elab Meta
 
 deriving instance ToExpr for SLabel
 deriving instance ToExpr for SCondSym
+deriving instance ToExpr for SRexp
 deriving instance ToExpr for STy
 
 declare_syntax_cat owl_tm
@@ -23,6 +24,7 @@ declare_syntax_cat owl_delta_entry
 declare_syntax_cat owl_gamma_entry
 declare_syntax_cat owl_psi_entry
 declare_syntax_cat owl_psi
+declare_syntax_cat owl_rexp
 
 -- syntax for labels
 syntax ident : owl_label
@@ -110,14 +112,32 @@ partial def buildSBinaryExpr (chars : List Char) : TermElabM Expr :=
   | _ :: _ => throwError "Invalid binary character"
 
 partial def elabBinary : Syntax → TermElabM Expr
-  | `(owl_binary| $val:str) => buildSBinaryExpr val.getString.data
+  | `(owl_binary| $val:str) => buildSBinaryExpr val.getString.toList
   | _ => throwUnsupportedSyntax
+
+
+syntax ident : owl_rexp
+syntax ident "(" owl_rexp "," owl_rexp ")" : owl_rexp
+syntax "[" owl_binary "]" : owl_rexp
+
+partial def elab_rexp : Syntax -> TermElabM Expr
+  | `(owl_rexp | $op:ident ( $e1, $e2 )) => do
+    let r1 <- elab_rexp e1
+    let r2 <- elab_rexp e2
+    mkAppM ``SRexp.op #[mkStrLit op.getId.toString, r1, r2]
+  | `(owl_rexp | $i:ident ) => do
+    mkAppM ``SRexp.var #[mkStrLit i.getId.toString]
+  | `(owl_rexp | [ $ob ] ) => do
+    mkAppM ``SRexp.const #[<- elabBinary ob]
+  | _ => throwUnsupportedSyntax
+
 
 -- syntax for types
 syntax "(" owl_type ")" : owl_type
 syntax ident : owl_type
 syntax "Any" : owl_type
 syntax "unit" : owl_type
+syntax "RData" owl_label "[" owl_rexp "]" : owl_type
 syntax "Data" owl_label : owl_type
 syntax "Ref" owl_type : owl_type
 syntax owl_type "->" owl_type : owl_type
@@ -137,9 +157,13 @@ partial def elabType : Syntax → TermElabM Expr
   | `(owl_type| Any) => mkAppM ``STy.Any #[]
   | `(owl_type| unit) => mkAppM ``STy.Unit #[]
   | `(owl_type| Public) => mkAppM ``STy.Public #[]
-  | `(owl_type| Data $l:owl_label) => do
+  | `(owl_type| Data $l:owl_label ) => do
     let elab_l <- elabLabel l
     mkAppM ``STy.Data #[elab_l]
+  | `(owl_type| RData $l:owl_label [ $re ] ) => do
+    let elab_l <- elabLabel l
+    let elab_r <- elab_rexp re
+    mkAppM ``STy.Data #[elab_l, elab_r]
   | `(owl_type| Ref $t:owl_type) => do
     let elab_t <- elabType t
     mkAppM ``STy.Ref #[elab_t]
@@ -425,7 +449,11 @@ partial def elabType_closed : Syntax → TermElabM Expr
   | `(owl_type| Any) => mkAppM ``STy.Any #[]
   | `(owl_type| unit) => mkAppM ``STy.Unit #[]
   | `(owl_type| Public) => mkAppM ``STy.Public #[]
-  | `(owl_type| Data $l:owl_label) => do
+  | `(owl_type| RData $l:owl_label [ $re ] ) => do
+    let elab_l <- elabLabel_closed l
+    let elab_r <- elab_rexp re
+    mkAppM ``STy.RData #[elab_l, elab_r ]
+  | `(owl_type| Data $l:owl_label ) => do
     let elab_l <- elabLabel_closed l
     mkAppM ``STy.Data #[elab_l]
   | `(owl_type| Ref $t:owl_type) => do

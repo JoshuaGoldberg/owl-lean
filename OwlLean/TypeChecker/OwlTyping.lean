@@ -97,6 +97,11 @@ def lift_delta_l (Delta : delta_context l r d )
   := fun i => ren_ty shift id id (Delta i)
 
 @[simp]
+def lift_delta_r (Delta : delta_context l r d )
+  : delta_context l (r + 1) d
+  := fun i => ren_ty id shift id (Delta i)
+
+@[simp]
 def lift_gamma_d (Gamma : gamma_context l r d m )
   : gamma_context l r (d + 1) m
   := fun i => ren_ty id id shift (Gamma i)
@@ -106,6 +111,11 @@ def lift_gamma_l (Gamma : gamma_context l r d m )
   : gamma_context (l + 1) r d m
   := fun i => ren_ty shift id id (Gamma i)
 
+@[simp]
+def lift_gamma_r (Gamma : gamma_context l r d m )
+  : gamma_context l (r + 1) d m
+  := fun i => ren_ty id shift id (Gamma i)
+
 -- Convert from labels down to lattice elements
 @[simp]
 def interp_lattice (l : label 0) : L.labels :=
@@ -113,7 +123,7 @@ def interp_lattice (l : label 0) : L.labels :=
   | .latl x => x
   | .ljoin x y => (L.join (interp_lattice x) (interp_lattice y))
   | .lmeet x y => (L.meet (interp_lattice x) (interp_lattice y))
-  | .var_label n => nomatch n
+  | .var_label _fail n => nomatch n
   | .default => L.bot
 
 @[simp]
@@ -220,6 +230,10 @@ structure CorruptionSet where
                     is_corrupt l' ->
                     L.leq (interp_lattice l) (interp_lattice l') = true ->
                     is_corrupt l
+  join_corrupt : forall l1 l2,
+                    is_corrupt l1 ->
+                    is_corrupt l2 ->
+                    is_corrupt (l1.ljoin l2)
 
 
 @[grind]
@@ -242,6 +256,15 @@ theorem CorruptionSet.has_bot_pf (C : CorruptionSet) :
 theorem CorruptionSet.is_corrupt_bot (C : CorruptionSet) :
   C.is_corrupt (label.latl Owl.LabelTm.bot) := by
     apply C.has_bot
+
+@[grind]
+theorem CorruptionSet.is_corrupt_join (C : CorruptionSet) :
+  C.is_corrupt l1 ->
+  C.is_corrupt l2 ->
+  C.is_corrupt (l1.ljoin l2) := by
+    apply C.join_corrupt
+
+
 
 
 @[simp]

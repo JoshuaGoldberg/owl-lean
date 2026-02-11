@@ -13,12 +13,13 @@ def Owl.ty.simplify (t : ty l r d ) (corrs : List (corruption l)): ty l r d  :=
   | .var_ty _ => t
   | .Any => t
   | .Unit => t
+  | .RData _ _ => t
   | .Data _ => t
-  | .Sing _ => t
   | .Public => t
   | .Ref t0 => .Ref t0
   | .arr t0 t1 => .arr (t0.simplify corrs) (t1.simplify corrs)
   | .ex t0 t1 => .ex (t0.simplify corrs) (t1.simplify corrs)
+  | .ex_r t0 => .ex_r (t0.simplify corrs)
   | .all t0 t1 => .all (t0.simplify corrs) (t1.simplify corrs)
   | .t_if l t0 t1 =>
     match List.find? (fun corr =>
@@ -86,15 +87,23 @@ namespace OwlTc
 
 inductive SideCondition where
   | PhiEntails : phi_context_repr l -> Owl.constr l -> SideCondition
-  | PhiPsiEntailCorr : phi_context_repr l -> psi_context l -> label l -> SideCondition
+  | PhiPsiEntailCorr : String -> phi_context_repr l -> psi_context l -> label l -> SideCondition
   | TyVarEq : Fin d -> Fin d -> SideCondition
   | TyEq : ty l d r -> ty l d r -> SideCondition
   | CondSymEq : cond_sym -> cond_sym -> SideCondition
   | PsiContextInconsistent : String -> phi_context_repr l -> psi_context l -> SideCondition
+  | RexpEq : rexp r -> rexp r -> SideCondition
 deriving ToExpr
 
 instance : ToString SideCondition where
   toString := fun _ => "<sc>"
+
+
+def rexp_interp (re : rexp r) (f : String -> binary -> binary -> binary ) (m : Fin r -> binary) :=
+  match re with
+  | .var i => m i
+  | .op s r1 r2 => f s (rexp_interp r1 f m) (rexp_interp r2 f m)
+  | .const b => b
 
 
 
@@ -104,13 +113,14 @@ instance : ToString SideCondition where
 def SideCondition.interp (p : SideCondition) : Prop :=
   match p with
   | PhiEntails phi c => vec.to_fn phi |= c
-  | PhiPsiEntailCorr phi psi l => phi_psi_entail_corr (vec.to_fn phi) psi (.corr l)
+  | PhiPsiEntailCorr _ phi psi l => phi_psi_entail_corr (vec.to_fn phi) psi (.corr l)
   | TyVarEq x y => x = y
   | TyEq t1 t2 => t1 = t2
   | CondSymEq c1 c2 => c1 = c2
   | PsiContextInconsistent _ phi psi => psi_context_inconsistent (vec.to_fn phi) psi
+  | RexpEq re1 re2 => (forall f m, rexp_interp re1 f m = rexp_interp re2 f m)
 
-inductive Result ε α :=
+inductive Result ε α where
   | ok : α -> Result ε α
   | err : ε -> Result ε α
 
@@ -152,10 +162,11 @@ def log [Monad m] (s : String) : CheckT m Unit := fun st => do
   pure (.ok ((), st))
 
 
-
 abbrev subtype_fuel := 10
 
 -- TODO : Finish up various cases that have not yet been completed (for check_subtype and infer)!
+
+
 
 def check_subtype  [Monad m] (fuel : Nat) (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_context l r d )
                            (t1 : ty l r d ) (t2 : ty l r d) : CheckT m Unit := do
@@ -167,20 +178,23 @@ def check_subtype  [Monad m] (fuel : Nat) (Phi : phi_context l) (Psi : psi_conte
       match t1, t2 with
       | _, .Any => pure ()
       | .Unit, .Unit => pure ()
-      | .Data l1, .Data l2 => do
+      | .RData l1 _, .Data l2 =>
         emit (.PhiEntails (vec.from_fn Phi) (.condition .leq l1 l2))
+      | .RData l1 re1, .RData l2 re2 => do
+        emit (.PhiEntails (vec.from_fn Phi) (.condition .leq l1 l2))
+        emit (.RexpEq re1 re2)
         pure ()
       | .Data l1, .Public => do
-        emit (.PhiPsiEntailCorr (vec.from_fn Phi) Psi l1)
+        emit (.PhiPsiEntailCorr s!"Data {l1}, Public" (vec.from_fn Phi) Psi l1)
+      | .RData l1 _, .Public => do
+        emit (.PhiPsiEntailCorr s!"RData {l1}, Public" (vec.from_fn Phi) Psi l1)
         pure ()
       | .var_ty x1, .var_ty x2 =>
         emit (.TyVarEq x1 x2)
       | .Public, .Public => pure ()
       | .var_ty x, t' => check_subtype n Phi Psi Delta (Delta x) t'
       | t, .var_ty x => check_subtype n Phi Psi Delta t (Delta x)
-      | .Public, .Data _ => pure ()
-      | .Sing _, .Public => pure ()
-      | .Sing _, .Data _ => pure ()
+      -- | .Public, .Data _ => pure ()
       | (.arr t1 t2), (.arr t1' t2') => do
         check_subtype n Phi Psi Delta t1' t1
         check_subtype n Phi Psi Delta t2 t2'
@@ -202,7 +216,7 @@ def check_subtype  [Monad m] (fuel : Nat) (Phi : phi_context l) (Psi : psi_conte
         check_subtype n Phi Psi extended_delta t t'
       | .all_l cs lab t, .all_l cs' lab' t' => do
         let extended_phi := lift_phi (cons (cs, lab) Phi)
-        let constraint := (.condition cs (.var_label var_zero) (ren_label shift lab'))
+        let constraint := (.condition cs (.var_label "_" var_zero) (ren_label shift lab'))
         -- let constraint_holds := extended_phi |= constraint
         emit (.PhiEntails (vec.from_fn extended_phi) constraint)
         let extended_psi := lift_psi Psi
@@ -231,19 +245,6 @@ def from_synth [Monad m] (Phi : phi_context l) (Psi : psi_context l) (Delta : de
       check_subtype subtype_fuel Phi Psi Delta t t'
       pure t'
 
-@[simp]
-def to_data [Monad m] (fuel : Nat) (Delta : delta_context l r d) (t : ty l r d)
-  : CheckT m (Owl.label l) :=
-    match fuel with
-    | 0 => throw "to_data: out of fuel"
-    | n + 1 =>
-      match t with
-      | .Data l1 => pure l1
-      | .Public => pure (.latl L.bot)
-      | .Sing _ => pure (.latl L.bot)
-      | .var_ty x => to_data n Delta (Delta x)
-      | _ => throw s!"to_data: unhandled case: {t}"
-
 
 /-
 
@@ -262,6 +263,24 @@ def to_data [Monad m] (fuel : Nat) (Delta : delta_context l r d) (t : ty l r d)
 -- If it typechecks, a proof that the input term has type "exp"
 -- If no type is provided, infer will attempt to synthesize the type of the input term
 -- If successful, it will return the synthesized type, and a proof that the input term has that type
+
+def infer_op [Monad M] (Phi : phi_context l) (op : String) (t1 : ty l r d) (t2 : ty l r d) : CheckT M (ty l r d) :=
+  match t1, t2 with
+  | .RData l1 r1, .RData l2 r2 => do
+      emit (.PhiEntails (vec.from_fn Phi) (.condition .leq l2 l1))
+      return (.RData l1 (.op op r1 r2))
+  | .Public, .Public => return .Public
+  | _, _ => do
+    let getLabel (t : ty l r d) : CheckT M (label l) :=
+      match t with
+      | .Public => return .latl L.bot
+      | .RData l _ => return l
+      | .Data l => return l
+      | _ => throw "infer_op: argument must be of type Data / RData / Public"
+    let l1 <- getLabel t1
+    let l2 <- getLabel t2
+    return (.Data (label.ljoin l1 l2))
+
 
 mutual
 def infer [Monad M] (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_context l r d)
@@ -283,24 +302,39 @@ def inferX [Monad M] (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_
   | .skip =>
       from_synth Phi Psi Delta .Unit exp
   | .bitstring b =>
-      from_synth Phi Psi Delta (.Sing b) exp
+      from_synth Phi Psi Delta (.RData (.latl L.bot) (.const b)) exp
   | .Op op e1 e2 => do-- This case is long! Might need a step by step.
       let t1 <- infer Phi Psi Delta Gamma e1 .none
       let t2 <- infer Phi Psi Delta Gamma e2 .none
-      let l1 <- to_data 10 Delta t1
-      let l2 <- to_data 10 Delta t2
-      emit (.PhiEntails (vec.from_fn Phi) (.condition .leq l2 l1))
-      from_synth Phi Psi Delta (.Data l1) exp
+      let tres <- infer_op Phi op t1 t2
+      from_synth Phi Psi Delta tres exp
   | .zero e => do
-      let t1 <- infer Phi Psi Delta Gamma e .none
-      let l1 <- to_data 10 Delta t1
-      from_synth Phi Psi Delta .Public exp
+      let t <- infer Phi Psi Delta Gamma e none
+      match t with
+      | .Public | .Data _ | .RData _ _ =>
+        from_synth Phi Psi Delta .Public exp
+      | _ => throw "zero: not bitstring"
   | .if_tm e e1 e2 => do
-    let t0 <- infer Phi Psi Delta Gamma e (.some .Public)
+    let _ <- infer Phi Psi Delta Gamma e (.some .Public)
     let t1 <- infer Phi Psi Delta Gamma e1 exp
     let t2 <- infer Phi Psi Delta Gamma e2 exp
     check_subtype subtype_fuel Phi Psi Delta t2 t1
     from_synth Phi Psi Delta t1 exp
+  | .letr e1 e2 => do
+    let t1 <- infer Phi Psi Delta Gamma e1 .none
+    match t1 with
+    | .ex_r t0 =>
+      let res <- infer Phi Psi (lift_delta_r Delta) (cons t0 (lift_gamma_r Gamma)) e2 (exp.map (ren_ty id shift id))
+      if h0 : res.r_free 0 then
+        return res.down 0 h0
+      else
+        throw "letr: result type would let refinement escape context"
+    | _ =>
+      let res <- infer Phi Psi (lift_delta_r Delta) (cons (ren_ty id shift id t1) (lift_gamma_r Gamma)) e2 (exp.map (ren_ty id shift id))
+      if h0 : res.r_free 0 then
+        return res.down 0 h0
+      else
+        throw "letr: result type would let refinement escape context"
   | .alloc e => do
     let t <- infer Phi Psi Delta Gamma e .none
     from_synth Phi Psi Delta (.Ref t) exp
@@ -353,11 +387,11 @@ def inferX [Monad M] (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_
     from_synth Phi Psi Delta (.prod t1 t2) exp
   | .left_tm e => do
     match <- infer Phi Psi Delta Gamma e .none with
-    | .prod t1 t2 => from_synth Phi Psi Delta t1 exp
+    | .prod t1 _ => from_synth Phi Psi Delta t1 exp
     | _ => throw "left_tm"
   | .right_tm e => do
     match <- infer Phi Psi Delta Gamma e .none with
-    | .prod t1 t2 => from_synth Phi Psi Delta t2 exp
+    | .prod _ t2 => from_synth Phi Psi Delta t2 exp
     | _ => throw "right_tm"
   | .case e e1 e2 => do
     match <- infer Phi Psi Delta Gamma e .none with
@@ -380,16 +414,16 @@ def inferX [Monad M] (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_
     match <- infer Phi Psi Delta Gamma e .none with
     | .all t0 t => do
       check_subtype subtype_fuel Phi Psi Delta t' t0
-      let result_ty := subst_ty .var_label id (cons t' .var_ty) t;
+      let result_ty := subst_ty (.var_label "_") .var (cons t' .var_ty) t;
       from_synth Phi Psi Delta result_ty exp
     | _ => throw "tapp"
   | .pack t' e =>
     match exp with
     | .none => throw "pack: empty expected"
     | .some (.ex t0 t) => do
-      let substituted_type := subst_ty .var_label id (cons t' .var_ty) t
+      let substituted_type := subst_ty (.var_label "_") .var (cons t' .var_ty) t
       check_subtype subtype_fuel Phi Psi Delta t' t0
-      let r <- infer Phi Psi Delta Gamma e (.some substituted_type)
+      let _ <- infer Phi Psi Delta Gamma e (.some substituted_type)
       pure (.ex t0 t)
     | _ => throw "pack"
   | .unpack e e' =>
@@ -401,7 +435,7 @@ def inferX [Monad M] (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_
         let extended_delta := lift_delta (cons t0 Delta)
         let extended_gamma := cons t (lift_gamma_d Gamma)
         let renamed_t' := ren_ty id id shift exp_ty
-        let res <- infer Phi Psi extended_delta extended_gamma e' (.some renamed_t')
+        let _ <- infer Phi Psi extended_delta extended_gamma e' (.some renamed_t')
         pure exp_ty
       | _ => throw "unpack"
   | .l_lam e =>
@@ -421,14 +455,14 @@ def inferX [Monad M] (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_
     | .none => do
       match <- infer Phi Psi Delta Gamma e .none with
       | .all_l cs lab t  => do
-        let result_ty := subst_ty (cons lab' .var_label) id .var_ty t
+        let result_ty := subst_ty (cons lab' (.var_label "_")) .var .var_ty t
         emit (.PhiEntails (vec.from_fn Phi) (.condition cs lab lab'))
         pure result_ty
       | _ => throw "lapp"
     | .some exp_ty => do
       match <- infer Phi Psi Delta Gamma e .none with
       | .all_l cs lab t => do
-        let result_ty := subst_ty (cons lab' .var_label) id .var_ty t
+        let result_ty := subst_ty (cons lab' (.var_label "_")) .var .var_ty t
         check_subtype subtype_fuel Phi Psi Delta result_ty exp_ty
         emit (.PhiEntails (vec.from_fn Phi) (.condition cs lab lab'))
         pure exp_ty
@@ -457,7 +491,9 @@ def inferX [Monad M] (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_
   | .sync e => do
     let _ <- infer Phi Psi Delta Gamma e (.some .Public)
     from_synth Phi Psi Delta .Public exp
-  | _ => throw "infer: unhandled case"
+  | .default => throw "infer: unhandled case"
+  | .loc _ => throw "infer: unhandled case"
+  | .error => throw "infer: unhandled case"
 end
 
 opaque TypeError (o : Option opaqueSyntax) (s : String) : Prop := False

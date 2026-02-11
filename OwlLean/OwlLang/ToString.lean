@@ -18,7 +18,7 @@ instance : ToString cond_sym where
 
 def label.pretty (l : label n) : String :=
   match l with
-  | .var_label i => "L" ++ toString i.toNat
+  | .var_label n _ => n
   | .latl _ => "<lconst>"
   | .ljoin l1 l2 => "(" ++ l1.pretty ++ " ⊔ " ++ l2.pretty ++ ")"
   | .lmeet l1 l2 => "(" ++ l1.pretty ++ " ⊓ " ++ l2.pretty ++ ")"
@@ -37,12 +37,18 @@ def binary.pretty (b : binary) : String :=
 instance : ToString binary where
   toString := binary.pretty
 
+def rexp.pretty (re : rexp r) : String :=
+  match re with
+  | .var i => "r" ++ toString i.toNat
+  | .op s r1 r2 => s ++ "(" ++ r1.pretty ++ "," ++ r2.pretty ++ ")"
+  | .const b => b.pretty
 
 def ty.pretty (t : ty l r d ) : String :=
   match t with
   | .var_ty i => "X" ++ toString i.toNat
   | .Any => "Any"
   | .Unit => "Unit"
+  | .RData l re => "RData[" ++ l.pretty ++ "," ++ re.pretty ++ "]"
   | .Data l => "Data[" ++ l.pretty ++ "]"
   | .Ref t' => "Ref(" ++ t'.pretty ++ ")"
   | .arr t1 t2 => "(" ++ t1.pretty ++ " -> " ++ t2.pretty ++ ")"
@@ -50,12 +56,12 @@ def ty.pretty (t : ty l r d ) : String :=
   | .sum t1 t2 => "(" ++ t1.pretty ++ " + " ++ t2.pretty ++ ")"
   | .all t0 t => "forall (" ++ t0.pretty ++ "), " ++ t.pretty
   | .ex t0 t => "exists (" ++ t0.pretty ++ "), " ++ t.pretty
+  | .ex_r t0 => "exists_r" ++ t0.pretty
   | .all_l cs l t =>
       "forall(" ++ cs.pretty ++ " " ++ l.pretty ++ "). " ++ t.pretty
   | .t_if l t1 t2 =>
       "if[" ++ l.pretty ++ "] { " ++ t1.pretty ++ " } else { " ++ t2.pretty ++ " }"
   | .Public => "Public"
-  | .Sing b => "Sing(" ++ b.pretty ++ ")"
   | .default => "default"
 
 instance : ToString (ty l r d ) where

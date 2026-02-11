@@ -37,7 +37,7 @@ def SLabel.elab (s : SLabel) (P : TCtx) : Except String (Owl.label P.length) :=
   | .var_label i =>
     match TCtx.lookup P i with
     | .none => throw s!"Unknown label variable: {i} "
-    | .some j => return (label.var_label j)
+    | .some j => return (label.var_label i j)
   | .latl l => return (label.latl l)
   | .lmeet l1 l2 => do
     let l1' <- SLabel.elab l1 P
@@ -99,8 +99,27 @@ def SBinary.elab (s : SBinary) : Option Owl.binary :=
 elab "binary_parse" "(" p:owl_binary ")" : term =>
     elabBinary p
 
+def SRexp.elab (sr : SRexp) (rctx : TCtx) : Except String (Owl.rexp rctx.length) :=
+  match sr with
+  | .var i =>
+    match rctx.lookup i with
+    | .none => throw s!"Unknown variable: {i}"
+    | .some j => return (.var j)
+  | .op s r1 r2 => do
+    let e1 <- r1.elab rctx
+    let e2 <- r2.elab rctx
+    return .op s e1 e2
+  | .const i => return .const i
+
+
 @[simp]
-def STy.elab (s : STy) (P : TCtx) (R : TCtx) (D : TCtx): Except String (Owl.ty P.length R.length D.length) :=
+def STy.elab (s : STy)
+  -- label context
+  (P : TCtx)
+  -- refinement context
+  (R : TCtx)
+  -- variable context
+  (D : TCtx): Except String (Owl.ty P.length R.length D.length) :=
   match s with
   | .var_ty i =>
     match TCtx.lookup D i with
@@ -109,6 +128,10 @@ def STy.elab (s : STy) (P : TCtx) (R : TCtx) (D : TCtx): Except String (Owl.ty P
   | .Any => return ty.Any
   | .Unit => return ty.Unit
   | .Public => return ty.Public
+  | .RData l re => do
+    let l' ← SLabel.elab l P
+    let r <- re.elab R
+    return ty.RData l' r
   | .Data l => do
     let l' ← SLabel.elab l P
     return ty.Data l'
@@ -146,24 +169,13 @@ def STy.elab (s : STy) (P : TCtx) (R : TCtx) (D : TCtx): Except String (Owl.ty P
     let t2' ← STy.elab t2 P R D
     return ty.t_if c' t1' t2'
   | @embedty llen rlen tlen t ls _ ts => do
-    let rec go1 : List SLabel → Except String (List (label P.length))
-      | [] => return []
-      | x::xs => do
-        let res ← SLabel.elab x P
-        let rest ← go1 xs
-        return (res :: rest)
-    let rec go3 : List STy → Except String (List (ty P.length R.length D.length))
-      | [] => return []
-      | x::xs => do
-        let res ← STy.elab x P R D
-        let rest ← go3 xs
-        return (res :: rest)
-    let elab_ls ← go1 ls
-    let elab_ts ← go3 ts
+    let elab_ls <- ls.mapM (fun x => SLabel.elab x P)
+    let elab_ts <- ts.mapM (fun x => STy.elab x P R D)
     if h : llen = elab_ls.length then
       if k : tlen = elab_ts.length then
         if h2 : rlen = R.length then
-          return subst_ty (list_to_finmap elab_ls) id (list_to_finmap elab_ts) (k ▸ (h ▸ (h2 ▸ t)))
+          -- TODO: I should also support refinement vars here.
+          return subst_ty (list_to_finmap elab_ls) .var (list_to_finmap elab_ts) (k ▸ (h ▸ (h2 ▸ t)))
         else
           throw s!"embedty: refinement argument length mismatch"
       else
@@ -212,32 +224,15 @@ def SExprX.elab (s : SExprX) (P : TCtx) (R:TCtx) (D : TCtx) (G : TCtx): Except S
     let e2' ← SExpr.elab e2 P R D G
     return tmX.Op op e1' e2'
   | @SExprX.embedtm llen rlen tlen mlen e ls rs ts es => do
-    let rec go1 : List SLabel → Except String (List (label P.length))
-      | [] => return []
-      | x::xs => do
-        let res ← SLabel.elab x P
-        let rest ← go1 xs
-        return (res :: rest)
-    let rec go2 : List STy → Except String (List (ty P.length R.length D.length))
-      | [] => return []
-      | x::xs => do
-        let res ← STy.elab x P R D
-        let rest ← go2 xs
-        return (res :: rest)
-    let rec go3 : List SExpr → Except String (List (tm P.length R.length D.length G.length))
-      | [] => return []
-      | x::xs => do
-        let res ← SExpr.elab x P R D G
-        let rest ← go3 xs
-        return (res :: rest)
-    let elab_ls ← go1 ls
-    let elab_ts ← go2 ts
-    let elab_es ← go3 es
+    let elab_ls <- ls.mapM (fun l => l.elab P)
+    let elab_ts <- ts.mapM (fun t => t.elab P R D)
+    let elab_es <- es.mapM (fun e => e.elab P R D G)
     if h : llen = elab_ls.length then
       if k : tlen = elab_ts.length then
         if j : mlen = elab_es.length then
           if h2 : rlen = R.length then
-            return subst_tmX (list_to_finmap elab_ls) id (list_to_finmap elab_ts) (list_to_finmap elab_es) (j ▸ (k ▸ (h ▸ (h2 ▸ e.get))))
+            -- TODO: I should also support refinement vars here.
+            return subst_tmX (list_to_finmap elab_ls) .var (list_to_finmap elab_ts) (list_to_finmap elab_es) (j ▸ (k ▸ (h ▸ (h2 ▸ e.get))))
           else
             throw s!"SExprX.elab: refinement term argument length mismatch"
         else throw s!"SExprX.elab: embedtm term argument length mismatch: expected {mlen}, got {elab_es.length}"
