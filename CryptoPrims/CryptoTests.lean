@@ -8,6 +8,26 @@ open OwlTc
 
 attribute [simp] Fin.foldr_succ
 
+#tc example_rlam := · ; · ; · ; ·  ⊢
+  Λr r.
+    λ (x : RData ⟨Owl.L.bot⟩ [ r ]) : RData ⟨Owl.L.bot⟩ [ r ] =>
+      x
+  :
+  ∀ r.
+    RData ⟨Owl.L.bot⟩ [r]
+    ->
+    RData ⟨Owl.L.bot⟩ [r]
+  by {
+      unfold sideConditions
+      simp
+      grind
+  }
+
+
+def tst := OwlTy [] [] [] {
+    ∀ x . Public
+}
+
 #tc example0 :=  · ; · ; · ; · ⊢
   "0" : (Public)  by {
       unfold sideConditions
@@ -187,7 +207,7 @@ def ENC := OwlTy [ lK ] [] [ tM ] {
 
 -/
 
-
+/-
 
 #tc protocol := lM, lKL ⊐ lM, lKH ⊐ lKL; · ; aKH <: Data lKH, aKL <: Data lKL ;
   --  Make it : instead of =>
@@ -237,3 +257,5 @@ by {
     simp
     grind
 }
+
+-/

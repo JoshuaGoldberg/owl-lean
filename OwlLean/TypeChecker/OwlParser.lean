@@ -87,7 +87,7 @@ def SRexp.elab (sr : SRexp) (rctx : TCtx) : Except String (Owl.rexp rctx.length)
   match sr with
   | .var i =>
     match rctx.lookup i with
-    | .none => throw s!"Unknown variable: {i}"
+    | .none => throw s!"Unknown refinement variable: {i}"
     | .some j => return (.var j)
   | .op s r1 r2 => do
     let e1 <- r1.elab rctx
@@ -143,6 +143,12 @@ def STy.elab (s : STy)
     let t1' ← STy.elab t1 P R D
     let t2' ← STy.elab t2 P R (a :: D)
     return ty.ex t1' t2'
+  | .ex_r a t1 => do
+    let t1' <- t1.elab P (a :: R) D
+    return .ex_r t1'
+  | .all_r a t1 => do
+    let t1' <- t1.elab P (a :: R) D
+    return .all_r t1'
   | .all_l s c l t => do
     let c' ← SCondSym.elab c
     let l' ← SLabel.elab l P
@@ -199,6 +205,9 @@ def SExprX.elab (s : SExprX) (P : TCtx) (R:TCtx) (D : TCtx) (G : TCtx): Except S
   | .tlam t e => do
     let e' ← SExpr.elab e P R (t::D) G
     return tmX.tlam e'
+  | .rlam t e => do
+    let e' ← SExpr.elab e P (t :: R) D G
+    return tmX.rlam e'
   | .l_lam l e => do
     let e' ← SExpr.elab e (l::P) R D G
     return tmX.l_lam e'
@@ -735,7 +744,7 @@ elab_rules : command
       let sty : STy ← unsafe do Meta.evalExpr STy (mkConst ``STy) styExpr2
 
       match SExpr.elab stm lvars rvars tvars vars with
-      | .error _ => throwError "owl: ill-formed term {e}"
+      | .error s => throwError "owl: ill-formed term: {s}"
       | .ok _ => PURE
 
       match STy.elab sty lvars rvars tvars with

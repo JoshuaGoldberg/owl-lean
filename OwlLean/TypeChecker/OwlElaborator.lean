@@ -124,9 +124,11 @@ syntax "Ref" owl_type : owl_type
 syntax owl_type "->" owl_type : owl_type
 syntax owl_type "*" owl_type : owl_type
 syntax owl_type "+" owl_type : owl_type
-syntax "∀" owl_type "<:" owl_type "." owl_type : owl_type
-syntax "∃" owl_type "<:" owl_type "." owl_type : owl_type
-syntax "∀" owl_label owl_cond_sym owl_label "." owl_type : owl_type
+syntax "∀" ident "<:" owl_type "." owl_type : owl_type
+syntax "∃" ident "<:" owl_type "." owl_type : owl_type
+syntax "∀" ident owl_cond_sym owl_label "." owl_type : owl_type
+syntax "∃" ident "." owl_type : owl_type
+syntax "∀" ident "." owl_type : owl_type
 syntax "corr" "(" owl_label ")" "?" owl_type ":" owl_type : owl_type
 syntax "Public" : owl_type
 syntax "$" term:max "[" owl_label,* "]" "[" owl_type,* "]" : owl_type
@@ -168,6 +170,12 @@ partial def elabType : Syntax → TermElabM Expr
     let elab_t1 <- elabType t1
     let elab_t2 <- elabType t2
     mkAppM ``STy.ex #[mkStrLit id.getId.toString, elab_t1, elab_t2]
+  | `(owl_type| ∃ $id:ident . $t2:owl_type) => do
+    let t2' <- elabType t2
+    mkAppM ``STy.ex_r #[mkStrLit id.getId.toString, t2']
+  | `(owl_type| ∀ $id:ident . $t2:owl_type) => do
+    let t2' <- elabType t2
+    mkAppM ``STy.all_r #[mkStrLit id.getId.toString, t2']
   | `(owl_type| ∀ $id:ident $c:owl_cond_sym $l:owl_label . $t:owl_type) => do
     let elab_t <- elabType t
     let elab_l <- elabLabel l
@@ -185,7 +193,7 @@ partial def elabType : Syntax → TermElabM Expr
     let ts_list <- mkListLit (mkConst ``STy) ts'.toList
     let t' ← Term.elabTerm t (mkConst ``Owl.ty)
     mkAppM ``STy.embedty #[t', ls_list, ts_list]
-  | _ => throwUnsupportedSyntax
+  | _ => throwError "Unexpected syntax for elabType"
 
 notation:100 "PURE" => pure ()
 notation:100 "THROW" => throw ()
@@ -200,6 +208,7 @@ syntax str : owl_tm
 syntax "fix" ident "(" ident ")" owl_tm : owl_tm
 syntax "Λ" owl_type "." owl_tm : owl_tm
 syntax "Λβ" owl_label "." owl_tm : owl_tm
+syntax "Λr" ident "." owl_tm : owl_tm
 syntax "⟨" owl_tm "," owl_tm "⟩" : owl_tm
 syntax "⟨" term "⟩" "(" owl_tm "," owl_tm ")" : owl_tm -- Op case
 syntax "zero" owl_tm : owl_tm
@@ -270,6 +279,9 @@ partial def elabTmX : Syntax → TermElabM Expr
   | `(owl_tm| Λβ $id:ident . $e:owl_tm) => do
     let elab_e <- elabTm e
     mkAppM ``SExprX.l_lam #[mkStrLit id.getId.toString, elab_e]
+  | `(owl_tm| Λr $id:ident . $e:owl_tm) => do
+    let elab_e <- elabTm e
+    mkAppM ``SExprX.rlam #[mkStrLit id.getId.toString, elab_e]
   | `(owl_tm|⟨ $e1:owl_tm , $e2:owl_tm ⟩) => do
     let elab_e1 <- elabTm e1
     let elab_e2 <- elabTm e2
@@ -464,6 +476,12 @@ partial def elabType_closed : Syntax → TermElabM Expr
     let elab_l <- elabLabel_closed l
     let elab_c <- elabCondSym c
     mkAppM ``STy.all_l #[mkStrLit id.getId.toString, elab_c, elab_l, elab_t]
+  | `(owl_type| ∃ $id:ident . $t2:owl_type) => do
+    let t2' <- elabType_closed t2
+    mkAppM ``STy.ex_r #[mkStrLit id.getId.toString, t2']
+  | `(owl_type| ∀ $id:ident . $t2:owl_type) => do
+    let t2' <- elabType_closed t2
+    mkAppM ``STy.all_r #[mkStrLit id.getId.toString, t2']
   | `(owl_type| corr ( $c:owl_label ) ? $t1:owl_type : $t2:owl_type) => do
     let elab_t1 <- elabType_closed t1
     let elab_t2 <- elabType_closed t2
@@ -500,6 +518,9 @@ partial def elabTmX_closed : Syntax → TermElabM Expr
   | `(owl_tm| Λβ $id:ident . $e:owl_tm) => do
     let elab_e <- elabTm_closed e
     mkAppM ``SExprX.l_lam #[mkStrLit id.getId.toString, elab_e]
+  | `(owl_tm| Λr $id:ident . $e:owl_tm) => do
+    let elab_e <- elabTm e
+    mkAppM ``SExprX.rlam #[mkStrLit id.getId.toString, elab_e]
   | `(owl_tm|⟨ $e1:owl_tm , $e2:owl_tm ⟩) => do
     let elab_e1 <- elabTm_closed e1
     let elab_e2 <- elabTm_closed e2

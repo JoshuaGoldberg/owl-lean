@@ -243,6 +243,7 @@ inductive tmX : Nat -> Nat -> Nat -> Nat -> Type where
 | fixlam : String -> tm n_label n_ref n_ty ((n_tm + 1) + 1) -> tmX n_label n_ref n_ty n_tm
 | letr : tm n_label n_ref n_ty n_tm -> tm n_label (n_ref + 1) n_ty (n_tm + 1) -> tmX n_label n_ref n_ty n_tm
 | tlam : tm n_label n_ref (n_ty + 1) n_tm -> tmX n_label n_ref n_ty n_tm
+| rlam : tm n_label (n_ref + 1) n_ty n_tm -> tmX n_label n_ref n_ty n_tm
 | l_lam : tm (n_label + 1) n_ref n_ty n_tm -> tmX n_label n_ref n_ty n_tm
 | Op : String -> tm n_label n_ref n_ty n_tm -> tm n_label n_ref n_ty n_tm -> tmX n_label n_ref n_ty n_tm
 | zero : tm n_label n_ref n_ty n_tm -> tmX n_label n_ref n_ty n_tm
@@ -464,6 +465,9 @@ tmX n_label n_ref n_ty n_tm :=
         (ren_tm (upRen_ty_label xi_label) xi_ref
            (upRen_ty_ty xi_ty)
            (upRen_ty_tm xi_tm) s0)
+  | .rlam s0 =>
+    .rlam
+        (ren_tm xi_label (up_ren xi_ref) xi_ty xi_tm s0)
   | .letr e1 e2 =>
     .letr (ren_tm xi_label xi_ref xi_ty xi_tm e1)
           (ren_tm xi_label (up_ren xi_ref) xi_ty (upRen_tm_tm xi_tm) e2)
@@ -704,6 +708,13 @@ def subst_tmX
       .tlam
         (subst_tm (up_ty_label sigma_label) sigma_ref (up_ty_ty sigma_ty)
            (up_ty_tm sigma_tm) s0)
+  | .rlam s0 =>
+      .rlam
+        (subst_tm sigma_label
+            (cons (.var var_zero)
+              (funcomp (ren_rexp shift) sigma_ref))
+            (funcomp (ren_ty id shift id) sigma_ty)
+            (funcomp (ren_tm id shift id id) sigma_tm) s0)
   | .letr e1 e2 =>
     .letr (subst_tm sigma_label sigma_ref sigma_ty sigma_tm e1)
           (subst_tm sigma_label

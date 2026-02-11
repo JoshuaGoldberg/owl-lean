@@ -46,6 +46,8 @@ inductive STy : Type where
 | sum : STy -> STy -> STy
 | all : String -> STy -> STy -> STy
 | ex : String -> STy -> STy -> STy
+| ex_r : String -> STy -> STy
+| all_r : String -> STy -> STy
 | all_l : String -> SCondSym -> SLabel -> STy -> STy
 | t_if : SLabel -> STy -> STy -> STy
 -- TODO: for the List Unit, make it a List RefinementExp
@@ -69,6 +71,7 @@ inductive SExprX : Type where
 | fixlam : String -> String -> SExpr -> SExprX
 | elet : String -> SExpr -> SExpr -> SExprX
 | tlam : String -> SExpr -> SExprX
+| rlam : String -> SExpr -> SExprX
 | l_lam : String -> SExpr -> SExprX
 | Op : String -> SExpr -> SExpr -> SExprX
 | zero : SExpr -> SExprX

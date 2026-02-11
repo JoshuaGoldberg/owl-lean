@@ -405,6 +405,12 @@ def inferX [Monad M] (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_
         check_subtype subtype_fuel Phi Psi Delta r2 r1
         pure r1
     | _ => throw "case"
+  | .rlam e =>
+    match exp with
+    | .some (.all_r t0) => do
+        let _ <- infer Phi Psi (lift_delta_r Delta) (lift_gamma_r Gamma) e (.some t0)
+        pure (.all_r t0)
+    | _ => throw "Error when type checking Λr: expected type must be of the form ∀ x. τ"
   | .tlam e =>
     match exp with
     | .some (.all t0 t) => do
