@@ -174,6 +174,83 @@ def ENC := OwlTy [ lK ] [ tM ] {
 
 -/
 
+-- state machine
+def StateMachine := OwlTy [] [] {
+  ∃ S <: Any . (S * ((S * Public) -> (Public * S)))
+}
+
+-- state machine execution type
+def run_sm_ty := OwlTy [] [] {
+  $ StateMachine [] [] -> (Public -> Public)
+}
+
+-- actual code for the state machine
+def run_sm_tm := Owl [] [] [] {
+  λ (m : $ StateMachine [] []) : (Public -> Public) =>
+  unpack m as (S, contents) in
+  let state_ref = alloc (π1 contents) in
+  let step = π2 contents in
+  fix go (input)
+    let result = step ⟨!state_ref, input⟩ in
+    let _unused = (state_ref := π2 result) in
+    π1 result
+}
+
+def two_sm := OwlTy [] [] {
+  $ StateMachine [] [] -> $ StateMachine [] [] -> ((Public * Public) -> Public)
+}
+
+def run_two_tm := Owl [] [] [] {
+  λ (a : $ StateMachine [] []) : ($ StateMachine [] [] -> (Public * Public) -> Public) =>
+  λ (b : $ StateMachine [] []) : ((Public * Public) -> Public) =>
+  -- generate a single state machine run function
+  let A = $ run_sm_tm [] [] [] a in
+  -- let's do it again!
+  let B = $ run_sm_tm [] [] [] b in
+  fix go (val)
+    let (det, msg) = val in
+    if det then
+      A msg
+    else
+      B msg
+}
+
+-- typecheck (nice!)
+#tc run_sm_tc := · ; · ; · ; ·
+  ⊢
+  $ run_sm_tm [] [] []
+  :
+  $ run_sm_ty [] []
+  by {
+    unfold sideConditions
+    simp
+    try grind
+  }
+
+-- typecheck 2 (nice!)
+#tc run_two_sm_tc := · ; · ; · ; ·
+  ⊢
+  $ run_two_tm [] [] []
+  :
+  $ two_sm [] []
+  by {
+    unfold sideConditions
+    simp
+    try grind
+  }
+
+-- place to test out my ideas for protocols
+#tc test_protocol := · ; · ; · ;
+  A => ($ StateMachine [] []),
+  B => ($ StateMachine [] [])
+  ⊢
+  ()
+  :
+  Any by {
+    unfold sideConditions
+    simp
+    try grind
+  }
 
 
 #tc protocol := lM, lKL ⊐ lM, lKH ⊐ lKL; · ; aKH <: Data lKH, aKL <: Data lKL ;
