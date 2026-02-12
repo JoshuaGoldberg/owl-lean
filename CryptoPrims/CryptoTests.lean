@@ -11,11 +11,12 @@ open OwlTc
 -- Λr r. e
 -- ∃ r. e
 
--- τ { P }
+-- τ { p }
+
 
 attribute [simp] Fin.foldr_succ
 
-#tc example_rpack := · ; · ; · ; ·  ⊢
+#tc example_rpack :=  ⊢
   let x = "0" in
   rpack ("0", x)
   :
@@ -25,7 +26,7 @@ attribute [simp] Fin.foldr_succ
     simp
   }
 
-#tc example_rlam0 := · ; · ; · ; ·  ⊢
+#tc example_rlam0 :=  ⊢
   let foo : (∀ r. RData ⊥ [r] -> RData ⊥ [r])  = (Λr r.
     λ (x : RData ⊥ [ r ]) : RData ⊥ [ r ] =>
       x
@@ -47,14 +48,14 @@ def tst := OwlTy [] [] [] {
     ∀ x . Public
 }
 
-#tc example0 :=  · ; · ; · ; · ⊢
+#tc example0 :=  ⊢
   "0" : (Public)  by {
       unfold sideConditions
       simp
       grind
   }
 
-#tc rexp := · ; · ; · ; · ⊢
+#tc rexp := ⊢
   "0" : Data ⊥
   by  {
     unfold sideConditions
@@ -65,7 +66,7 @@ def tst := OwlTy [] [] [] {
 
 
 
-#tc ENC_FUNC := · ; · ; · ; · ⊢
+#tc ENC_FUNC := ⊢
     Λβ betaK .
     Λβ betaM .
     Λ tau .

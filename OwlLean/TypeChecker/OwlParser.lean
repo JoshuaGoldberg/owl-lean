@@ -403,6 +403,19 @@ def SPhi.getVars (phi : SPhi) : (List String) :=
   | .Phi_End => []
   | .Phi_Cons ⟨varName, _, _⟩ rest => varName :: SPhi.getVars rest
 
+def STheta.getVars (theta : STheta) : List String :=
+  match theta with
+  | .End => []
+  | .STheta_var th v => v :: th.getVars
+  | .STheta_prop th _ => th.getVars
+
+def STheta.elab (theta : STheta) (rvars : List String) : Except String (List (prop rvars.length)) :=
+ match theta with
+ | .End => return []
+ | .STheta_var th _ => th.elab rvars
+ | .STheta_prop th p => do
+    return (<- p.elab rvars) :: (<- th.elab rvars)
+
 @[simp]
 def SDelta.elab (delta : SDelta) (lvars : List String) (rvars : List String) : Except String ((tvars : List String) × delta_context lvars.length rvars.length tvars.length) :=
   match delta with
@@ -512,6 +525,14 @@ def gammaWithLength (l r : Nat) (t : Nat) (m : Nat) (sgamma : SGamma) (lvars rva
       else emptyGammaOfLength l r t m
     else emptyGammaOfLength l r t m
   | _ => emptyGammaOfLength l r t m
+
+def thetaWithLength (r : Nat) (theta : STheta) (rvars : List String) : OwlTc.RCtx r :=
+  match theta.elab rvars with
+  | .ok res =>
+    if h : rvars.length = r then
+      (h ▸ res)
+    else []
+  | _ => []
 
 @[simp]
 def emptyPsiOfLength : (n : Nat) → psi_context n
@@ -645,6 +666,7 @@ structure Sequent where
   Phi : phi_context l
   Psi : psi_context l
   Delta : delta_context l r d
+  Theta : OwlTc.RCtx r
   Gamma : gamma_context l r d m
   e : tm l r d m
   t : ty l r d
@@ -676,6 +698,9 @@ def tcLog (s : String) : Command.CommandElabM Unit := do
 
 syntax "#tc" term "by" tacticSeq : command
 
+def tcFresh : Command.CommandElabM Lean.Name :=
+  Command.liftCoreM $ mkFreshId
+
 open OwlTc
 
 
@@ -699,7 +724,7 @@ def mkFreshDefn (n : TSyntax `ident) (e : Expr) : Command.CommandElabM Ident := 
   pure id
 
 def doTc (n : TSyntax `ident) (s : Sequent) tkp pf := do
-    match <- OwlTc.infer s.Phi s.Psi s.Delta s.Gamma s.e s.t (CheckState.init tcVisit tcLog) with
+    match <- OwlTc.infer s.Phi s.Psi s.Delta s.Theta s.Gamma s.e s.t (CheckState.init tcVisit tcLog tcFresh) with
     | .ok (_, p) => do
       let sc := p.side_condition
       let id <- mkFreshDefn n (toExpr sc)
@@ -720,9 +745,9 @@ def doTc (n : TSyntax `ident) (s : Sequent) tkp pf := do
 
 -- For easier usage of the has_type inductive
 
-syntax "#tc" ident ":=" owl_phi ";" owl_psi ";" owl_delta ";" owl_gamma "⊢" owl_tm ":" owl_type "by" tacticSeq : command
+syntax "#tc_with" ident ":=" owl_phi ";" owl_psi ";" owl_delta ";" owl_theta ";" owl_gamma "⊢" owl_tm ":" owl_type "by" tacticSeq : command
 elab_rules : command
-  | `(#tc $n := $p ; $ps; $d; $g ⊢ $e : $t by%$tkp $pf ) => do
+  | `(#tc_with $n := $p ; $ps; $d; $th; $g ⊢ $e : $t by%$tkp $pf ) => do
     let seq_e <- Command.liftTermElabM $ withEnableInfoTree false do
 
       let sphiExpr2 ← elabPhi_closed p
@@ -737,8 +762,11 @@ elab_rules : command
       let sgammaExpr2 ← elabGamma_closed g
       let sgamma : SGamma ← unsafe do Meta.evalExpr SGamma (mkConst ``SGamma) sgammaExpr2
 
+      let sthetaExpr <- elabTheta th
+      let stheta : STheta <- unsafe do Meta.evalExpr STheta (mkConst ``STheta) sthetaExpr
+
       let lvars := SPhi.getVars sphi
-      let rvars : List String := []
+      let rvars : List String := stheta.getVars
         --rs.raw.getArgs.toList.map (fun s => s.getId.toString)
 
       let tvars := SDelta.getVars sdelta
@@ -759,6 +787,10 @@ elab_rules : command
 
       match SGamma.elab sgamma lvars rvars tvars with
       | .error _ => throwError "owl: ill-formed gamma context {g}"
+      | .ok _ => PURE
+
+      match STheta.elab stheta rvars with
+      | .error _ => throwError "owl: ill-formed theta context"
       | .ok _ => PURE
 
       let stmExpr2 ← elabTm_closed e
@@ -788,9 +820,15 @@ elab_rules : command
       let gammaExpr ← mkAppM ``gammaWithLength #[mkNatLit lvars.length, mkNatLit rvars.length, mkNatLit tvars.length,
                                                 mkNatLit vars.length, ← elabGamma g,
                                                 lvarsExpr, rvarsExpr, tvarsExpr]
+      let thetaExpr <- mkAppM ``thetaWithLength #[mkNatLit rvars.length, <- elabTheta th, rvarsExpr]
       let tyExpr ← mkAppM ``elabHelperTy #[← elabType t, lvarsExpr, rvarsExpr, tvarsExpr]
       let tmExpr ← mkAppM ``elabHelper #[← elabTm e, lvarsExpr, rvarsExpr, tvarsExpr, varsExpr]
 
-      mkAppM ``Sequent.mk #[mkNatLit lvars.length, mkNatLit rvars.length, mkNatLit tvars.length, mkNatLit vars.length, phiExpr, psiExpr, deltaExpr, gammaExpr, tmExpr, tyExpr]
+      mkAppM ``Sequent.mk #[mkNatLit lvars.length, mkNatLit rvars.length, mkNatLit tvars.length, mkNatLit vars.length, phiExpr, psiExpr, deltaExpr, thetaExpr, gammaExpr, tmExpr, tyExpr]
     let seq <- Command.liftTermElabM $ unsafe evalExpr Sequent (mkConst `Sequent) seq_e
     doTc n seq tkp pf
+
+syntax "#tc" ident ":=" "⊢" owl_tm ":" owl_type "by" tacticSeq : command
+elab_rules : command
+  | `(#tc $n := ⊢ $e : $t by%$tkp $pf ) => do
+    Command.elabCommand (<- `(#tc_with $n := · ; · ; · ; · ; ·  ⊢ $e : $t by $pf))

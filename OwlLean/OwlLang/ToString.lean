@@ -33,6 +33,7 @@ def rexp.pretty (re : rexp r) : String :=
   | .var i => "r" ++ toString i.toNat
   | .op s r1 r2 => s ++ "(" ++ r1.pretty ++ "," ++ r2.pretty ++ ")"
   | .const b => b
+  | .fvar n => "<guid " ++ Lean.Name.toString n ++ ">"
 
 def prop.pretty (p : prop r) : String :=
   match p with

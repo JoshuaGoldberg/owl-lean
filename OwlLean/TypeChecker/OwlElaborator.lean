@@ -787,6 +787,23 @@ partial def elabPsiEntry_closed : Syntax → TermElabM Expr
       mkAppM ``SPsiEntry.PsiNotCorr #[elab_l1]
   | _ => throwUnsupportedSyntax
 
+declare_syntax_cat owl_theta
+
+syntax "·" : owl_theta
+syntax owl_theta "," ident : owl_theta
+syntax owl_theta "," owl_prop : owl_theta
+
+partial def elabTheta : Syntax -> TermElabM Expr
+  | `(owl_theta | · ) =>
+    return (mkConst ``STheta.End)
+  | `(owl_theta | $th, $x:ident) => do
+    mkAppM ``STheta.STheta_var #[<- elabTheta th, mkStrLit x.getId.toString]
+  | `(owl_theta | $th , $p ) => do
+    mkAppM ``STheta.STheta_prop #[<- elabTheta th, <- elab_prop p]
+  | _ => throwUnsupportedSyntax
+
+
+
 syntax "(" owl_phi_entry "," owl_phi ")" : owl_phi
 syntax owl_phi_entry "," owl_phi : owl_phi
 syntax owl_phi_entry : owl_phi

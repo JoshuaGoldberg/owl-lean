@@ -141,6 +141,12 @@ inductive SGamma : Type where
 | Gamma_End : SGamma
 deriving Repr
 
+inductive STheta where
+| End : STheta
+| STheta_prop : STheta -> SProp -> STheta
+| STheta_var : STheta -> String -> STheta
+deriving Repr
+
 inductive SPsiEntry : Type where
 | PsiCorr : SLabel -> SPsiEntry
 | PsiNotCorr : SLabel -> SPsiEntry
