@@ -34,6 +34,15 @@ inductive SRexp where
 | const : String -> SRexp
 deriving Repr
 
+inductive SProp where
+| peq : SRexp -> SRexp -> SProp
+| pand : SProp -> SProp -> SProp
+| por : SProp -> SProp -> SProp
+| pimpl : SProp -> SProp -> SProp
+| pnot : SProp -> SProp
+| pall : String -> SProp -> SProp
+deriving Repr
+
 inductive STy : Type where
 | var_ty : String -> STy
 | Any : STy
@@ -50,6 +59,7 @@ inductive STy : Type where
 | all_r : String -> STy -> STy
 | all_l : String -> SCondSym -> SLabel -> STy -> STy
 | t_if : SLabel -> STy -> STy -> STy
+| refined : STy -> SProp -> STy
 -- TODO: for the List Unit, make it a List RefinementExp
 | embedty : Owl.ty l r d -> List SLabel -> List Unit -> List STy -> STy
 | Public : STy

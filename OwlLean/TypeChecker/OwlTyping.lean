@@ -246,7 +246,7 @@ theorem CorruptionSet.by_downwards_closed (C : CorruptionSet) :
     apply h1
     assumption
 
-@[grind]
+@[simp, grind]
 theorem CorruptionSet.has_bot_pf (C : CorruptionSet) :
   C.is_corrupt (label.latl L.bot) := by {
       apply C.has_bot

@@ -5,6 +5,13 @@ open Lean Meta Elab Tactic
 
 open OwlTc
 
+-- New syntax:
+-- rpack
+-- ∀ r. τ
+-- Λr r. e
+-- ∃ r. e
+
+-- τ { P }
 
 attribute [simp] Fin.foldr_succ
 
@@ -12,26 +19,27 @@ attribute [simp] Fin.foldr_succ
   let x = "0" in
   rpack ("0", x)
   :
-  ∃ x. RData ⟨Owl.L.bot⟩ [x]
+  ∃ x. RData ⊥ [x]
   by {
     unfold sideConditions
     simp
-    grind
   }
 
-#tc example_rlam := · ; · ; · ; ·  ⊢
-  Λr r.
-    λ (x : RData ⟨Owl.L.bot⟩ [ r ]) : RData ⟨Owl.L.bot⟩ [ r ] =>
+#tc example_rlam0 := · ; · ; · ; ·  ⊢
+  let foo : (∀ r. RData ⊥ [r] -> RData ⊥ [r])  = (Λr r.
+    λ (x : RData ⊥ [ r ]) : RData ⊥ [ r ] =>
       x
+  )
+  in
+  foo
   :
-  ∀ r.
-    RData ⟨Owl.L.bot⟩ [r]
+  ∀ x.
+    RData ⊥ [x]
     ->
-    RData ⟨Owl.L.bot⟩ [r]
+    RData ⊥ [x]
   by {
       unfold sideConditions
       simp
-      grind
   }
 
 
@@ -47,12 +55,14 @@ def tst := OwlTy [] [] [] {
   }
 
 #tc rexp := · ; · ; · ; · ⊢
-  "0" : RData ⟨Owl.L.bot⟩ [ "0" ]
+  "0" : Data ⊥
   by  {
     unfold sideConditions
     simp
+    intros
     grind
   }
+
 
 
 #tc ENC_FUNC := · ; · ; · ; · ⊢

@@ -34,11 +34,21 @@ def rexp.pretty (re : rexp r) : String :=
   | .op s r1 r2 => s ++ "(" ++ r1.pretty ++ "," ++ r2.pretty ++ ")"
   | .const b => b
 
+def prop.pretty (p : prop r) : String :=
+  match p with
+  | .peq r1 r2 => r1.pretty ++ " = " ++ r2.pretty
+  | .pand p1 p2 => p1.pretty ++ " ∧ " ++ p2.pretty
+  | .por p1 p2 => p1.pretty ++ " ∨ " ++ p2.pretty
+  | .pimpl p1 p2 => p1.pretty ++ " → " ++ p2.pretty
+  | .pnot p1 => "¬ " ++ p1.pretty
+  | .pall p1 => "∀ ." ++ p1.pretty
+
 def ty.pretty (t : ty l r d ) : String :=
   match t with
   | .var_ty i => "X" ++ toString i.toNat
   | .Any => "Any"
   | .Unit => "Unit"
+  | .refined t p => t.pretty ++ "{" ++ p.pretty ++ "}"
   | .RData l re => "RData[" ++ l.pretty ++ "," ++ re.pretty ++ "]"
   | .Data l => "Data[" ++ l.pretty ++ "]"
   | .Ref t' => "Ref(" ++ t'.pretty ++ ")"

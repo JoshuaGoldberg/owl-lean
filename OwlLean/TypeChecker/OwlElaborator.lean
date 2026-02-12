@@ -8,6 +8,7 @@ open Lean Elab Meta
 deriving instance ToExpr for SLabel
 deriving instance ToExpr for SCondSym
 deriving instance ToExpr for SRexp
+deriving instance ToExpr for SProp
 deriving instance ToExpr for STy
 
 declare_syntax_cat owl_tm
@@ -28,6 +29,7 @@ declare_syntax_cat owl_rexp
 -- syntax for labels
 syntax ident : owl_label
 syntax "⟨" term "⟩"  : owl_label
+syntax "⊥" : owl_label
 syntax owl_label "⊔" owl_label : owl_label
 syntax owl_label "⊓" owl_label : owl_label
 syntax "$" term:max "[" owl_label,* "]" : owl_label
@@ -60,6 +62,9 @@ partial def elabLabel : Syntax → TermElabM Expr
       let empty_list <- mkListLit (mkConst ``SLabel) []
       let l' ← Term.elabTerm l (mkConst ``Owl.label)
       mkAppM ``SLabel.embedlabel #[l', empty_list]
+  | `(owl_label| ⊥) =>
+      let b := Owl.L.bot;
+      mkAppM ``SLabel.latl #[toExpr b]
   | _ => throwUnsupportedSyntax
 
 -- syntax for cond symbols
@@ -101,6 +106,7 @@ syntax ident : owl_rexp
 syntax ident "(" owl_rexp "," owl_rexp ")" : owl_rexp
 syntax str : owl_rexp
 
+
 partial def elab_rexp : Syntax -> TermElabM Expr
   | `(owl_rexp | $op:ident ( $e1, $e2 )) => do
     let r1 <- elab_rexp e1
@@ -112,6 +118,43 @@ partial def elab_rexp : Syntax -> TermElabM Expr
     mkAppM ``SRexp.const #[mkStrLit ob.getString]
   | _ => throwUnsupportedSyntax
 
+
+declare_syntax_cat owl_prop
+syntax "(" owl_prop ")" : owl_prop
+syntax owl_rexp "=" owl_rexp : owl_prop
+syntax owl_prop "∧" owl_prop : owl_prop
+syntax owl_prop "∨" owl_prop : owl_prop
+syntax owl_prop "→" owl_prop : owl_prop
+syntax "¬" owl_prop : owl_prop
+syntax "∀" ident "." owl_prop : owl_prop
+
+partial def elab_prop : Syntax -> TermElabM Expr
+  | `(owl_prop| ( $e:owl_prop )) => elab_prop e
+  | `(owl_prop| $e1:owl_rexp = $e2:owl_rexp) => do
+    let r1 <- elab_rexp e1
+    let r2 <- elab_rexp e2
+    mkAppM ``SProp.peq #[r1, r2]
+  | `(owl_prop| $p1:owl_prop ∧ $p2:owl_prop) => do
+    let ep1 <- elab_prop p1
+    let ep2 <- elab_prop p2
+    mkAppM ``SProp.pand #[ep1, ep2]
+  | `(owl_prop| $p1:owl_prop ∨ $p2:owl_prop) => do
+    let ep1 <- elab_prop p1
+    let ep2 <- elab_prop p2
+    mkAppM ``SProp.por #[ep1, ep2]
+  | `(owl_prop| $p1:owl_prop → $p2:owl_prop) => do
+    let ep1 <- elab_prop p1
+    let ep2 <- elab_prop p2
+    mkAppM ``SProp.pimpl #[ep1, ep2]
+  | `(owl_prop| ¬ $p:owl_prop) => do
+    let ep <- elab_prop p
+    mkAppM ``SProp.pnot #[ep]
+  | `(owl_prop| ∀ $x:ident . $p:owl_prop ) => do
+    let p' <- elab_prop p
+    mkAppM ``SProp.pall #[mkStrLit x.getId.toString, p']
+
+
+  | _ => throwUnsupportedSyntax
 
 -- syntax for types
 syntax "(" owl_type ")" : owl_type
@@ -132,6 +175,7 @@ syntax "∀" ident "." owl_type : owl_type
 syntax "corr" "(" owl_label ")" "?" owl_type ":" owl_type : owl_type
 syntax "Public" : owl_type
 syntax "$" term:max "[" owl_label,* "]" "[" owl_type,* "]" : owl_type
+syntax owl_type "{" owl_prop "}" : owl_type
 
 partial def elabType : Syntax → TermElabM Expr
   | `(owl_type| ( $e:owl_type)) => elabType e
@@ -193,6 +237,10 @@ partial def elabType : Syntax → TermElabM Expr
     let ts_list <- mkListLit (mkConst ``STy) ts'.toList
     let t' ← Term.elabTerm t (mkConst ``Owl.ty)
     mkAppM ``STy.embedty #[t', ls_list, ts_list]
+  | `(owl_type| $t:owl_type { $p }) => do
+    let elab_t ← elabType t
+    let elab_p <- elab_prop p
+    mkAppM ``STy.refined #[elab_t, elab_p]
   | _ => throwError "Unexpected syntax for elabType"
 
 notation:100 "PURE" => pure ()
@@ -433,6 +481,9 @@ partial def elabLabel_closed : Syntax → TermElabM Expr
       let empty_list <- mkListLit (mkConst ``SLabel) []
       let l' ← Term.elabTerm l (mkConst ``Owl.label)
       mkAppM ``SLabel.embedlabel #[l', empty_list]
+  | `(owl_label| ⊥) =>
+      let b := Owl.L.bot;
+      mkAppM ``SLabel.latl #[toExpr b]
   | _ => throwUnsupportedSyntax
 
 partial def elabConstr_closed : Syntax → TermElabM Expr

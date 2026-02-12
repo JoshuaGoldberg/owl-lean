@@ -16,6 +16,7 @@ def Owl.ty.simplify (t : ty l r d ) (corrs : List (corruption l)): ty l r d  :=
   | .RData _ _ => t
   | .Data _ => t
   | .Public => t
+  | .refined t p => .refined (t.simplify corrs) p
   | .Ref t0 => .Ref t0
   | .arr t0 t1 => .arr (t0.simplify corrs) (t1.simplify corrs)
   | .ex t0 t1 => .ex (t0.simplify corrs) (t1.simplify corrs)
@@ -231,7 +232,7 @@ def check_subtype  [Monad m] (fuel : Nat) (Phi : phi_context l) (Psi : psi_conte
         check_subtype n Phi ((.corr lab) :: Psi) Delta t t1'
         check_subtype n Phi ((.not_corr lab) :: Psi) Delta t t2'
       | _, _ =>
-        let s := s!"Could not prove {t1} <: {t2}"
+        let s := s!"Could not prove {repr t1} <: {repr t2}"
         emit (.PsiContextInconsistent s (vec.from_fn Phi) Psi)
         -- throw s!"check_subtype: cannot prove {t1.pretty} <= {t2.pretty}}"
 

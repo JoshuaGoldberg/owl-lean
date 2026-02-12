@@ -87,7 +87,7 @@ def SRexp.elab (sr : SRexp) (rctx : TCtx) : Except String (Owl.rexp rctx.length)
   match sr with
   | .var i =>
     match rctx.lookup i with
-    | .none => throw s!"Unknown refinement variable: {i}"
+    | .none => throw s!"Unknown refinement variable: {i} when parsing: {repr sr}"
     | .some j => return (.var j)
   | .op s r1 r2 => do
     let e1 <- r1.elab rctx
@@ -96,6 +96,20 @@ def SRexp.elab (sr : SRexp) (rctx : TCtx) : Except String (Owl.rexp rctx.length)
   | .const i => do
     return .const i
 
+def SProp.elab (p : SProp) (rctx : TCtx) : Except String (Owl.prop rctx.length) :=
+  match p with
+  | .peq r1 r2 => do
+    return .peq (<- r1.elab rctx) (<- r2.elab rctx)
+  | .pand p1 p2 => do
+    return .pand (<- p1.elab rctx) (<- p2.elab rctx)
+  | .por p1 p2 => do
+    return .por (<- p1.elab rctx) (<- p2.elab rctx)
+  | .pimpl p1 p2 => do
+    return .pimpl (<- p1.elab rctx) (<- p2.elab rctx)
+  | .pnot p1 => do
+    return .pnot (<- p1.elab rctx)
+  | .pall s p1 => do
+    return .pall (<- p1.elab (s :: rctx))
 
 @[simp]
 def STy.elab (s : STy)
@@ -139,6 +153,8 @@ def STy.elab (s : STy)
     let t1' ← STy.elab t1 P R D
     let t2' ← STy.elab t2 P R (a :: D)
     return ty.all t1' t2'
+  | .refined s p => do
+    return .refined (<- STy.elab s P R D) (<- SProp.elab p R)
   | .ex a t1 t2 => do
     let t1' ← STy.elab t1 P R D
     let t2' ← STy.elab t2 P R (a :: D)
