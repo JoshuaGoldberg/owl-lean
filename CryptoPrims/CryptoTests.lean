@@ -16,6 +16,25 @@ open OwlTc
 
 attribute [simp] Fin.foldr_succ
 
+def sample := OwlTy {
+  ∀ l ⊒ ⊥. Public -> Data l
+}
+
+#tc tst1 := ⊢
+  λ f =>
+    f [[[ ⊥ ]]]
+  :
+  ($ sample [] [])
+  ->
+  (Public -> Data ⊥)
+  by {
+    unfold sideConditions
+    simp
+    grind
+  }
+
+
+
 #tc example_rpack :=  ⊢
   let x = "0" in
   rpack ("0", x)
@@ -44,7 +63,7 @@ attribute [simp] Fin.foldr_succ
   }
 
 
-def tst := OwlTy [] [] [] {
+def tst := OwlTy {
     ∀ x . Public
 }
 
@@ -88,7 +107,7 @@ def tst := OwlTy [] [] [] {
     in
     pack (Data betaK, ⟨k, ⟨(corr_case betaK in enc'), dec'⟩⟩)
     :
-    ∀ betaK ⊒ ⟨Owl.L.bot⟩ .
+    ∀ betaK ⊒ ⊥ .
     ∀ betaM ⊏ betaK .
     ∀ tau <: Data betaM .
     (∃ alphaK <: (Data betaK) . (alphaK *
@@ -96,7 +115,9 @@ def tst := OwlTy [] [] [] {
                                   (corr (betaK) ? (Public * Public) -> Public : (alphaK * Public) -> (tau + unit)))))
     by {
       unfold sideConditions
+
       simp
+
       grind
     }
 

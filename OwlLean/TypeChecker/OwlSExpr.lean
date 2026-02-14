@@ -32,6 +32,7 @@ inductive SRexp where
 | var : String -> SRexp
 | op : String -> SRexp -> SRexp -> SRexp
 | const : String -> SRexp
+| tmvar : String -> SRexp
 deriving Repr
 
 inductive SProp where
@@ -53,6 +54,8 @@ inductive STy : Type where
 | arr : STy -> STy -> STy
 | prod : STy -> STy -> STy
 | sum : STy -> STy -> STy
+| union : STy -> STy -> STy
+| inter : STy -> STy -> STy
 | all : String -> STy -> STy -> STy
 | ex : String -> STy -> STy -> STy
 | ex_r : String -> STy -> STy
@@ -61,7 +64,7 @@ inductive STy : Type where
 | t_if : SLabel -> STy -> STy -> STy
 | refined : STy -> SProp -> STy
 -- TODO: for the List Unit, make it a List RefinementExp
-| embedty : Owl.ty l r d -> List SLabel -> List Unit -> List STy -> STy
+| embedty : Owl.ty l r d 0 -> List SLabel -> List STy -> STy
 | Public : STy
 | default : STy
 deriving Repr
@@ -80,6 +83,7 @@ inductive SExprX : Type where
 | loc : Nat -> SExprX
 | fixlam : String -> String -> SExpr -> SExprX
 | elet : String -> SExpr -> SExpr -> SExprX
+| union_elim : String -> SExpr -> SExpr -> SExprX
 | tlam : String -> SExpr -> SExprX
 | rlam : String -> SExpr -> SExprX
 | l_lam : String -> SExpr -> SExprX
@@ -106,8 +110,6 @@ inductive SExprX : Type where
 | if_c :
     SLabel -> SExpr -> SExpr -> SExprX
 | sync : SExpr -> SExprX
--- TODO: for the List Unit, make it a List RefinementExp
-| embedtm : Owl.tm l r d m -> List SLabel -> List Unit -> List STy -> List SExpr -> SExprX
 | annot : SExpr -> STy -> SExprX
 | corr_case : SLabel -> SExpr -> SExprX
 | default : SExprX

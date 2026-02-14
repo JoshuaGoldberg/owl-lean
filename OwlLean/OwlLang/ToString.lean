@@ -28,14 +28,15 @@ instance : ToString (label n) where
   toString := label.pretty
 
 
-def rexp.pretty (re : rexp r) : String :=
+def rexp.pretty (re : rexp r n) : String :=
   match re with
   | .var i => "r" ++ toString i.toNat
   | .op s r1 r2 => s ++ "(" ++ r1.pretty ++ "," ++ r2.pretty ++ ")"
   | .const b => b
   | .fvar n => "<guid " ++ Lean.Name.toString n ++ ">"
+  | .tmvar j => "val(" ++ toString j.toNat ++ ")"
 
-def prop.pretty (p : prop r) : String :=
+def prop.pretty (p : prop r n) : String :=
   match p with
   | .peq r1 r2 => r1.pretty ++ " = " ++ r2.pretty
   | .pand p1 p2 => p1.pretty ++ " ∧ " ++ p2.pretty
@@ -44,7 +45,7 @@ def prop.pretty (p : prop r) : String :=
   | .pnot p1 => "¬ " ++ p1.pretty
   | .pall p1 => "∀ ." ++ p1.pretty
 
-def ty.pretty (t : ty l r d ) : String :=
+def ty.pretty (t : ty l r d n ) : String :=
   match t with
   | .var_ty i => "X" ++ toString i.toNat
   | .Any => "Any"
@@ -54,6 +55,8 @@ def ty.pretty (t : ty l r d ) : String :=
   | .Data l => "Data[" ++ l.pretty ++ "]"
   | .Ref t' => "Ref(" ++ t'.pretty ++ ")"
   | .arr t1 t2 => "(" ++ t1.pretty ++ " -> " ++ t2.pretty ++ ")"
+  | .union t1 t2 =>  t1.pretty ++ " ∪ " ++ t2.pretty
+  | .inter t1 t2 =>  t1.pretty ++ " ∩ " ++ t2.pretty
   | .prod t1 t2 => "(" ++ t1.pretty ++ " * " ++ t2.pretty ++ ")"
   | .sum t1 t2 => "(" ++ t1.pretty ++ " + " ++ t2.pretty ++ ")"
   | .all t0 t => "forall (" ++ t0.pretty ++ "), " ++ t.pretty
@@ -67,5 +70,5 @@ def ty.pretty (t : ty l r d ) : String :=
   | .Public => "Public"
   | .default => "default"
 
-instance : ToString (ty l r d ) where
+instance : ToString (ty l r d n) where
   toString := ty.pretty

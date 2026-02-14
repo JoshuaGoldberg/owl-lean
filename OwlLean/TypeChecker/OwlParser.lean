@@ -83,33 +83,37 @@ elab "constraint_parse" "(" p:owl_constr ")" : term =>
     elabConstr p
 
 
-def SRexp.elab (sr : SRexp) (rctx : TCtx) : Except String (Owl.rexp rctx.length) :=
+def SRexp.elab (sr : SRexp) (rctx : TCtx) (G : TCtx) : Except String (Owl.rexp rctx.length G.length) :=
   match sr with
   | .var i =>
     match rctx.lookup i with
     | .none => throw s!"Unknown refinement variable: {i} when parsing: {repr sr}"
     | .some j => return (.var j)
   | .op s r1 r2 => do
-    let e1 <- r1.elab rctx
-    let e2 <- r2.elab rctx
+    let e1 <- r1.elab rctx G
+    let e2 <- r2.elab rctx G
     return .op s e1 e2
   | .const i => do
     return .const i
+  | .tmvar i =>
+    match G.lookup i with
+    | .none => throw s!"Unknown term variable: {i} inside of a refinement expression"
+    | .some j => return .tmvar j
 
-def SProp.elab (p : SProp) (rctx : TCtx) : Except String (Owl.prop rctx.length) :=
+def SProp.elab (p : SProp) (rctx : TCtx) (G : TCtx) : Except String (Owl.prop rctx.length G.length) :=
   match p with
   | .peq r1 r2 => do
-    return .peq (<- r1.elab rctx) (<- r2.elab rctx)
+    return .peq (<- r1.elab rctx G) (<- r2.elab rctx G)
   | .pand p1 p2 => do
-    return .pand (<- p1.elab rctx) (<- p2.elab rctx)
+    return .pand (<- p1.elab rctx G) (<- p2.elab rctx G)
   | .por p1 p2 => do
-    return .por (<- p1.elab rctx) (<- p2.elab rctx)
+    return .por (<- p1.elab rctx G) (<- p2.elab rctx G)
   | .pimpl p1 p2 => do
-    return .pimpl (<- p1.elab rctx) (<- p2.elab rctx)
+    return .pimpl (<- p1.elab rctx G) (<- p2.elab rctx G)
   | .pnot p1 => do
-    return .pnot (<- p1.elab rctx)
+    return .pnot (<- p1.elab rctx G)
   | .pall s p1 => do
-    return .pall (<- p1.elab (s :: rctx))
+    return .pall (<- p1.elab (s :: rctx) G)
 
 @[simp]
 def STy.elab (s : STy)
@@ -118,7 +122,9 @@ def STy.elab (s : STy)
   -- refinement context
   (R : TCtx)
   -- variable context
-  (D : TCtx): Except String (Owl.ty P.length R.length D.length) :=
+  (D : TCtx)
+  (G : TCtx)
+  : Except String (Owl.ty P.length R.length D.length G.length) :=
   match s with
   | .var_ty i =>
     match TCtx.lookup D i with
@@ -129,60 +135,71 @@ def STy.elab (s : STy)
   | .Public => return ty.Public
   | .RData l re => do
     let l' ← SLabel.elab l P
-    let r <- re.elab R
+    let r <- re.elab R G
     return ty.RData l' r
   | .Data l => do
     let l' ← SLabel.elab l P
     return ty.Data l'
   | .Ref t => do
-    let t' ← STy.elab t P R D
+    let t' ← STy.elab t P R D G
     return ty.Ref t'
   | .arr t1 t2 => do
-    let t1' ← STy.elab t1 P R D
-    let t2' ← STy.elab t2 P R D
+    let t1' ← STy.elab t1 P R D G
+    let t2' ← STy.elab t2 P R D G
     return ty.arr t1' t2'
   | .prod t1 t2 => do
-    let t1' ← STy.elab t1 P R D
-    let t2' ← STy.elab t2 P R D
+    let t1' ← STy.elab t1 P R D G
+    let t2' ← STy.elab t2 P R D G
     return ty.prod t1' t2'
   | .sum t1 t2 => do
-    let t1' ← STy.elab t1 P R D
-    let t2' ← STy.elab t2 P R D
+    let t1' ← STy.elab t1 P R D G
+    let t2' ← STy.elab t2 P R D G
     return ty.sum t1' t2'
+  | .union t1 t2 => do
+    let t1' ← STy.elab t1 P R D G
+    let t2' ← STy.elab t2 P R D G
+    return ty.union t1' t2'
+  | .inter t1 t2 => do
+    let t1' ← STy.elab t1 P R D G
+    let t2' ← STy.elab t2 P R D G
+    return ty.inter t1' t2'
   | .all a t1 t2 => do
-    let t1' ← STy.elab t1 P R D
-    let t2' ← STy.elab t2 P R (a :: D)
+    let t1' ← STy.elab t1 P R D G
+    let t2' ← STy.elab t2 P R (a :: D) G
     return ty.all t1' t2'
   | .refined s p => do
-    return .refined (<- STy.elab s P R D) (<- SProp.elab p R)
+    return .refined (<- STy.elab s P R D G) (<- SProp.elab p R G)
   | .ex a t1 t2 => do
-    let t1' ← STy.elab t1 P R D
-    let t2' ← STy.elab t2 P R (a :: D)
+    let t1' ← STy.elab t1 P R D G
+    let t2' ← STy.elab t2 P R (a :: D) G
     return ty.ex t1' t2'
   | .ex_r a t1 => do
-    let t1' <- t1.elab P (a :: R) D
+    let t1' <- t1.elab P (a :: R) D G
     return .ex_r t1'
   | .all_r a t1 => do
-    let t1' <- t1.elab P (a :: R) D
+    let t1' <- t1.elab P (a :: R) D G
     return .all_r t1'
   | .all_l s c l t => do
     let c' ← SCondSym.elab c
     let l' ← SLabel.elab l P
-    let t' ← STy.elab t (s :: P) R D
+    let t' ← STy.elab t (s :: P) R D G
     return ty.all_l c' l' t'
   | .t_if c t1 t2 => do
     let c' ← SLabel.elab c P
-    let t1' ← STy.elab t1 P R D
-    let t2' ← STy.elab t2 P R D
+    let t1' ← STy.elab t1 P R D G
+    let t2' ← STy.elab t2 P R D G
     return ty.t_if c' t1' t2'
-  | @embedty llen rlen tlen t ls _ ts => do
+  | @embedty llen rlen tlen t ls ts => do
     let elab_ls <- ls.mapM (fun x => SLabel.elab x P)
-    let elab_ts <- ts.mapM (fun x => STy.elab x P R D)
+    let elab_ts <- ts.mapM (fun x => STy.elab x P R D G)
     if h : llen = elab_ls.length then
       if k : tlen = elab_ts.length then
         if h2 : rlen = R.length then
+          if h3 : G.length = 0 then
           -- TODO: I should also support refinement vars here.
-          return subst_ty (list_to_finmap elab_ls) .var (list_to_finmap elab_ts) (k ▸ (h ▸ (h2 ▸ t)))
+            return subst_ty (list_to_finmap elab_ls) .var (list_to_finmap elab_ts) (k ▸ (h ▸ (h2 ▸ (h3 ▸ t))))
+          else
+            throw s!"embedty: got nonzero context for terms"
         else
           throw s!"embedty: refinement argument length mismatch"
       else
@@ -231,21 +248,6 @@ def SExprX.elab (s : SExprX) (P : TCtx) (R:TCtx) (D : TCtx) (G : TCtx): Except S
     let e1' ← SExpr.elab e1 P R D G
     let e2' ← SExpr.elab e2 P R D G
     return tmX.Op op e1' e2'
-  | @SExprX.embedtm llen rlen tlen mlen e ls rs ts es => do
-    let elab_ls <- ls.mapM (fun l => l.elab P)
-    let elab_ts <- ts.mapM (fun t => t.elab P R D)
-    let elab_es <- es.mapM (fun e => e.elab P R D G)
-    if h : llen = elab_ls.length then
-      if k : tlen = elab_ts.length then
-        if j : mlen = elab_es.length then
-          if h2 : rlen = R.length then
-            -- TODO: I should also support refinement vars here.
-            return subst_tmX (list_to_finmap elab_ls) .var (list_to_finmap elab_ts) (list_to_finmap elab_es) (j ▸ (k ▸ (h ▸ (h2 ▸ e.get))))
-          else
-            throw s!"SExprX.elab: refinement term argument length mismatch"
-        else throw s!"SExprX.elab: embedtm term argument length mismatch: expected {mlen}, got {elab_es.length}"
-      else throw s!"SExprX.elab: embedtm type argument length mismatch: expected {tlen}, got {elab_ts.length}"
-    else throw s!"SExprX.elab: embedtm label argument length mismatch: expected {llen}, got {elab_ls.length}"
   | .zero e => do
     let e' ← SExpr.elab e P R D G
     return tmX.zero e'
@@ -286,11 +288,11 @@ def SExprX.elab (s : SExprX) (P : TCtx) (R:TCtx) (D : TCtx) (G : TCtx): Except S
     return tmX.case e' e1' e2'
   | .tapp e t => do
     let e' ← SExpr.elab e P R D G
-    let t' ← STy.elab t P R D
+    let t' ← STy.elab t P R D G
     return tmX.tapp e' t'
   | .rapp e t => do
     let e' ← SExpr.elab e P R D G
-    let t' ← SRexp.elab t R
+    let t' ← SRexp.elab t R G
     return tmX.rapp e' t'
   | .lapp e l => do
     let e' ← SExpr.elab e P R D G
@@ -298,10 +300,10 @@ def SExprX.elab (s : SExprX) (P : TCtx) (R:TCtx) (D : TCtx) (G : TCtx): Except S
     return tmX.lapp e' l'
   | .pack t e => do
     let e' ← SExpr.elab e P R D G
-    let t' ← STy.elab t P R D
+    let t' ← STy.elab t P R D G
     return tmX.pack t' e'
   | .rpack re e => do
-    let re' <- SRexp.elab re R
+    let re' <- SRexp.elab re R G
     let e' <- SExpr.elab e P R D G
     return tmX.rpack re' e'
   | .unpack e a x e1 => do
@@ -327,13 +329,18 @@ def SExprX.elab (s : SExprX) (P : TCtx) (R:TCtx) (D : TCtx) (G : TCtx): Except S
     return tmX.corr_case lab' e'
   | .annot e t => do
     let e' ← SExpr.elab e P R D G
-    let t' ← STy.elab t P R D
+    let t' ← STy.elab t P R D G
     return tmX.annot e' t'
   | .default => return tmX.default
   | .elet s e1 e2 => do
     let arg ← SExpr.elab e1 P R D G
-    let bdy ← SExpr.elab e2 P R D ("_" :: s :: G)
-    return tmX.app (tm.mkD (tmX.fixlam s bdy)) arg
+    let bdy ← SExpr.elab e2 P R D (s :: G)
+    return tmX.tlet arg bdy
+  | .union_elim s e1 e2 => do
+    let arg ← SExpr.elab e1 P R D G
+    let bdy ← SExpr.elab e2 P R D (s :: G)
+    return tmX.union_elim arg bdy
+
 
 end
 
@@ -354,17 +361,17 @@ def SPhiEntry.elab (S : SPhiEntry) (P : TCtx) : Except String (String × (cond_s
     return (varName, (cond', lab'))
 
 @[simp]
-def SDeltaEntry.elab (S : SDeltaEntry) (P : TCtx) (R: TCtx) (D : TCtx) : Except String (String × ty P.length R.length D.length) :=
+def SDeltaEntry.elab (S : SDeltaEntry) (P : TCtx) (R: TCtx) (D : TCtx) : Except String (String × ty P.length R.length D.length 0) :=
   match S with
   | .DeltaEntry varName t => do
-    let t' <- t.elab P R D
+    let t' <- t.elab P R D []
     return (varName, t')
 
 @[simp]
-def SGammaEntry.elab (S : SGammaEntry) (P R : TCtx) (D : TCtx) : Except String (String × ty P.length R.length D.length) :=
+def SGammaEntry.elab (S : SGammaEntry) (P R : TCtx) (D : TCtx) : Except String (String × ty P.length R.length D.length 0) :=
   match S with
   | .GammaEntry varName t => do
-    let t' <- t.elab P R D
+    let t' <- t.elab P R D []
     return (varName, t')
 
 
@@ -409,12 +416,12 @@ def STheta.getVars (theta : STheta) : List String :=
   | .STheta_var th v => v :: th.getVars
   | .STheta_prop th _ => th.getVars
 
-def STheta.elab (theta : STheta) (rvars : List String) : Except String (List (prop rvars.length)) :=
+def STheta.elab (theta : STheta) (rvars : List String) : Except String (List (prop rvars.length 0)) :=
  match theta with
  | .End => return []
  | .STheta_var th _ => th.elab rvars
  | .STheta_prop th p => do
-    return (<- p.elab rvars) :: (<- th.elab rvars)
+    return (<- p.elab rvars []) :: (<- th.elab rvars)
 
 @[simp]
 def SDelta.elab (delta : SDelta) (lvars : List String) (rvars : List String) : Except String ((tvars : List String) × delta_context lvars.length rvars.length tvars.length) :=
@@ -447,8 +454,8 @@ def SGamma.getVars (gamma : SGamma) : (List String) :=
   | .Gamma_Cons ⟨varName, _⟩ rest => varName :: SGamma.getVars rest
 
 @[simp]
-def elabHelperTy (s : STy) (lvars rvars : List String) (tvars : List String) : ty lvars.length rvars.length tvars.length :=
-  match STy.elab s lvars rvars tvars with
+def elabHelperTy (s : STy) (lvars rvars : List String) (tvars : List String) : ty lvars.length rvars.length tvars.length 0 :=
+  match STy.elab s lvars rvars tvars [] with
   | .ok e => e
   | _ => ty.Any --default value
 
@@ -618,7 +625,7 @@ elab "Owl" "[" lvars:ident,* "]" "[" rvars:ident,* "]" "[" tvars:ident,* "]" "["
 
 -- define/parse types easier
 @[simp]
-elab "OwlTy" "[" lvars:ident,* "]" "[" rvars:ident,* "]" "[" tvars:ident,* "]" "{" p:owl_type "}" : term => do
+elab "OwlTy_with" "[" lvars:ident,* "]" "[" rvars:ident,* "]" "[" tvars:ident,* "]" "{" p:owl_type "}" : term => do
   let lvarNames := lvars.getElems.map (fun id => id.getId.toString)
   let rvarNames := rvars.getElems.map (fun id => id.getId.toString)
   let tvarNames := tvars.getElems.map (fun id => id.getId.toString)
@@ -637,9 +644,14 @@ elab "OwlTy" "[" lvars:ident,* "]" "[" rvars:ident,* "]" "[" tvars:ident,* "]" "
   let sexprTerm2 ← elabType_closed p
 
   let sVal : STy ← unsafe do Meta.evalExpr STy (mkConst ``STy) sexprTerm2
-  match STy.elab sVal lvarList rvarList tvarList with
+  match STy.elab sVal lvarList rvarList tvarList [] with
   | .error s  => throwError "owl: ill-formed type: {s}"
   | .ok _ => mkAppM ``elabHelperTy #[sexprTerm, lvarEListExpr, rvarEListExpr, tvarEListExpr]
+
+@[simp]
+elab "OwlTy" "{" p:owl_type "}" : term => do
+  Term.elabTerm (<- `(OwlTy_with [] [] [] { $p } )) .none
+
 
 @[simp]
 elab "OwlLabel" "[" lvars:ident,* "]" "{" p:owl_label "}" : term => do
@@ -669,7 +681,7 @@ structure Sequent where
   Theta : OwlTc.RCtx r
   Gamma : gamma_context l r d m
   e : tm l r d m
-  t : ty l r d
+  t : ty l r d 0
 
 
 def addTypeInfo (stx : Syntax) (s : String) := do
@@ -687,7 +699,7 @@ def addTypeInfo (stx : Syntax) (s : String) := do
       }
     PURE
 
-def tcVisit l r d (o : Owl.opaqueSyntax) (t : Owl.ty l r d) : Command.CommandElabM Unit  := do
+def tcVisit l r d n (o : Owl.opaqueSyntax) (t : Owl.ty l r d n) : Command.CommandElabM Unit  := do
   Command.liftTermElabM $ addTypeInfo o.inner (toString t)
   PURE
 
@@ -703,10 +715,23 @@ def tcFresh : Command.CommandElabM Lean.Name :=
 
 open OwlTc
 
+opaque owl_f_interp' : String -> String -> String -> String
+
+def owl_f_interp (s x y : String) : String :=
+  match s with
+  | "concat" => x ++ y
+  | _ => owl_f_interp' s x y
 
 @[simp]
-def interpSideConditions (ls : List SideCondition) : Prop :=
-  List.foldr (fun i acc => i.interp ∧ acc) True ls
+def interpSideConditions (sc : CheckOutput) : Prop :=
+  match sc with
+  | .true => True
+  | .and e1 e2 => interpSideConditions e1 ∧ interpSideConditions e2
+  | .or e1 e2 => interpSideConditions e1 ∨ interpSideConditions e2
+  | .sc ⟨_, theta, sc⟩ =>
+    (forall bv fv, RCtx.interp theta bv fv owl_f_interp -> sc.eval bv fv owl_f_interp)
+
+
 
 def mkFreshDefn (n : TSyntax `ident) (e : Expr) : Command.CommandElabM Ident := do
   let name := Name.mkStr2 (n.getId.toString) "sideConditions"
@@ -724,10 +749,10 @@ def mkFreshDefn (n : TSyntax `ident) (e : Expr) : Command.CommandElabM Ident := 
   pure id
 
 def doTc (n : TSyntax `ident) (s : Sequent) tkp pf := do
-    match <- OwlTc.infer s.Phi s.Psi s.Delta s.Theta s.Gamma s.e s.t (CheckState.init tcVisit tcLog tcFresh) with
-    | .ok (_, p) => do
-      let sc := p.side_condition
-      let id <- mkFreshDefn n (toExpr sc)
+    match <- OwlTc.infer s.Phi s.Psi s.Delta s.Theta s.Gamma s.e s.t (CheckContext.init tcVisit tcLog tcFresh) with
+    | .ok (_, sc) => do
+      let sc' := sc.simpl
+      let id <- mkFreshDefn n (toExpr sc')
       let lemmaName := Name.mkStr2 (n.getId.toString) "soundness"
       let thmCmd <- withRef tkp `(command|
         theorem $(mkIdent lemmaName) : interpSideConditions $id := by $pf
@@ -803,7 +828,7 @@ elab_rules : command
       | .error s => throwError "owl: ill-formed term: {s}"
       | .ok _ => PURE
 
-      match STy.elab sty lvars rvars tvars with
+      match STy.elab sty lvars rvars tvars [] with
       | .error _ => throwError "owl: ill-formed type {t}"
       | .ok _ => PURE
 

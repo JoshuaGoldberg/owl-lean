@@ -53,20 +53,20 @@ theorem vec.to_fn_from (v : vec n α) :
 
 
 @[simp]
-def gamma_context (l : Nat) r (d : Nat) (m : Nat) := Fin m -> ty l r d
+def gamma_context (l : Nat) r (d : Nat) (m : Nat)  := Fin m -> ty l r d 0
 @[simp]
-def delta_context (l : Nat) r (d : Nat)  := Fin d -> ty l r d
+def delta_context (l : Nat) r (d : Nat)  := Fin d -> ty l r d 0
 @[simp]
 def phi_context (l : Nat) := Fin l -> (cond_sym × label l)
 
-abbrev gamma_context_repr (l r d m  : Nat) := vec (ty l r d ) m
+abbrev gamma_context_repr (l r d m  : Nat) := vec (ty l r d 0) m
 
 instance : Lean.ToExpr (gamma_context_repr l r d m ) := by
   infer_instance
 
-abbrev delta_context_repr l r d  := vec (ty l r d ) d
+abbrev delta_context_repr l r d := vec (ty l r d 0) d
 
-instance : Lean.ToExpr (delta_context_repr l r d ) := by
+instance : Lean.ToExpr (delta_context_repr l r d) := by
   infer_instance
 
 abbrev phi_context_repr l := vec (cond_sym × label l) l
@@ -79,7 +79,7 @@ def empty_gamma : gamma_context l r d 0  :=
   fun (i : Fin 0) => nomatch i
 
 @[simp]
-def empty_delta : delta_context l r 0  :=
+def empty_delta : delta_context l r 0 :=
   fun (i : Fin 0) => nomatch i
 
 @[simp]
@@ -87,34 +87,34 @@ def empty_phi : (phi_context 0) :=
   fun (i : Fin 0) => nomatch i
 
 @[simp]
-def lift_delta (Delta : Fin (d + 1) -> ty l r d )
+def lift_delta (Delta : Fin (d + 1) -> ty l r d 0 )
   : delta_context l r (d + 1)
-  := fun i => ren_ty id id shift (Delta i)
+  := fun i => ren_ty id id shift id (Delta i)
 
 @[simp]
 def lift_delta_l (Delta : delta_context l r d )
   : delta_context (l + 1) r d
-  := fun i => ren_ty shift id id (Delta i)
+  := fun i => ren_ty shift id id id (Delta i)
 
 @[simp]
-def lift_delta_r (Delta : delta_context l r d )
+def lift_delta_r (Delta : delta_context l r d)
   : delta_context l (r + 1) d
-  := fun i => ren_ty id shift id (Delta i)
+  := fun i => ren_ty id shift id id (Delta i)
 
 @[simp]
 def lift_gamma_d (Gamma : gamma_context l r d m )
   : gamma_context l r (d + 1) m
-  := fun i => ren_ty id id shift (Gamma i)
+  := fun i => ren_ty id id shift id (Gamma i)
 
 @[simp]
 def lift_gamma_l (Gamma : gamma_context l r d m )
   : gamma_context (l + 1) r d m
-  := fun i => ren_ty shift id id (Gamma i)
+  := fun i => ren_ty shift id id id (Gamma i)
 
 @[simp]
 def lift_gamma_r (Gamma : gamma_context l r d m )
   : gamma_context l (r + 1) d m
-  := fun i => ren_ty id shift id (Gamma i)
+  := fun i => ren_ty id shift id id (Gamma i)
 
 -- Convert from labels down to lattice elements
 @[simp]
@@ -173,7 +173,7 @@ def pcons (x : cond_sym × label l) (phi : phi_context l) : phi_context (l + 1) 
   (lift_phi (cons x phi))
 
 @[simp]
-def dcons (x : ty l r d ) (delta : delta_context l r d ) : delta_context l r (d+1)  :=
+def dcons (x : ty l r d 0) (delta : delta_context l r d ) : delta_context l r (d+1) :=
   (lift_delta (cons x delta))
 
 @[simp]

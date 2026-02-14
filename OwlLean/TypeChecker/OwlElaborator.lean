@@ -103,6 +103,7 @@ partial def elabConstr : Syntax → TermElabM Expr
 
 
 syntax ident : owl_rexp
+syntax "val(" ident ")" : owl_rexp
 syntax ident "(" owl_rexp "," owl_rexp ")" : owl_rexp
 syntax str : owl_rexp
 
@@ -112,6 +113,8 @@ partial def elab_rexp : Syntax -> TermElabM Expr
     let r1 <- elab_rexp e1
     let r2 <- elab_rexp e2
     mkAppM ``SRexp.op #[mkStrLit op.getId.toString, r1, r2]
+  | `(owl_rexp | val($i)) =>
+    mkAppM ``SRexp.tmvar #[mkStrLit i.getId.toString]
   | `(owl_rexp | $i:ident ) => do
     mkAppM ``SRexp.var #[mkStrLit i.getId.toString]
   | `(owl_rexp |  $ob:str  ) => do
@@ -167,6 +170,8 @@ syntax "Ref" owl_type : owl_type
 syntax owl_type "->" owl_type : owl_type
 syntax owl_type "*" owl_type : owl_type
 syntax owl_type "+" owl_type : owl_type
+syntax owl_type "∪" owl_type : owl_type
+syntax owl_type "∩" owl_type : owl_type
 syntax "∀" ident "<:" owl_type "." owl_type : owl_type
 syntax "∃" ident "<:" owl_type "." owl_type : owl_type
 syntax "∀" ident owl_cond_sym owl_label "." owl_type : owl_type
@@ -206,6 +211,14 @@ partial def elabType : Syntax → TermElabM Expr
     let elab_t1 <- elabType t1
     let elab_t2 <- elabType t2
     mkAppM ``STy.sum #[elab_t1, elab_t2]
+  | `(owl_type| $t1:owl_type ∪ $t2:owl_type) => do
+    let elab_t1 <- elabType t1
+    let elab_t2 <- elabType t2
+    mkAppM ``STy.union #[elab_t1, elab_t2]
+  | `(owl_type| $t1:owl_type ∩ $t2:owl_type) => do
+    let elab_t1 <- elabType t1
+    let elab_t2 <- elabType t2
+    mkAppM ``STy.inter #[elab_t1, elab_t2]
   | `(owl_type| ∀ $id:ident <: $t1:owl_type . $t2:owl_type) => do
     let elab_t1 <- elabType t1
     let elab_t2 <- elabType t2
@@ -278,6 +291,7 @@ syntax "unpack" owl_tm "as" "(" ident "," ident ")" "in" owl_tm : owl_tm
 syntax "if" owl_tm "then" owl_tm "else" owl_tm : owl_tm
 syntax "if" "corr" "(" owl_label ")" "then" owl_tm "else" owl_tm : owl_tm
 syntax "sync" owl_tm : owl_tm
+syntax "union_elim" ident "=" owl_tm "in" owl_tm : owl_tm
 syntax "let" ident "=" owl_tm "in" owl_tm : owl_tm
 syntax "let" ident ":" owl_type "=" owl_tm "in" owl_tm : owl_tm
 syntax "let" "(" ident "," ident ")" "=" owl_tm "in" owl_tm : owl_tm
@@ -341,15 +355,6 @@ partial def elabTmX : Syntax → TermElabM Expr
     let elab_e1 <- elabTm e1
     let elab_e2 <- elabTm e2
     mkAppM ``SExprX.Op #[t', elab_e1, elab_e2]
-  | `(owl_tm| $ $t:term [ $ls:owl_label,* ] [ $ts:owl_type,* ] [ $es:owl_tm,* ]) => do
-    let ls' <- ls.getElems.mapM elabLabel
-    let ts' <- ts.getElems.mapM elabType
-    let es' <- es.getElems.mapM elabTm
-    let ls_list <- mkListLit (mkConst ``SLabel) ls'.toList
-    let ts_list <- mkListLit (mkConst ``STy) ts'.toList
-    let es_list <- mkListLit (mkConst ``SExpr) es'.toList
-    let t' ← Term.elabTerm t (mkConst ``Owl.tm)
-    mkAppM ``SExprX.embedtm #[t', ls_list, ts_list, es_list]
   | `(owl_tm| zero $e:owl_tm) => do
     let elab_e <- elabTm e
     mkAppM ``SExprX.zero #[elab_e]
@@ -421,6 +426,8 @@ partial def elabTmX : Syntax → TermElabM Expr
   | `(owl_tm| sync $e:owl_tm) => do
     let elab_e <- elabTm e
     mkAppM ``SExprX.sync #[elab_e]
+  | `(owl_tm| union_elim $id1:ident = $e:owl_tm  in $b:owl_tm) => do
+    mkAppM ``SExprX.union_elim #[mkStrLit id1.getId.toString, <- elabTm e, <- elabTm b]
   | `(owl_tm| let $id1:ident = $e:owl_tm  in $b:owl_tm) => do
     let elab_e <- elabTm e
     let elab_b <- elabTm b
@@ -549,6 +556,10 @@ partial def elabType_closed : Syntax → TermElabM Expr
     let elab_c <- elabLabel_closed c
     mkAppM ``STy.t_if #[elab_c, elab_t1, elab_t2]
   | `(owl_type| $ $_:term [$_:owl_label,* ] [$_:owl_type,*]) => mkAppM ``STy.default #[]
+  | `(owl_type| $t:owl_type { $p }) => do
+    let elab_t ← elabType t
+    let elab_p <- elab_prop p
+    mkAppM ``STy.refined #[elab_t, elab_p]
   | _ => throwUnsupportedSyntax
 
 
