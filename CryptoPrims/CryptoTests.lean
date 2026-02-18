@@ -190,7 +190,7 @@ def run_sm_tm := Owl [] [] [] {
   unpack m as (S, contents) in
   let state_ref = alloc (π1 contents) in
   let step = π2 contents in
-  fix go (input)
+  λ (input: Public) : Public =>
     let result = step ⟨!state_ref, input⟩ in
     let _unused = (state_ref := π2 result) in
     π1 result
@@ -207,7 +207,7 @@ def run_two_tm := Owl [] [] [] {
   let A = $ run_sm_tm [] [] [] a in
   -- let's do it again!
   let B = $ run_sm_tm [] [] [] b in
-  fix go (val)
+  λ (val : (Public * Public)) : Public =>
     let (det, msg) = val in
     if det then
       A msg
@@ -228,7 +228,7 @@ def run_two_tm := Owl [] [] [] {
   }
 
 -- typecheck 2 (nice!)
-#tc run_two_sm_tc := · ; · ; · ; ·
+#tc run_two_sm_tc := lM, lKL ⊐ lM, lKH ⊐ lKL ; · ; · ; ·
   ⊢
   $ run_two_tm [] [] []
   :
@@ -240,9 +240,8 @@ def run_two_tm := Owl [] [] [] {
   }
 
 -- place to test out my ideas for protocols
-#tc test_protocol := · ; · ; · ;
-  A => ($ StateMachine [] []),
-  B => ($ StateMachine [] [])
+-- Create concrete representations of State Machine A and State Machine B
+#tc test_protocol := · ; · ; · ; ·
   ⊢
   ()
   :
@@ -274,6 +273,31 @@ def run_two_tm := Owl [] [] [] {
   -- TODO: Ask Michael about parsing this better vvv
   let unused = io ctxt1  in -- Should be "let _ "
   let unused = io ctxt2  in
+
+  -- Alice's state = whether or not she's been run
+  -- Query Alice, if true, do things, else nothing
+  -- 3 states : 1. do nothing 2. output ciphertexts 3. ciphertexts
+
+  -- Bob's code (similar):
+  -- Initial State
+  -- Supply First CipherText -> First Decryption State
+  -- Supply Second CipherText -> Second Decryption State
+  -- Final State -> State
+  -- Output to the network via the state machine "0" or "1"
+
+  -- Alice in detail
+  -- Initial State1
+  -- (_, State1) -> (CipherText1, State2)
+  -- (_, State2) -> (CipherText2, Done)
+  -- (_, Done) -> ("", Done)
+
+  -- Bob in detail
+  -- Initial State1
+  -- (CipherText1 -> (0, State2)) -- Store key when entering State2 (key type is aKL if lKH is NOT corrupt, using corr ?)
+  --                                                                (key type is Public if lKH is corrupt)
+  -- (CipherText1 -> (1, Done))
+  -- (CipherText2 -> (0/1, Done)) -- make sure to grab key from memory
+  -- (_, Done) -> ("", Done)
 
   -- Bob's code
   corr_case lKH in
