@@ -209,7 +209,7 @@ def run_two_tm := Owl [] [] [] {
   let B = $ run_sm_tm [] [] [] b in
   λ (val : (Public * Public)) : Public =>
     let (det, msg) = val in
-    if det then
+    if (⟨"eq"⟩ (det, "0")) then
       A msg
     else
       B msg
