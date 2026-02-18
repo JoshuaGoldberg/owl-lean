@@ -82,7 +82,7 @@ def ENC := OwlTy [ lK ] [ tM ] {
 
   A has some state type S_A
 
-  A has a transition function S_A -> Public -> (Public * S_A)
+  A has a transition function S_A -> Public -> (S_A * Public)
 
 
   B has some state type S_B
@@ -176,7 +176,7 @@ def ENC := OwlTy [ lK ] [ tM ] {
 
 -- state machine
 def StateMachine := OwlTy [] [] {
-  ∃ S <: Any . (S * ((S * Public) -> (Public * S)))
+  ∃ S <: Any . (S * ((S * Public) -> (S * Public)))
 }
 
 -- state machine execution type
@@ -192,8 +192,8 @@ def run_sm_tm := Owl [] [] [] {
   let step = π2 contents in
   λ (input: Public) : Public =>
     let result = step ⟨!state_ref, input⟩ in
-    let _unused = (state_ref := π2 result) in
-    π1 result
+    let _unused = (state_ref := π1 result) in
+    π2 result
 }
 
 def two_sm := OwlTy [] [] {
@@ -213,6 +213,28 @@ def run_two_tm := Owl [] [] [] {
       A msg
     else
       B msg
+}
+
+-- assume eq is a default function
+def alice_sm := Owl [lM, lKL, lKH] [aKH, aKL] [encH, encL, msg] {
+  let enc_high = π1 (π2 encH) in
+  let enc_low = π1 (π2 encL) in
+  let key_high = π1 encH in
+  let key_low = π1 encL in
+  (pack (Public,
+    ⟨"0",
+      (λ (args : (Public * Public)) : (Public * Public) =>
+        let (state, input) = args in
+        if (⟨"eq"⟩ (state, "0")) then
+          let ciphertext1 = (corr_case lKH in (enc_high ⟨key_high, key_low⟩)) in
+            ⟨"1", ciphertext1⟩
+        else if (⟨"eq"⟩ (state, "1")) then
+          let ciphertext2 = (corr_case lKL in (enc_low ⟨key_low, msg⟩)) in
+                ⟨"10", ciphertext2⟩
+        else
+          ⟨"10", ""⟩)
+    ⟩)
+  : $ StateMachine [] [])
 }
 
 -- typecheck (nice!)
@@ -237,6 +259,20 @@ def run_two_tm := Owl [] [] [] {
     unfold sideConditions
     simp
     try grind
+  }
+
+#tc alice_tc := lM, lKL ⊐ lM, lKH ⊐ lKL ; · ; aKH <: Data lKH, aKL <: Data lKL ;
+  encH => ($ ENC_Inner [lKH] [aKL, aKH]),
+  encL => ($ ENC_Inner [lKL] [Data lM, aKL]),
+  msg => Data lM
+  ⊢
+  $ alice_sm [lM, lKL, lKH] [aKH, aKL] [encH, encL, msg]
+  :
+  $ StateMachine [] []
+  by {
+    unfold sideConditions
+    simp
+    grind
   }
 
 -- place to test out my ideas for protocols
