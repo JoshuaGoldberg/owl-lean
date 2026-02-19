@@ -167,6 +167,7 @@ syntax "unit" : owl_type
 syntax "RData" owl_label "[" owl_rexp "]" : owl_type
 syntax "Data" owl_label : owl_type
 syntax "Ref" owl_type : owl_type
+syntax "Maybe" owl_type : owl_type
 syntax owl_type "->" owl_type : owl_type
 syntax owl_type "*" owl_type : owl_type
 syntax owl_type "+" owl_type : owl_type
@@ -199,6 +200,8 @@ partial def elabType : Syntax → TermElabM Expr
   | `(owl_type| Ref $t:owl_type) => do
     let elab_t <- elabType t
     mkAppM ``STy.Ref #[elab_t]
+  | `(owl_type| Maybe $t:owl_type) => do
+    elabType (<- `(owl_type| $t + unit))
   | `(owl_type| $t1:owl_type -> $t2:owl_type) => do
     let elab_t1 <- elabType t1
     let elab_t2 <- elabType t2
@@ -301,6 +304,7 @@ syntax "λ" ident "=>" owl_tm : owl_tm
 syntax "$" term:max "[" owl_label,* "]" "[" owl_type,* "]" "[" owl_tm,* "]" : owl_tm
 syntax "corr_case" owl_label "in" owl_tm : owl_tm
 syntax "(" owl_tm ":" owl_type ")" : owl_tm
+syntax owl_tm "." num : owl_tm
 
 -- ALLOW : let (x , y) = e in ...
 -- expands to :
@@ -323,6 +327,7 @@ mutual
     fun stx => do
       let se <- mkAppM ``mkOpaqueSyntax #[toExpr stx]
       mkAppM ``SExpr.mk #[se, ← elabTmX stx]
+
 
 partial def elabTmX : Syntax → TermElabM Expr
   | `(owl_tm| ( $e:owl_tm)) => elabTmX e
@@ -519,6 +524,8 @@ partial def elabType_closed : Syntax → TermElabM Expr
   | `(owl_type| Ref $t:owl_type) => do
     let elab_t <- elabType_closed t
     mkAppM ``STy.Ref #[elab_t]
+  | `(owl_type| Maybe $t:owl_type) => do
+    elabType_closed (<- `(owl_type| $t + unit))
   | `(owl_type| $t1:owl_type -> $t2:owl_type) => do
     let elab_t1 <- elabType_closed t1
     let elab_t2 <- elabType_closed t2
@@ -555,7 +562,13 @@ partial def elabType_closed : Syntax → TermElabM Expr
     let elab_t2 <- elabType_closed t2
     let elab_c <- elabLabel_closed c
     mkAppM ``STy.t_if #[elab_c, elab_t1, elab_t2]
-  | `(owl_type| $ $_:term [$_:owl_label,* ] [$_:owl_type,*]) => mkAppM ``STy.default #[]
+  | `(owl_type| $ $t:term [$ls:owl_label,* ] [$ts:owl_type,*]) => do
+    let ls' <- ls.getElems.mapM elabLabel_closed
+    let ts' <- ts.getElems.mapM elabType_closed
+    let ls_list <- mkListLit (mkConst ``SLabel) ls'.toList
+    let ts_list <- mkListLit (mkConst ``STy) ts'.toList
+    let t' ← Term.elabTerm t (mkConst ``Owl.ty)
+    mkAppM ``STy.embedty #[t', ls_list, ts_list]
   | `(owl_type| $t:owl_type { $p }) => do
     let elab_t ← elabType t
     let elab_p <- elab_prop p

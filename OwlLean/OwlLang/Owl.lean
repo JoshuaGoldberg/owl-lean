@@ -207,6 +207,7 @@ inductive ty : Nat -> Nat -> Nat -> Nat -> Type where
 | default : ty n_label n_ref n_ty n_tm
 deriving Repr, BEq
 
+
 @[simp]
 def ty.r_free {l r d : Nat} (i : Fin r) : ty l r d k → Bool
 | .var_ty _ => true
@@ -803,5 +804,6 @@ def ty.resolve_tm [Monad m] (f : Fin n -> m (rexp r 0)) : ty l r d n -> m (ty l 
 | .t_if l t1 t2 => do
   return .t_if l (← t1.resolve_tm f) (← t2.resolve_tm f)
 | .default => pure .default
+
 
 end Owl

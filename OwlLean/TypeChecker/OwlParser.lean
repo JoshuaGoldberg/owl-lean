@@ -115,6 +115,11 @@ def SProp.elab (p : SProp) (rctx : TCtx) (G : TCtx) : Except String (Owl.prop rc
   | .pall s p1 => do
     return .pall (<- p1.elab (s :: rctx) G)
 
+def Fin.from_zero (i : Fin 0) : α := nomatch i
+
+def Owl.ty.lift_g (t : ty l r d 0) : ty l r d g :=
+  ren_ty id id id (fun i => Fin.from_zero i) t
+
 @[simp]
 def STy.elab (s : STy)
   -- label context
@@ -195,11 +200,7 @@ def STy.elab (s : STy)
     if h : llen = elab_ls.length then
       if k : tlen = elab_ts.length then
         if h2 : rlen = R.length then
-          if h3 : G.length = 0 then
-          -- TODO: I should also support refinement vars here.
-            return subst_ty (list_to_finmap elab_ls) .var (list_to_finmap elab_ts) (k ▸ (h ▸ (h2 ▸ (h3 ▸ t))))
-          else
-            throw s!"embedty: got nonzero context for terms"
+            return subst_ty (list_to_finmap elab_ls) .var (list_to_finmap elab_ts) (k ▸ (h ▸ (h2 ▸ t.lift_g)))
         else
           throw s!"embedty: refinement argument length mismatch"
       else
@@ -624,6 +625,15 @@ elab "Owl" "[" lvars:ident,* "]" "[" rvars:ident,* "]" "[" tvars:ident,* "]" "["
   | .ok _ => mkAppM ``elabHelper #[sexprTerm, lvarEListExpr, rvarEListExpr, tvarEListExpr, varEListExpr]
 
 -- define/parse types easier
+/--
+  OwlTy_with [ls] [rs] [tvs] :
+    ls is set of label variables in scope;
+
+    rs is set of refinement variables in scope;
+
+    tvs is set of type variables in scope
+
+-/
 @[simp]
 elab "OwlTy_with" "[" lvars:ident,* "]" "[" rvars:ident,* "]" "[" tvars:ident,* "]" "{" p:owl_type "}" : term => do
   let lvarNames := lvars.getElems.map (fun id => id.getId.toString)
@@ -853,7 +863,7 @@ elab_rules : command
     let seq <- Command.liftTermElabM $ unsafe evalExpr Sequent (mkConst `Sequent) seq_e
     doTc n seq tkp pf
 
-syntax "#tc" ident ":=" "⊢" owl_tm ":" owl_type "by" tacticSeq : command
+syntax "#tc" ident ":=" "⊢" "{" owl_tm "}" ":" owl_type "by" tacticSeq : command
 elab_rules : command
-  | `(#tc $n := ⊢ $e : $t by%$tkp $pf ) => do
+  | `(#tc $n := ⊢ { $e } : $t by%$_ $pf ) => do
     Command.elabCommand (<- `(#tc_with $n := · ; · ; · ; · ; ·  ⊢ $e : $t by $pf))

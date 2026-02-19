@@ -280,7 +280,7 @@ partial def extract_refinements [Monad m] (t : ty l r d 0) : CheckT m (RCtx r ×
 def check_subtype  [Monad m] (fuel : Nat) (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_context l r d )
                            (Theta : RCtx r)
                            (t1 : ty l r d 0) (t2 : ty l r d 0) : CheckT m Unit := do
-    log s!"check subtype: {t1} <= {t2}"
+    -- log s!"check subtype: {t1} <= {t2}"
     if t1 == t2 then pure () else
     match fuel with
     | 0 => throw "check_subtype: out of fuel"
@@ -311,6 +311,8 @@ def check_subtype  [Monad m] (fuel : Nat) (Phi : phi_context l) (Psi : psi_conte
       | .RData l1 _, .Public => do
         emit r Theta (.PhiPsiEntailCorr s!"RData {l1}, Public" (vec.from_fn Phi) Psi l1)
         pure ()
+      | .Data l1, ty.ex_r (.RData l2 (.var 0)) =>
+        emit r Theta (.PhiEntails (vec.from_fn Phi) (.condition .leq l1 l2))
       | .var_ty x1, .var_ty x2 =>
         emit r Theta (.TyVarEq x1 x2)
       | .Public, .Public => pure ()

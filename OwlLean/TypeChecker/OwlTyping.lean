@@ -176,6 +176,9 @@ def pcons (x : cond_sym × label l) (phi : phi_context l) : phi_context (l + 1) 
 def dcons (x : ty l r d 0) (delta : delta_context l r d ) : delta_context l r (d+1) :=
   (lift_delta (cons x delta))
 
+
+attribute [simp] Fin.foldr_succ
+
 @[simp]
 def phi_map.valid (p : phi_map l) (c : phi_context l) :=
   Fin.foldr l (fun i acc =>
