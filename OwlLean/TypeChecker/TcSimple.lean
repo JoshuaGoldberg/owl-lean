@@ -482,4 +482,12 @@ theorem infer_sound Phi Psi Delta Gamma (e : tm l d m) (exp : ty l d) :
     sorry
 -/
 
+syntax "split_grind" : tactic
+
+macro_rules
+  | `(tactic| split_grind) => `(tactic|
+      first
+      | (constructor <;> split_grind)
+      | grind)
+
 end OwlTc

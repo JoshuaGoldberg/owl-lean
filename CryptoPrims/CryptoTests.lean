@@ -217,13 +217,13 @@ def run_two_tm := Owl [] [] [] {
 
 -- assume eq is a default function
 def alice_sm := Owl [lM, lKL, lKH] [aKH, aKL] [encH, encL, msg] {
-  let enc_high = π1 (π2 encH) in
-  let enc_low = π1 (π2 encL) in
-  let key_high = π1 encH in
-  let key_low = π1 encL in
   (pack (Public,
     ⟨"0",
       (λ (args : (Public * Public)) : (Public * Public) =>
+        let enc_high = π1 (π2 encH) in
+        let enc_low = π1 (π2 encL) in
+        let key_high = π1 encH in
+        let key_low = π1 encL in
         let (state, input) = args in
         if (⟨"eq"⟩ (state, "0")) then
           let ciphertext1 = (corr_case lKH in (enc_high ⟨key_high, key_low⟩)) in
@@ -236,6 +236,44 @@ def alice_sm := Owl [lM, lKL, lKH] [aKH, aKL] [encH, encL, msg] {
     ⟩)
   : $ StateMachine [] [])
 }
+
+def bob_sm := Owl [lM, lKL, lKH] [aKH, aKL] [encH, encL] {
+  (pack (Public,
+    ⟨"0",
+      (λ (args : (Public * Public)) : (Public * Public) =>
+        let dec_high = π2 (π2 encH) in
+        let dec_low = π2 (π2 encL) in
+        let key_high = π1 encH in
+        let key_store = alloc (π1 encL) in
+        let (state, input) = args in
+        if (⟨"eq"⟩ (state, "0")) then
+          corr_case lKH in
+          case (dec_high ⟨key_high, input⟩) in
+          | inl key_low' =>
+              let _u = (key_store := key_low') in
+              ⟨"1", "0"⟩
+          | inr _fail =>
+              ⟨"10", "1"⟩
+        else if (⟨"eq"⟩ (state, "1")) then
+          let stored_key = (!key_store) in
+          corr_case lKL in
+          case (dec_low ⟨stored_key, input⟩) in
+          | inl _success =>
+              ⟨"10", "0"⟩
+          | inr _fail =>
+              ⟨"10", "1"⟩
+        else
+          ⟨"10", ""⟩)
+    ⟩)
+  : $ StateMachine [] [])
+}
+
+def run_alice_bob :=
+ Owl [lM, lKL, lKH] [aKH, aKL] [encH, encL, msg] {
+  let a = ($ alice_sm [lM, lKL, lKH] [aKH, aKL] [encH, encL, msg]) in
+  let b = ($ bob_sm [lM, lKL, lKH] [aKH, aKL] [encH, encL]) in
+  ((($ run_two_tm [] [] [] : $ two_sm [] []) a) b)
+ }
 
 -- typecheck (nice!)
 #tc run_sm_tc := · ; · ; · ; ·
@@ -275,18 +313,32 @@ def alice_sm := Owl [lM, lKL, lKH] [aKH, aKL] [encH, encL, msg] {
     grind
   }
 
--- place to test out my ideas for protocols
--- Create concrete representations of State Machine A and State Machine B
-#tc test_protocol := · ; · ; · ; ·
+#tc bob_tc := lM, lKL ⊐ lM, lKH ⊐ lKL ; · ; aKH <: Data lKH, aKL <: Data lKL ;
+  encH => ($ ENC_Inner [lKH] [aKL, aKH]),
+  encL => ($ ENC_Inner [lKL] [Data lM, aKL])
   ⊢
-  ()
+  $ bob_sm [lM, lKL, lKH] [aKH, aKL] [encH, encL]
   :
-  Any by {
+  $ StateMachine [] []
+  by {
     unfold sideConditions
     simp
-    try grind
+    grind
   }
 
+#tc tc_gen := lM, lKL ⊐ lM, lKH ⊐ lKL ; · ; aKH <: Data lKH, aKL <: Data lKL ;
+  encH => ($ ENC_Inner [lKH] [aKL, aKH]),
+  encL => ($ ENC_Inner [lKL] [Data lM, aKL]),
+  msg => Data lM
+  ⊢
+  ($ run_alice_bob [lM, lKL, lKH] [aKH, aKL] [encH, encL, msg])
+  :
+  (Public * Public) -> Public
+  by {
+    unfold sideConditions
+    simp
+    split_grind
+  }
 
 #tc protocol := lM, lKL ⊐ lM, lKH ⊐ lKL; · ; aKH <: Data lKH, aKL <: Data lKL ;
   --  Make it : instead of =>
