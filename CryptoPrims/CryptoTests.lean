@@ -216,7 +216,7 @@ def run_two_tm := Owl [] [] [] {
 }
 
 -- assume eq is a default function
-def alice_sm := Owl [lM, lKL, lKH] [aKH, aKL] [encH, encL, msg] {
+def alice_sm := Owl [lM, lKL, lKH] [] [encH, encL, msg] {
   (pack (Public,
     ⟨"0",
       (λ (args : (Public * Public)) : (Public * Public) =>
@@ -237,7 +237,7 @@ def alice_sm := Owl [lM, lKL, lKH] [aKH, aKL] [encH, encL, msg] {
   : $ StateMachine [] [])
 }
 
-def bob_sm := Owl [lM, lKL, lKH] [aKH, aKL] [encH, encL] {
+def bob_sm := Owl [lM, lKL, lKH] [] [encH, encL] {
   (pack (Public,
     ⟨"0",
       (λ (args : (Public * Public)) : (Public * Public) =>
@@ -269,9 +269,9 @@ def bob_sm := Owl [lM, lKL, lKH] [aKH, aKL] [encH, encL] {
 }
 
 def run_alice_bob :=
- Owl [lM, lKL, lKH] [aKH, aKL] [encH, encL, msg] {
-  let a = ($ alice_sm [lM, lKL, lKH] [aKH, aKL] [encH, encL, msg]) in
-  let b = ($ bob_sm [lM, lKL, lKH] [aKH, aKL] [encH, encL]) in
+ Owl [lM, lKL, lKH] [] [encH, encL, msg] {
+  let a = ($ alice_sm [lM, lKL, lKH] [] [encH, encL, msg]) in
+  let b = ($ bob_sm [lM, lKL, lKH] [] [encH, encL]) in
   ((($ run_two_tm [] [] [] : $ two_sm [] []) a) b)
  }
 
@@ -304,7 +304,7 @@ def run_alice_bob :=
   encL => ($ ENC_Inner [lKL] [Data lM, aKL]),
   msg => Data lM
   ⊢
-  $ alice_sm [lM, lKL, lKH] [aKH, aKL] [encH, encL, msg]
+  $ alice_sm [lM, lKL, lKH] [] [encH, encL, msg]
   :
   $ StateMachine [] []
   by {
@@ -317,7 +317,7 @@ def run_alice_bob :=
   encH => ($ ENC_Inner [lKH] [aKL, aKH]),
   encL => ($ ENC_Inner [lKL] [Data lM, aKL])
   ⊢
-  $ bob_sm [lM, lKL, lKH] [aKH, aKL] [encH, encL]
+  $ bob_sm [lM, lKL, lKH] [] [encH, encL]
   :
   $ StateMachine [] []
   by {
@@ -326,12 +326,13 @@ def run_alice_bob :=
     grind
   }
 
-#tc tc_gen := lM, lKL ⊐ lM, lKH ⊐ lKL ; · ; aKH <: Data lKH, aKL <: Data lKL ;
+
+#tc tc_run_alice_bob := lM, lKL ⊐ lM, lKH ⊐ lKL ; · ; aKH <: Data lKH, aKL <: Data lKL ;
   encH => ($ ENC_Inner [lKH] [aKL, aKH]),
   encL => ($ ENC_Inner [lKL] [Data lM, aKL]),
   msg => Data lM
   ⊢
-  ($ run_alice_bob [lM, lKL, lKH] [aKH, aKL] [encH, encL, msg])
+  ($ run_alice_bob [lM, lKL, lKH] [] [encH, encL, msg])
   :
   (Public * Public) -> Public
   by {
