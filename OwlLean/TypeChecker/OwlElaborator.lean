@@ -383,225 +383,6 @@ partial def elabTmX : Syntax → TermElabM Expr
   | _ => throwUnsupportedSyntax
 end
 
--- CLOSED ELABORATORS
-
-partial def elabLabel_closed : Syntax → TermElabM Expr
-  | `(owl_label| ( $e:owl_label)) => elabLabel_closed e
-  | `(owl_label| ⟨ $_:term ⟩ ) => do mkAppM ``SLabel.default #[]
-  | `(owl_label| $e1:owl_label ⊔ $e2:owl_label) => do
-      let elab_e1 <- elabLabel_closed e1
-      let elab_e2 <- elabLabel_closed e2
-      mkAppM ``SLabel.ljoin #[elab_e1, elab_e2]
-  | `(owl_label| $e1:owl_label ⊓ $e2:owl_label) => do
-      let elab_e1 <- elabLabel_closed e1
-      let elab_e2 <- elabLabel_closed e2
-      mkAppM ``SLabel.lmeet #[elab_e1, elab_e2]
-  | `(owl_label| $id:ident) =>
-    mkAppM ``SLabel.var_label #[mkStrLit id.getId.toString]
-  | `(owl_label| $ $l:term [ $xs:owl_label,* ]  ) => do
-      let xs' <- xs.getElems.mapM elabLabel_closed
-      let xs_list <- mkListLit (mkConst ``SLabel) xs'.toList
-      let l' ← Term.elabTerm l (mkConst ``Owl.label)
-      mkAppM ``SLabel.embedlabel #[l', xs_list]
-  | `(owl_label| $ $l:term ) => do
-      let empty_list <- mkListLit (mkConst ``SLabel) []
-      let l' ← Term.elabTerm l (mkConst ``Owl.label)
-      mkAppM ``SLabel.embedlabel #[l', empty_list]
-  | _ => throwUnsupportedSyntax
-
-partial def elabConstr_closed : Syntax → TermElabM Expr
-  | `(owl_constr| ( $e:owl_constr)) => elabConstr_closed e
-  | `(owl_constr| $l1:owl_label $c:owl_cond_sym $l2:owl_label) => do
-      let elab_l1 <- elabLabel_closed l1
-      let elab_l2 <- elabLabel_closed l2
-      let elab_c <- elabCondSym c
-      mkAppM ``SConstr.condition #[elab_c, elab_l1, elab_l2]
-  | _ => throwUnsupportedSyntax
-
-partial def elabType_closed : Syntax → TermElabM Expr
-  | `(owl_type| ( $e:owl_type)) => elabType_closed e
-  | `(owl_type| $id:ident) =>
-        mkAppM ``STy.var_ty #[mkStrLit id.getId.toString]
-  | `(owl_type| Any) => mkAppM ``STy.Any #[]
-  | `(owl_type| unit) => mkAppM ``STy.Unit #[]
-  | `(owl_type| Public) => mkAppM ``STy.Public #[]
-  | `(owl_type| Data $l:owl_label) => do
-    let elab_l <- elabLabel_closed l
-    mkAppM ``STy.Data #[elab_l]
-  | `(owl_type| Ref $t:owl_type) => do
-    let elab_t <- elabType_closed t
-    mkAppM ``STy.Ref #[elab_t]
-  | `(owl_type| $t1:owl_type -> $t2:owl_type) => do
-    let elab_t1 <- elabType_closed t1
-    let elab_t2 <- elabType_closed t2
-    mkAppM ``STy.arr #[elab_t1, elab_t2]
-  | `(owl_type| $t1:owl_type * $t2:owl_type) => do
-    let elab_t1 <- elabType_closed t1
-    let elab_t2 <- elabType_closed t2
-    mkAppM ``STy.prod #[elab_t1, elab_t2]
-  | `(owl_type| $t1:owl_type + $t2:owl_type) => do
-    let elab_t1 <- elabType_closed t1
-    let elab_t2 <- elabType_closed t2
-    mkAppM ``STy.sum #[elab_t1, elab_t2]
-  | `(owl_type| ∀ $id:ident <: $t1:owl_type . $t2:owl_type) => do
-    let elab_t1 <- elabType_closed t1
-    let elab_t2 <- elabType_closed t2
-    mkAppM ``STy.all #[mkStrLit id.getId.toString, elab_t1, elab_t2]
-  | `(owl_type| ∃ $id:ident <: $t1:owl_type . $t2:owl_type) => do
-    let elab_t1 <- elabType_closed t1
-    let elab_t2 <- elabType_closed t2
-    mkAppM ``STy.ex #[mkStrLit id.getId.toString, elab_t1, elab_t2]
-  | `(owl_type| ∀ $id:ident $c:owl_cond_sym $l:owl_label . $t:owl_type) => do
-    let elab_t <- elabType_closed t
-    let elab_l <- elabLabel_closed l
-    let elab_c <- elabCondSym c
-    mkAppM ``STy.all_l #[mkStrLit id.getId.toString, elab_c, elab_l, elab_t]
-  | `(owl_type| corr ( $c:owl_label ) ? $t1:owl_type : $t2:owl_type) => do
-    let elab_t1 <- elabType_closed t1
-    let elab_t2 <- elabType_closed t2
-    let elab_c <- elabLabel_closed c
-    mkAppM ``STy.t_if #[elab_c, elab_t1, elab_t2]
-  | `(owl_type| $ $_:term [$_:owl_label,* ] [$_:owl_type,*]) => mkAppM ``STy.default #[]
-  | _ => throwUnsupportedSyntax
-
-
-mutual
-
-  partial def elabTm_closed : Syntax -> TermElabM Expr :=
-    fun stx => do
-      let se <- mkAppM ``mkOpaqueSyntax #[toExpr stx]
-      -- let se <- mkEmptySyntax s!"elabTm_closed {stx.prettyPrint}"
-      mkAppM ``SExpr.mk #[se, ← elabTmX_closed stx]
-
-partial def elabTmX_closed : Syntax → TermElabM Expr
-  | `(owl_tm| ( $e:owl_tm)) => elabTmX_closed e
-  | `(owl_tm| $id:ident) =>
-        mkAppM ``SExprX.var_tm #[mkStrLit id.getId.toString]
-  | `(owl_tm| $n:num) =>
-    mkAppM ``SExprX.loc #[mkNatLit n.getNat]
-  | `(owl_tm| error) => mkAppM ``SExprX.error #[]
-  | `(owl_tm| ()) => mkAppM ``SExprX.skip #[]
-  | `(owl_tm| $b:owl_binary ) => do
-    let elab_b <- elabBinary b
-    mkAppM ``SExprX.bitstring #[elab_b]
-  | `(owl_tm| fix $f:ident ( $id:ident ) $e:owl_tm) => do
-    let elab_e <- elabTm_closed e
-    mkAppM ``SExprX.fixlam #[mkStrLit f.getId.toString, mkStrLit id.getId.toString, elab_e]
-  | `(owl_tm| Λ $id:ident . $e:owl_tm) => do
-    let elab_e <- elabTm_closed e
-    mkAppM ``SExprX.tlam #[mkStrLit id.getId.toString, elab_e]
-  | `(owl_tm| Λβ $id:ident . $e:owl_tm) => do
-    let elab_e <- elabTm_closed e
-    mkAppM ``SExprX.l_lam #[mkStrLit id.getId.toString, elab_e]
-  | `(owl_tm|⟨ $e1:owl_tm , $e2:owl_tm ⟩) => do
-    let elab_e1 <- elabTm_closed e1
-    let elab_e2 <- elabTm_closed e2
-    mkAppM ``SExprX.tm_pair #[elab_e1, elab_e2]
-  | `(owl_tm| ⟨ $t:term ⟩ ( $e1:owl_tm , $e2:owl_tm )) => do
-    let t' ← Term.elabTerm t (mkConst ``String)
-    let elab_e1 <- elabTm_closed e1
-    let elab_e2 <- elabTm_closed e2
-    mkAppM ``SExprX.Op #[t', elab_e1, elab_e2]
-  | `(owl_tm| $ $_:term [ $_:owl_label,* ] [ $_:owl_type,* ] [ $_:owl_tm,* ]) => mkAppM ``SExprX.default #[]
-  | `(owl_tm| zero $e:owl_tm) => do
-    let elab_e <- elabTm_closed e
-    mkAppM ``SExprX.zero #[elab_e]
-  | `(owl_tm| $e1:owl_tm $e2:owl_tm) => do
-    let elab_e1 <- elabTm_closed e1
-    let elab_e2 <- elabTm_closed e2
-    mkAppM ``SExprX.app #[elab_e1, elab_e2]
-  | `(owl_tm| alloc $e:owl_tm) => do
-    let elab_e <- elabTm_closed e
-    mkAppM ``SExprX.alloc #[elab_e]
-  | `(owl_tm| ! $e:owl_tm) => do
-    let elab_e <- elabTm_closed e
-    mkAppM ``SExprX.dealloc #[elab_e]
-  | `(owl_tm| $e1:owl_tm := $e2:owl_tm) => do
-    let elab_e1 <- elabTm_closed e1
-    let elab_e2 <- elabTm_closed e2
-    mkAppM ``SExprX.assign #[elab_e1, elab_e2]
-  | `(owl_tm| π1 $e:owl_tm) => do
-    let elab_e <- elabTm_closed e
-    mkAppM ``SExprX.left_tm #[elab_e]
-  | `(owl_tm| π2 $e:owl_tm) => do
-    let elab_e <- elabTm_closed e
-    mkAppM ``SExprX.right_tm #[elab_e]
-  | `(owl_tm| ı1 $e:owl_tm) => do
-    let elab_e <- elabTm_closed e
-    mkAppM ``SExprX.inl #[elab_e]
-  | `(owl_tm| ı2 $e:owl_tm) => do
-    let elab_e <- elabTm_closed e
-    mkAppM ``SExprX.inr #[elab_e]
-  | `(owl_tm| case $e1:owl_tm in | inl $id1:ident => $e2:owl_tm | inr $id2:ident => $e3:owl_tm) => do
-    let elab_e1 <- elabTm_closed e1
-    let elab_e2 <- elabTm_closed e2
-    let elab_e3 <- elabTm_closed e3
-    mkAppM ``SExprX.case #[elab_e1, mkStrLit id1.getId.toString, elab_e2, mkStrLit id2.getId.toString, elab_e3]
-  | `(owl_tm| $e:owl_tm [ $t:owl_type ]) => do
-    let elab_e <- elabTm_closed e
-    let elab_t <- elabType_closed t
-    mkAppM ``SExprX.tapp #[elab_e, elab_t]
-  | `(owl_tm| $e:owl_tm ⟨ $l:owl_label ⟩) => do
-    let elab_e <- elabTm_closed e
-    let elab_l <- elabLabel l
-    mkAppM ``SExprX.lapp #[elab_e, elab_l]
-  | `(owl_tm| unpack $e1:owl_tm as ($id1:ident, $id2:ident) in $e2:owl_tm) => do
-    let elab_e1 <- elabTm_closed e1
-    let elab_e2 <- elabTm_closed e2
-    mkAppM ``SExprX.unpack #[elab_e1, mkStrLit id1.getId.toString, mkStrLit id2.getId.toString, elab_e2]
-  | `(owl_tm| pack ($t:owl_type, $e:owl_tm)) => do
-    let elab_t <- elabType_closed t
-    let elab_e <- elabTm_closed e
-    mkAppM ``SExprX.pack #[elab_t, elab_e]
-  | `(owl_tm| if $e1:owl_tm then $e2:owl_tm else $e3:owl_tm) => do
-    let elab_e1 <- elabTm_closed e1
-    let elab_e2 <- elabTm_closed e2
-    let elab_e3 <- elabTm_closed e3
-    mkAppM ``SExprX.if_tm #[elab_e1, elab_e2, elab_e3]
-  | `(owl_tm| if corr($c:owl_label) then $e1:owl_tm else $e2:owl_tm) => do
-    let elab_c <- elabLabel_closed c
-    let elab_e1 <- elabTm_closed e1
-    let elab_e2 <- elabTm_closed e2
-    mkAppM ``SExprX.if_c #[elab_c, elab_e1, elab_e2]
-  | `(owl_tm| sync $e:owl_tm) => do
-    let elab_e <- elabTm_closed e
-    mkAppM ``SExprX.sync #[elab_e]
-  | `(owl_tm| let $id1:ident = $e:owl_tm  in $b:owl_tm) => do
-    let elab_e <- elabTm_closed e
-    let elab_b <- elabTm_closed b
-    mkAppM ``SExprX.elet #[mkStrLit id1.getId.toString, elab_e, elab_b]
-  | `(owl_tm| let $id1:ident : $t:owl_type = $e:owl_tm  in $b:owl_tm) => do
-    elabTmX_closed (<- `(owl_tm |
-      let $id1 = ($e : $t) in $b
-    ))
-  | `(owl_tm| let ($id1:ident, $id2:ident) = $e:owl_tm  in $b:owl_tm) => do
-    elabTmX_closed (<- `(owl_tm| let $id1 = π1 $e in let $id2 = π2 $e in $b))
-  | `(owl_tm| let ($id1:ident, $id2:ident, $id3:ident) = $e:owl_tm  in $b:owl_tm) => do
-    elabTmX_closed (<- `(owl_tm |
-      let $id1 = π1 $e in
-      let $id2 = π1 (π2 $e) in
-      let $id3 = π2 (π2 $e) in
-      $b
-    ))
-  | `(owl_tm| λ ($id:ident : $t1:owl_type) : $t2:owl_type => $e:owl_tm) => do
-    elabTmX_closed (<- `(owl_tm|
-      ((λ $id => $e) : ($t1 -> $t2)
-    )))
-  | `(owl_tm| λ $id:ident => $e:owl_tm) => do
-    let elab_e <- elabTm_closed e
-    let unused := "unused variable"
-    mkAppM ``SExprX.fixlam #[mkStrLit unused, mkStrLit id.getId.toString, elab_e]
-  | `(owl_tm| corr_case $l1:owl_label in $e:owl_tm ) => do
-    let elab_e <- elabTm_closed e
-    let elab_l1 <- elabLabel_closed l1
-    mkAppM ``SExprX.corr_case #[elab_l1, elab_e]
-  | `(owl_tm| ( $e:owl_tm : $t:owl_type)) => do
-    let elab_e <- elabTm_closed e
-    let elab_t <- elabType_closed t
-    mkAppM ``SExprX.annot #[elab_e, elab_t]
-  | _ => throwUnsupportedSyntax
-end
-
 -- Phi Mappings
 syntax "(" owl_phi_entry ")" : owl_phi_entry
 syntax  ident owl_cond_sym owl_label : owl_phi_entry
@@ -620,18 +401,6 @@ partial def elabPhiEntry : Syntax → TermElabM Expr
       mkAppM ``SPhiEntry.PhiEntry #[mkStrLit id.getId.toString, condSym, botLExpr]
   | _ => throwUnsupportedSyntax
 
-partial def elabPhiEntry_closed : Syntax → TermElabM Expr
-  | `(owl_phi_entry| ( $e:owl_phi_entry)) => elabPhiEntry_closed e
-  | `(owl_phi_entry|  $id:ident $co:owl_cond_sym $lab:owl_label) => do
-      let elab_co <- elabCondSym co
-      let elab_lab <- elabLabel_closed lab
-      mkAppM ``SPhiEntry.PhiEntry #[mkStrLit id.getId.toString, elab_co, elab_lab]
-  | `(owl_phi_entry| $id:ident) => do
-      let condSym <- mkAppM ``SCondSym.geq #[]
-      let botExpr <- mkAppM ``SLabel.default #[]
-      mkAppM ``SPhiEntry.PhiEntry #[mkStrLit id.getId.toString, condSym, botExpr]
-  | _ => throwUnsupportedSyntax
-
 syntax "(" owl_delta_entry ")" : owl_delta_entry
 syntax  ident "<:" owl_type : owl_delta_entry
 
@@ -642,13 +411,6 @@ partial def elabDeltaEntry : Syntax → TermElabM Expr
       mkAppM ``SDeltaEntry.DeltaEntry #[mkStrLit id.getId.toString, elab_t]
   | _ => throwUnsupportedSyntax
 
-partial def elabDeltaEntry_closed : Syntax → TermElabM Expr
-  | `(owl_delta_entry| ( $e:owl_delta_entry)) => elabDeltaEntry_closed e
-  | `(owl_delta_entry|  $id:ident <: $t:owl_type) => do
-      let elab_t <- elabType_closed t
-      mkAppM ``SDeltaEntry.DeltaEntry #[mkStrLit id.getId.toString, elab_t]
-  | _ => throwUnsupportedSyntax
-
 syntax "(" owl_gamma_entry ")" : owl_gamma_entry
 syntax  ident "=>" owl_type : owl_gamma_entry
 
@@ -656,13 +418,6 @@ partial def elabGammaEntry : Syntax → TermElabM Expr
   | `(owl_gamma_entry| ( $e:owl_gamma_entry)) => elabGammaEntry e
   | `(owl_gamma_entry|  $id:ident => $t:owl_type) => do
       let elab_t <- elabType t
-      mkAppM ``SGammaEntry.GammaEntry #[mkStrLit id.getId.toString, elab_t]
-  | _ => throwUnsupportedSyntax
-
-partial def elabGammaEntry_closed : Syntax → TermElabM Expr
-  | `(owl_gamma_entry| ( $e:owl_gamma_entry)) => elabGammaEntry_closed e
-  | `(owl_gamma_entry|  $id:ident => $t:owl_type) => do
-      let elab_t <- elabType_closed t
       mkAppM ``SGammaEntry.GammaEntry #[mkStrLit id.getId.toString, elab_t]
   | _ => throwUnsupportedSyntax
 
@@ -677,16 +432,6 @@ partial def elabPsiEntry : Syntax → TermElabM Expr
       mkAppM ``SPsiEntry.PsiCorr #[elab_l1]
       | `(owl_psi_entry| ¬corr($l1:owl_label)) => do
       let elab_l1 <- elabLabel l1
-      mkAppM ``SPsiEntry.PsiNotCorr #[elab_l1]
-  | _ => throwUnsupportedSyntax
-
-partial def elabPsiEntry_closed : Syntax → TermElabM Expr
-  | `(owl_psi_entry| ( $e:owl_psi_entry)) => elabPsiEntry_closed e
-  | `(owl_psi_entry| corr($l1:owl_label)) => do
-      let elab_l1 <- elabLabel_closed l1
-      mkAppM ``SPsiEntry.PsiCorr #[elab_l1]
-      | `(owl_psi_entry| ¬corr($l1:owl_label)) => do
-      let elab_l1 <- elabLabel_closed l1
       mkAppM ``SPsiEntry.PsiNotCorr #[elab_l1]
   | _ => throwUnsupportedSyntax
 
@@ -745,27 +490,6 @@ partial def elabPhiHelper : Syntax → TermElabM Expr
      mkAppM ``SPhi.Phi_End #[]
   | _ => throwUnsupportedSyntax
 
-partial def elabPhiHelper_closed : Syntax → TermElabM Expr
-  | `(owl_phi| ($e1:owl_phi_entry, $rest:owl_phi)) => do
-    let elab_e1 ← elabPhiEntry_closed e1
-    let elab_rest ← elabPhiHelper_closed rest
-    mkAppM ``SPhi.Phi_Cons #[elab_e1, elab_rest]
-  | `(owl_phi| $e1:owl_phi_entry , $rest:owl_phi) => do
-    let elab_e1 ← elabPhiEntry_closed e1
-    let elab_rest ← elabPhiHelper_closed rest
-    mkAppM ``SPhi.Phi_Cons #[elab_e1, elab_rest]
-  | `(owl_phi| $e:owl_phi_entry) => do
-    let elab_e ← elabPhiEntry_closed e
-    let phiEnd ← mkAppM ``SPhi.Phi_End #[]
-    mkAppM ``SPhi.Phi_Cons #[elab_e, phiEnd]
-  | `(owl_phi| ($e:owl_phi_entry) ) => do
-    let elab_e ← elabPhiEntry_closed e
-    let phiEnd ← mkAppM ``SPhi.Phi_End #[]
-    mkAppM ``SPhi.Phi_Cons #[elab_e, phiEnd]
-  | `(owl_phi| · ) => do
-     mkAppM ``SPhi.Phi_End #[]
-  | _ => throwUnsupportedSyntax
-
 syntax "(" owl_delta_entry "," owl_delta ")" : owl_delta
 syntax owl_delta_entry "," owl_delta : owl_delta
 syntax owl_delta_entry : owl_delta
@@ -787,27 +511,6 @@ partial def elabDeltaHelper : Syntax → TermElabM Expr
     mkAppM ``SDelta.Delta_Cons #[elab_e, phiEnd]
   | `(owl_delta| ($e:owl_delta_entry) ) => do
     let elab_e ← elabDeltaEntry e
-    let deltaEnd ← mkAppM ``SDelta.Delta_End #[]
-    mkAppM ``SDelta.Delta_Cons #[elab_e, deltaEnd]
-  | `(owl_delta| · ) => do
-     mkAppM ``SDelta.Delta_End #[]
-  | _ => throwUnsupportedSyntax
-
-partial def elabDeltaHelper_closed : Syntax → TermElabM Expr
-  | `(owl_delta| ($e1:owl_delta_entry, $rest:owl_delta)) => do
-    let elab_e1 ← elabDeltaEntry_closed e1
-    let elab_rest ← elabDeltaHelper_closed rest
-    mkAppM ``SDelta.Delta_Cons #[elab_e1, elab_rest]
-  | `(owl_delta| $e1:owl_delta_entry , $rest:owl_delta) => do
-    let elab_e1 ← elabDeltaEntry_closed e1
-    let elab_rest ← elabDeltaHelper_closed rest
-    mkAppM ``SDelta.Delta_Cons #[elab_e1, elab_rest]
-  | `(owl_delta| $e:owl_delta_entry) => do
-    let elab_e ← elabDeltaEntry_closed e
-    let phiEnd ← mkAppM ``SDelta.Delta_End #[]
-    mkAppM ``SDelta.Delta_Cons #[elab_e, phiEnd]
-  | `(owl_delta| ($e:owl_delta_entry) ) => do
-    let elab_e ← elabDeltaEntry_closed e
     let deltaEnd ← mkAppM ``SDelta.Delta_End #[]
     mkAppM ``SDelta.Delta_Cons #[elab_e, deltaEnd]
   | `(owl_delta| · ) => do
@@ -841,27 +544,6 @@ partial def elabGammaHelper : Syntax → TermElabM Expr
      mkAppM ``SGamma.Gamma_End #[]
   | _ => throwUnsupportedSyntax
 
-partial def elabGammaHelper_closed : Syntax → TermElabM Expr
-  | `(owl_gamma| ($e1:owl_gamma_entry, $rest:owl_gamma)) => do
-    let elab_e1 ← elabGammaEntry_closed e1
-    let elab_rest ← elabGammaHelper_closed rest
-    mkAppM ``SGamma.Gamma_Cons #[elab_e1, elab_rest]
-  | `(owl_gamma| $e1:owl_gamma_entry , $rest:owl_gamma) => do
-    let elab_e1 ← elabGammaEntry_closed e1
-    let elab_rest ← elabGammaHelper_closed rest
-    mkAppM ``SGamma.Gamma_Cons #[elab_e1, elab_rest]
-  | `(owl_gamma| $e:owl_gamma_entry) => do
-    let elab_e ← elabGammaEntry_closed e
-    let gammaEnd ← mkAppM ``SGamma.Gamma_End #[]
-    mkAppM ``SGamma.Gamma_Cons #[elab_e, gammaEnd]
-  | `(owl_gamma| ($e:owl_gamma_entry) ) => do
-    let elab_e ← elabGammaEntry_closed e
-    let gammaEnd ← mkAppM ``SGamma.Gamma_End #[]
-    mkAppM ``SGamma.Gamma_Cons #[elab_e, gammaEnd]
-  | `(owl_gamma| · ) => do
-     mkAppM ``SGamma.Gamma_End #[]
-  | _ => throwUnsupportedSyntax
-
 syntax "(" owl_psi_entry "," owl_psi ")" : owl_psi
 syntax owl_psi_entry "," owl_psi : owl_psi
 syntax owl_psi_entry : owl_psi
@@ -889,49 +571,16 @@ partial def elabPsi : Syntax → TermElabM Expr
      mkAppM ``SPsi.Psi_End #[]
   | _ => throwUnsupportedSyntax
 
-partial def elabPsi_closed : Syntax → TermElabM Expr
-  | `(owl_psi| ($e1:owl_psi_entry, $rest:owl_psi)) => do
-    let elab_e1 ← elabPsiEntry_closed e1
-    let elab_rest ← elabPsi_closed rest
-    mkAppM ``SPsi.Psi_Cons #[elab_e1, elab_rest]
-  | `(owl_psi| $e1:owl_psi_entry , $rest:owl_psi) => do
-    let elab_e1 ← elabPsiEntry_closed e1
-    let elab_rest ← elabPsi_closed rest
-    mkAppM ``SPsi.Psi_Cons #[elab_e1, elab_rest]
-  | `(owl_psi| $e:owl_psi_entry) => do
-    let elab_e ← elabPsiEntry_closed e
-    let psiEnd ← mkAppM ``SPsi.Psi_End #[]
-    mkAppM ``SPsi.Psi_Cons #[elab_e, psiEnd]
-  | `(owl_psi| ($e:owl_psi_entry) ) => do
-    let elab_e ← elabPsiEntry_closed e
-    let psiEnd ← mkAppM ``SPsi.Psi_End #[]
-    mkAppM ``SPsi.Psi_Cons #[elab_e, psiEnd]
-  | `(owl_psi| · ) => do
-     mkAppM ``SPsi.Psi_End #[]
-  | _ => throwUnsupportedSyntax
-
 partial def elabPhi (stx : Syntax) : TermElabM Expr := do
   let phi ← elabPhiHelper stx
-  mkAppM ``SPhi.reverse #[phi]
-
-partial def elabPhi_closed (stx : Syntax) : TermElabM Expr := do
-  let phi ← elabPhiHelper_closed stx
   mkAppM ``SPhi.reverse #[phi]
 
 partial def elabDelta (stx : Syntax) : TermElabM Expr := do
   let delta ← elabDeltaHelper stx
   mkAppM ``SDelta.reverse #[delta]
 
-partial def elabDelta_closed (stx : Syntax) : TermElabM Expr := do
-  let delta ← elabDeltaHelper_closed stx
-  mkAppM ``SDelta.reverse #[delta]
-
 partial def elabGamma (stx : Syntax) : TermElabM Expr := do
   let gamma ← elabGammaHelper stx
-  mkAppM ``SGamma.reverse #[gamma]
-
-partial def elabGamma_closed (stx : Syntax) : TermElabM Expr := do
-  let gamma ← elabGammaHelper_closed stx
   mkAppM ``SGamma.reverse #[gamma]
 
 -- test parser for labels

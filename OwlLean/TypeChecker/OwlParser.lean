@@ -510,8 +510,7 @@ def psiWithLength (l : Nat) (spsi : SPsi) (lvars : List String) : psi_context l 
 @[simp]
 elab "Ψ:=" p:owl_phi : term => do
   let sexprPhi ← elabPhi p
-  let sexprPhi2 ← elabPhi_closed p
-  let sVal : SPhi ← unsafe do Meta.evalExpr SPhi (mkConst ``SPhi) sexprPhi2
+  let sVal : SPhi ← unsafe do Meta.evalExpr SPhi (mkConst ``SPhi) sexprPhi
   match SPhi.elab sVal with
   | .error s   => throwError s!"owl phi: ill-formed term: {s}"
   | .ok ⟨vars, _⟩ =>
@@ -527,13 +526,11 @@ def PhiEntails (phi : phi_context n) (cond : constr n) : Prop :=
 elab "(" phi:owl_phi " ⊨ " cond:owl_constr ")" : term => do
 
     let sexprPhi ← elabPhi phi
-    let sexprPhi2 ← elabPhi_closed phi
 
     let sexprConstr <- elabConstr cond
-    let sexprConstr2 <- elabConstr_closed cond
 
-    let sVal : SPhi ← unsafe do Meta.evalExpr SPhi (mkConst ``SPhi) sexprPhi2
-    let sVal2 : SConstr ← unsafe do Meta.evalExpr SConstr (mkConst ``SConstr) sexprConstr2
+    let sVal : SPhi ← unsafe do Meta.evalExpr SPhi (mkConst ``SPhi) sexprPhi
+    let sVal2 : SConstr ← unsafe do Meta.evalExpr SConstr (mkConst ``SConstr) sexprConstr
     match SPhi.elab sVal, SConstr.elab sVal2 with
     | .ok ⟨vars, _⟩, _ =>
       let lenExpr := mkNatLit vars.length
@@ -564,8 +561,7 @@ elab "Owl" "[" lvars:ident,* "]" "[" tvars:ident,* "]" "[" vars:ident,* "]" "{" 
   let tvarEListExpr ← mkListLit (mkConst ``String) tvarEList.toList
 
   let sexprTerm ← elabTm p
-  let sexprTerm2 ← elabTm_closed p
-  let sVal : SExpr ← unsafe do Meta.evalExpr SExpr (mkConst ``SExpr) sexprTerm2
+  let sVal : SExpr ← unsafe do Meta.evalExpr SExpr (mkConst ``SExpr) sexprTerm
   match SExpr.elab sVal lvarList tvarList varList with
   | .error s   => throwError "owl: ill-formed term: {s}"
   | .ok _ => mkAppM ``elabHelper #[sexprTerm, lvarEListExpr, tvarEListExpr, varEListExpr]
@@ -584,7 +580,7 @@ elab "OwlTy" "[" lvars:ident,* "]" "[" tvars:ident,* "]" "{" p:owl_type "}" : te
   let tvarEListExpr ← mkListLit (mkConst ``String) tvarEList.toList
 
   let sexprTerm ← elabType p
-  let sexprTerm2 ← elabType_closed p
+  let sexprTerm2 ← elabType p
 
   let sVal : STy ← unsafe do Meta.evalExpr STy (mkConst ``STy) sexprTerm2
   match STy.elab sVal lvarList tvarList with
@@ -600,9 +596,8 @@ elab "OwlLabel" "[" lvars:ident,* "]" "{" p:owl_label "}" : term => do
   let lvarEListExpr ← mkListLit (mkConst ``String) lvarEList.toList
 
   let sexprTerm ← elabLabel p
-  let sexprTerm2 ← elabLabel_closed p
 
-  let sVal : SLabel ← unsafe do Meta.evalExpr SLabel (mkConst ``SLabel) sexprTerm2
+  let sVal : SLabel ← unsafe do Meta.evalExpr SLabel (mkConst ``SLabel) sexprTerm
   match SLabel.elab sVal lvarList with
   | .error s  => throwError "owl: ill-formed label: {s}"
   | .ok _ => mkAppM ``elabHelperLabel #[sexprTerm, lvarEListExpr]
@@ -697,16 +692,16 @@ elab_rules : command
   | `(#tc $n := $p ; $ps; $d; $g ⊢ $e : $t by%$tkp $pf ) => do
     let seq_e <- Command.liftTermElabM $ withEnableInfoTree false do
 
-      let sphiExpr2 ← elabPhi_closed p
+      let sphiExpr2 ← elabPhi p
       let sphi : SPhi ← unsafe do Meta.evalExpr SPhi (mkConst ``SPhi) sphiExpr2
 
-      let spsiExpr2 ← elabPsi_closed ps
+      let spsiExpr2 ← elabPsi ps
       let spsi : SPsi ← unsafe do Meta.evalExpr SPsi (mkConst ``SPsi) spsiExpr2
 
-      let sdeltaExpr2 ← elabDelta_closed d
+      let sdeltaExpr2 ← elabDelta d
       let sdelta : SDelta ← unsafe do Meta.evalExpr SDelta (mkConst ``SDelta) sdeltaExpr2
 
-      let sgammaExpr2 ← elabGamma_closed g
+      let sgammaExpr2 ← elabGamma g
       let sgamma : SGamma ← unsafe do Meta.evalExpr SGamma (mkConst ``SGamma) sgammaExpr2
 
       let lvars := SPhi.getVars sphi
@@ -730,10 +725,10 @@ elab_rules : command
       | .error _ => throwError "owl: ill-formed gamma context {g}"
       | .ok _ => PURE
 
-      let stmExpr2 ← elabTm_closed e
+      let stmExpr2 ← elabTm e
       let stm : SExpr ← unsafe do Meta.evalExpr SExpr (mkConst ``SExpr) stmExpr2
 
-      let styExpr2 ← elabType_closed t
+      let styExpr2 ← elabType t
       let sty : STy ← unsafe do Meta.evalExpr STy (mkConst ``STy) styExpr2
 
       match SExpr.elab stm lvars tvars vars with
