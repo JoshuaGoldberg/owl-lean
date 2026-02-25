@@ -9,6 +9,7 @@ deriving instance ToExpr for SLabel
 deriving instance ToExpr for SCondSym
 deriving instance ToExpr for STy
 
+declare_syntax_cat owl_var
 declare_syntax_cat owl_tm
 declare_syntax_cat owl_label
 declare_syntax_cat owl_type
@@ -24,6 +25,10 @@ declare_syntax_cat owl_gamma_entry
 declare_syntax_cat owl_psi_entry
 declare_syntax_cat owl_psi
 
+-- syntax for variables
+syntax ident : owl_var
+syntax "_" : owl_var
+
 -- syntax for labels
 syntax ident : owl_label
 syntax "⟨" term "⟩"  : owl_label
@@ -33,7 +38,9 @@ syntax "$" term:max "[" owl_label,* "]" : owl_label
 syntax "$" term:max : owl_label
 syntax "(" owl_label ")" : owl_label
 
-
+partial def elabVar : Syntax → String
+  | `(owl_var| $id:ident) => id.getId.toString
+  | _ => "unused variable"
 
 partial def elabLabel : Syntax → TermElabM Expr
   | `(owl_label| ( $e:owl_label)) => elabLabel e
@@ -192,9 +199,9 @@ syntax num : owl_tm
 syntax "error" : owl_tm
 syntax "()" : owl_tm
 syntax owl_binary : owl_tm
-syntax "fix" ident "(" ident ")" owl_tm : owl_tm
-syntax "Λ" owl_type "." owl_tm : owl_tm
-syntax "Λβ" owl_label "." owl_tm : owl_tm
+syntax "fix" owl_var "(" owl_var ")" owl_tm : owl_tm
+syntax "Λ" owl_var "." owl_tm : owl_tm
+syntax "Λβ" owl_var "." owl_tm : owl_tm
 syntax "⟨" owl_tm "," owl_tm "⟩" : owl_tm
 syntax "⟨" term "⟩" "(" owl_tm "," owl_tm ")" : owl_tm -- Binary Op case
 syntax "⟨" term "⟩" "(" owl_tm ")" : owl_tm -- Unary Op case
@@ -207,20 +214,21 @@ syntax "π1" owl_tm : owl_tm
 syntax "π2" owl_tm : owl_tm
 syntax "ı1" owl_tm : owl_tm
 syntax "ı2" owl_tm : owl_tm
-syntax "case" owl_tm "in" "|" "inl" owl_tm "=>" owl_tm "|" "inr" owl_tm "=>" owl_tm : owl_tm
+syntax "case" owl_tm "in" "|" "inl" owl_var "=>" owl_tm "|" "inr" owl_var "=>" owl_tm : owl_tm
 syntax owl_tm "[" owl_type "]" : owl_tm
 syntax owl_tm "⟨" owl_label "⟩" : owl_tm
 syntax "pack" "(" owl_type "," owl_tm ")" : owl_tm
-syntax "unpack" owl_tm "as" "(" ident "," ident ")" "in" owl_tm : owl_tm
+syntax "unpack" owl_tm "as" "(" owl_var "," owl_var ")" "in" owl_tm : owl_tm
 syntax "if" owl_tm "then" owl_tm "else" owl_tm : owl_tm
 syntax "if" "corr" "(" owl_label ")" "then" owl_tm "else" owl_tm : owl_tm
 syntax "sync" owl_tm : owl_tm
-syntax "let" ident "=" owl_tm "in" owl_tm : owl_tm
-syntax "let" ident ":" owl_type "=" owl_tm "in" owl_tm : owl_tm
-syntax "let" "(" ident "," ident ")" "=" owl_tm "in" owl_tm : owl_tm
-syntax "let" "(" ident "," ident "," ident ")" "=" owl_tm "in" owl_tm : owl_tm
-syntax "λ" "(" ident ":" owl_type ")" ":" owl_type "=>" owl_tm : owl_tm
-syntax "λ" ident "=>" owl_tm : owl_tm
+syntax "let" owl_var "=" owl_tm "in" owl_tm : owl_tm
+syntax owl_tm ";" owl_tm : owl_tm
+syntax "let" owl_var ":" owl_type "=" owl_tm "in" owl_tm : owl_tm
+syntax "let" "(" owl_var "," owl_var ")" "=" owl_tm "in" owl_tm : owl_tm
+syntax "let" "(" owl_var "," owl_var "," owl_var ")" "=" owl_tm "in" owl_tm : owl_tm
+syntax "λ" "(" owl_var ":" owl_type ")" ":" owl_type "=>" owl_tm : owl_tm
+syntax "λ" owl_var "=>" owl_tm : owl_tm
 syntax "$" term:max "[" owl_label,* "]" "[" owl_type,* "]" "[" owl_tm,* "]" : owl_tm
 syntax "corr_case" owl_label "in" owl_tm : owl_tm
 syntax "(" owl_tm ":" owl_type ")" : owl_tm
@@ -258,15 +266,15 @@ partial def elabTmX : Syntax → TermElabM Expr
   | `(owl_tm| $b:owl_binary ) => do
     let elab_b <- elabBinary b
     mkAppM ``SExprX.bitstring #[elab_b]
-  | `(owl_tm| fix $f:ident ( $id:ident ) $e:owl_tm) => do
+  | `(owl_tm| fix $f:owl_var ( $v:owl_var ) $e:owl_tm) => do
     let elab_e <- elabTm e
-    mkAppM ``SExprX.fixlam #[mkStrLit f.getId.toString, mkStrLit id.getId.toString, elab_e]
-  | `(owl_tm| Λ $id:ident . $e:owl_tm) => do
+    mkAppM ``SExprX.fixlam #[mkStrLit (elabVar f), mkStrLit (elabVar v), elab_e]
+  | `(owl_tm| Λ $v:owl_var . $e:owl_tm) => do
     let elab_e <- elabTm e
-    mkAppM ``SExprX.tlam #[mkStrLit id.getId.toString, elab_e]
-  | `(owl_tm| Λβ $id:ident . $e:owl_tm) => do
+    mkAppM ``SExprX.tlam #[mkStrLit (elabVar v), elab_e]
+  | `(owl_tm| Λβ $v:owl_var . $e:owl_tm) => do
     let elab_e <- elabTm e
-    mkAppM ``SExprX.l_lam #[mkStrLit id.getId.toString, elab_e]
+    mkAppM ``SExprX.l_lam #[mkStrLit (elabVar v), elab_e]
   | `(owl_tm|⟨ $e1:owl_tm , $e2:owl_tm ⟩) => do
     let elab_e1 <- elabTm e1
     let elab_e2 <- elabTm e2
@@ -322,11 +330,11 @@ partial def elabTmX : Syntax → TermElabM Expr
   | `(owl_tm| ı2 $e:owl_tm) => do
     let elab_e <- elabTm e
     mkAppM ``SExprX.inr #[elab_e]
-  | `(owl_tm| case $e1:owl_tm in | inl $id1:ident => $e2:owl_tm | inr $id2:ident => $e3:owl_tm) => do
+  | `(owl_tm| case $e1:owl_tm in | inl $v1:owl_var => $e2:owl_tm | inr $v2:owl_var => $e3:owl_tm) => do
     let elab_e1 <- elabTm e1
     let elab_e2 <- elabTm e2
     let elab_e3 <- elabTm e3
-    mkAppM ``SExprX.case #[elab_e1, mkStrLit id1.getId.toString, elab_e2, mkStrLit id2.getId.toString, elab_e3]
+    mkAppM ``SExprX.case #[elab_e1, mkStrLit (elabVar v1), elab_e2, mkStrLit (elabVar v2), elab_e3]
   | `(owl_tm| $e:owl_tm [ $t:owl_type ]) => do
     let elab_e <- elabTm e
     let elab_t <- elabType t
@@ -335,10 +343,10 @@ partial def elabTmX : Syntax → TermElabM Expr
     let elab_e <- elabTm e
     let elab_l <- elabLabel l
     mkAppM ``SExprX.lapp #[elab_e, elab_l]
-  | `(owl_tm| unpack $e1:owl_tm as ($id1:ident, $id2:ident) in $e2:owl_tm) => do
+  | `(owl_tm| unpack $e1:owl_tm as ($v1:owl_var, $v2:owl_var) in $e2:owl_tm) => do
     let elab_e1 <- elabTm e1
     let elab_e2 <- elabTm e2
-    mkAppM ``SExprX.unpack #[elab_e1, mkStrLit id1.getId.toString, mkStrLit id2.getId.toString, elab_e2]
+    mkAppM ``SExprX.unpack #[elab_e1, mkStrLit (elabVar v1), mkStrLit (elabVar v2), elab_e2]
   | `(owl_tm| pack ($t:owl_type, $e:owl_tm)) => do
     let elab_t <- elabType t
     let elab_e <- elabTm e
@@ -356,31 +364,34 @@ partial def elabTmX : Syntax → TermElabM Expr
   | `(owl_tm| sync $e:owl_tm) => do
     let elab_e <- elabTm e
     mkAppM ``SExprX.sync #[elab_e]
-  | `(owl_tm| let $id1:ident = $e:owl_tm  in $b:owl_tm) => do
+  | `(owl_tm| let $v1:owl_var = $e:owl_tm  in $b:owl_tm) => do
     let elab_e <- elabTm e
     let elab_b <- elabTm b
-    mkAppM ``SExprX.elet #[mkStrLit id1.getId.toString, elab_e, elab_b]
-  | `(owl_tm| let $id1:ident : $t:owl_type = $e:owl_tm  in $b:owl_tm) => do
+    mkAppM ``SExprX.elet #[mkStrLit (elabVar v1), elab_e, elab_b]
+  | `(owl_tm| let $v1:owl_var : $t:owl_type = $e:owl_tm  in $b:owl_tm) => do
     elabTmX (<- `(owl_tm |
-      let $id1 = ($e : $t) in $b
+      let $v1 = ($e : $t) in $b
     ))
-  | `(owl_tm| let ($id1:ident, $id2:ident) = $e:owl_tm  in $b:owl_tm) => do
-    elabTmX (<- `(owl_tm| let $id1 = π1 $e in let $id2 = π2 $e in $b))
-  | `(owl_tm| let ($id1:ident, $id2:ident, $id3:ident) = $e:owl_tm  in $b:owl_tm) => do
+  | `(owl_tm| let ($v1:owl_var, $v2:owl_var) = $e:owl_tm  in $b:owl_tm) => do
+    elabTmX (<- `(owl_tm| let $v1 = π1 $e in let $v2 = π2 $e in $b))
+  | `(owl_tm| let ($v1:owl_var, $v2:owl_var, $v3:owl_var) = $e:owl_tm  in $b:owl_tm) => do
     elabTmX (<- `(owl_tm |
-      let $id1 = π1 $e in
-      let $id2 = π1 (π2 $e) in
-      let $id3 = π2 (π2 $e) in
+      let $v1 = π1 $e in
+      let $v2 = π1 (π2 $e) in
+      let $v3 = π2 (π2 $e) in
       $b
     ))
-  | `(owl_tm| λ ($id:ident : $t1:owl_type) : $t2:owl_type => $e:owl_tm) => do
+  | `(owl_tm| $e1:owl_tm ; $e2:owl_tm ) => do
     elabTmX (<- `(owl_tm|
-      ((λ $id => $e) : ($t1 -> $t2)
+      (let _ = $e1 in $e2)))
+  | `(owl_tm| λ ($v:owl_var : $t1:owl_type) : $t2:owl_type => $e:owl_tm) => do
+    elabTmX (<- `(owl_tm|
+      ((λ $v => $e) : ($t1 -> $t2)
     )))
-  | `(owl_tm| λ $id:ident => $e:owl_tm) => do
+  | `(owl_tm| λ $v:owl_var => $e:owl_tm) => do
     let elab_e <- elabTm e
     let unused := "unused variable"
-    mkAppM ``SExprX.fixlam #[mkStrLit unused, mkStrLit id.getId.toString, elab_e]
+    mkAppM ``SExprX.fixlam #[mkStrLit unused, mkStrLit (elabVar v), elab_e]
   | `(owl_tm| corr_case $l1:owl_label in $e:owl_tm ) => do
     let elab_e <- elabTm e
     let elab_l1 <- elabLabel l1

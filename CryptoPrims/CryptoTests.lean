@@ -191,7 +191,7 @@ def run_sm_tm := Owl [] [] [] {
   let step = π2 contents in
   λ (input: Public) : Public =>
     let result = step ⟨!state_ref, input⟩ in
-    let _unused = (state_ref := π1 result) in
+    (state_ref := π1 result) ;
     π2 result
 }
 
@@ -203,7 +203,7 @@ def run_two_tm := Owl [] [] [] {
   λ (a : $ StateMachine [] []) : ($ StateMachine [] [] -> (Public * Public) -> Public) =>
   λ (b : $ StateMachine [] []) : ((Public * Public) -> Public) =>
   -- generate a single state machine run function
-  let A = $ run_sm_tm [] [] [] a in
+  let A = ($ run_sm_tm [] [] [] a) in
   -- let's do it again!
   let B = $ run_sm_tm [] [] [] b in
   λ (val : (Public * Public)) : Public =>
@@ -249,7 +249,7 @@ def bob_sm := Owl [lKL, lKH] [] [encH, encL] {
           corr_case lKH in
           case (dec_high ⟨key_high, input⟩) in
           | inl key_low' =>
-              let _u = (key_store := key_low') in
+              (key_store := key_low') ;
               ⟨"1", "0"⟩
           | inr _fail =>
               ⟨"10", "1"⟩
@@ -257,9 +257,9 @@ def bob_sm := Owl [lKL, lKH] [] [encH, encL] {
           let stored_key = (!key_store) in
           corr_case lKL in
           case (dec_low ⟨stored_key, input⟩) in
-          | inl _success =>
+          | inl _ =>
               ⟨"10", "0"⟩
-          | inr _fail =>
+          | inr _ =>
               ⟨"10", "1"⟩
         else
           ⟨"10", ""⟩)
@@ -348,7 +348,7 @@ def value :=
 -- trivial binary values
 def party1 :=
   Owl [] [] [send, recv] {
-    send "10101" (λ (_x : unit) : unit => send "1010" (λ (_y : unit) : unit => ()))
+    (send "10101") (λ (_ : unit) : unit => (send "1010") (λ (_ : unit) : unit => ()))
   }
 
 -- trivial binary value
@@ -359,11 +359,53 @@ def do_some_stuff :=
 
 def party2 :=
   Owl [] [] [send, recv] {
-    recv (λ c1 =>
-      recv (λ c2 =>
+    recv (λ (c1 : Public) : unit =>
+      recv (λ (c2 : Public) : unit =>
         if (⟨"eq"⟩ ($ do_some_stuff [] [] [c1, c2], "1111011")) then
-          send (⟨"^"⟩(c1, c2)) (λ _x => ())
+          (send (⟨"^"⟩(c1, c2))) (λ (_ : unit) : unit => ())
         else ()))
+  }
+
+def run_protocol :=
+  Owl [] [] [] {
+    λ (_ : unit) : (Public * ($ value [] [])) -> ($ value [] []) =>
+      let k1 : Ref (($ value [] []) -> unit) = alloc (λ (_ : $ value [] []) : unit => ())  in
+      let k2 : Ref (($ value [] []) -> unit) = alloc (λ (_ : $ value [] []) : unit => ())  in
+      let out1 = alloc ("" : Public) in
+      let out2 = alloc  ("" : Public) in
+      let send1 = (λ (v : Public) : ((unit -> unit) -> unit) =>
+        λ (k : (unit -> unit)) : unit =>
+          (out1 := v) ;
+          (k1 := (λ ( _ : Public) : unit => k ()))) in
+      let recv1 = (λ (k : (Public -> unit)) : unit =>
+        (k1 := k)) in
+      let send2 : Public -> ((unit -> unit) -> unit)= (λ (v : Public) : ((unit -> unit) -> unit) =>
+        λ (k : (unit -> unit)) : unit =>
+          (out2 := v) ;
+          (k2 := (λ ( _ : Public) : unit => k ()))) in
+      let recv2 : (Public -> unit) -> unit = (λ (k : (Public -> unit)) : unit =>
+        (k2 := k)) in
+      ($ party1 [] [] [send1, recv1] : unit) ;
+      ($ party2 [] [] [send2, recv2] : unit) ;
+      (λ (args : (Public * Public)) : Public =>
+        let (b, v) = args in
+          if b then
+            ((!k1) v) ;
+            !out1
+          else
+            ((!k2) v) ;
+            !out2)
+  }
+
+#tc run_protocol_tc := · ; · ; · ; ·
+  ⊢
+  $ run_protocol [] [] []
+  :
+  unit -> ((Public * Public) -> Public)
+  by {
+    unfold sideConditions
+    simp
+    split_grind
   }
 
 #tc protocol := lM, lKL ⊐ lM, lKH ⊐ lKL; · ; aKH <: Data lKH, aKL <: Data lKL ;
