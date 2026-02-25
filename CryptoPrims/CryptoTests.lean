@@ -366,8 +366,6 @@ def party2 :=
         else ()))
   }
 
-
-
 #tc protocol := lM, lKL ⊐ lM, lKH ⊐ lKL; · ; aKH <: Data lKH, aKL <: Data lKL ;
   --  Make it : instead of =>
   encH => ($ ENC_Inner [lKH] [aKL, aKH]),
