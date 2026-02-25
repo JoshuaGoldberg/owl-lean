@@ -340,6 +340,34 @@ def run_alice_bob :=
     split_grind
   }
 
+def value :=
+  OwlTy [] [] {
+    (Data ⟨Owl.L.bot⟩)
+  }
+
+-- trivial binary values
+def party1 :=
+  Owl [] [] [send, recv] {
+    send "10101" (λ (_x : unit) : unit => send "1010" (λ (_y : unit) : unit => ()))
+  }
+
+-- trivial binary value
+def do_some_stuff :=
+  Owl [] [] [c1, c2] {
+    "1111011"
+  }
+
+def party2 :=
+  Owl [] [] [send, recv] {
+    recv (λ c1 =>
+      recv (λ c2 =>
+        if (⟨"eq"⟩ ($ do_some_stuff [] [] [c1, c2], "1111011")) then
+          send (⟨"^"⟩(c1, c2)) (λ _x => ())
+        else ()))
+  }
+
+
+
 #tc protocol := lM, lKL ⊐ lM, lKH ⊐ lKL; · ; aKH <: Data lKH, aKL <: Data lKL ;
   --  Make it : instead of =>
   encH => ($ ENC_Inner [lKH] [aKL, aKH]),

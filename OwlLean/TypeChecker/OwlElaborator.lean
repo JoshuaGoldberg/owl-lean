@@ -196,7 +196,8 @@ syntax "fix" ident "(" ident ")" owl_tm : owl_tm
 syntax "Λ" owl_type "." owl_tm : owl_tm
 syntax "Λβ" owl_label "." owl_tm : owl_tm
 syntax "⟨" owl_tm "," owl_tm "⟩" : owl_tm
-syntax "⟨" term "⟩" "(" owl_tm "," owl_tm ")" : owl_tm -- Op case
+syntax "⟨" term "⟩" "(" owl_tm "," owl_tm ")" : owl_tm -- Binary Op case
+syntax "⟨" term "⟩" "(" owl_tm ")" : owl_tm -- Unary Op case
 syntax "zero" owl_tm : owl_tm
 syntax owl_tm owl_tm : owl_tm
 syntax "alloc" owl_tm : owl_tm
@@ -275,6 +276,14 @@ partial def elabTmX : Syntax → TermElabM Expr
     let elab_e1 <- elabTm e1
     let elab_e2 <- elabTm e2
     mkAppM ``SExprX.Op #[t', elab_e1, elab_e2]
+  | `(owl_tm| ⟨ $t:term ⟩ ( $e1:owl_tm )) => do
+    let t' ← Term.elabTerm t (mkConst ``String)
+    let elab_e1 <- elabTm e1
+    let bend ← mkAppM ``SBinary.bend #[]
+    let arbitrary_bit_x <- mkAppM ``SExprX.bitstring #[bend]
+    let se <- mkEmptySyntax "arbitrary"
+    let arbitrary_bit <- mkAppM ``SExpr.mk #[se, arbitrary_bit_x]
+    mkAppM ``SExprX.Op #[t', elab_e1, arbitrary_bit]
   | `(owl_tm| $ $t:term [ $ls:owl_label,* ] [ $ts:owl_type,* ] [ $es:owl_tm,* ]) => do
     let ls' <- ls.getElems.mapM elabLabel
     let ts' <- ts.getElems.mapM elabType
