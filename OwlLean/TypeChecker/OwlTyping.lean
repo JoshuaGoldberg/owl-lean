@@ -3,6 +3,7 @@ import Lean
 
 open Owl
 
+
 /--
 Type for an n-length array of type `α` as an inductive type.
 -/
@@ -52,20 +53,20 @@ theorem vec.to_fn_from (v : vec n α) :
 
 
 @[simp]
-def gamma_context (l : Nat) (d : Nat) (m : Nat) := Fin m -> ty l d
+def gamma_context (l : Nat) r (d : Nat) (m : Nat)  := Fin m -> ty l r d 0
 @[simp]
-def delta_context (l : Nat) (d : Nat) := Fin d -> ty l d
+def delta_context (l : Nat) r (d : Nat)  := Fin d -> ty l r d 0
 @[simp]
 def phi_context (l : Nat) := Fin l -> (cond_sym × label l)
 
-abbrev gamma_context_repr (l d m : Nat) := vec (ty l d) m
+abbrev gamma_context_repr (l r d m  : Nat) := vec (ty l r d 0) m
 
-instance : Lean.ToExpr (gamma_context_repr l d m) := by
+instance : Lean.ToExpr (gamma_context_repr l r d m ) := by
   infer_instance
 
-abbrev delta_context_repr l d := vec (ty l d) d
+abbrev delta_context_repr l r d := vec (ty l r d 0) d
 
-instance : Lean.ToExpr (delta_context_repr l d) := by
+instance : Lean.ToExpr (delta_context_repr l r d) := by
   infer_instance
 
 abbrev phi_context_repr l := vec (cond_sym × label l) l
@@ -74,11 +75,11 @@ instance : Lean.ToExpr (phi_context_repr l) := by
   infer_instance
 
 @[simp]
-def empty_gamma : gamma_context l d 0 :=
+def empty_gamma : gamma_context l r d 0  :=
   fun (i : Fin 0) => nomatch i
 
 @[simp]
-def empty_delta : delta_context l 0 :=
+def empty_delta : delta_context l r 0 :=
   fun (i : Fin 0) => nomatch i
 
 @[simp]
@@ -86,24 +87,34 @@ def empty_phi : (phi_context 0) :=
   fun (i : Fin 0) => nomatch i
 
 @[simp]
-def lift_delta (Delta : Fin (d + 1) -> ty l d)
-  : delta_context l (d + 1)
-  := fun i => ren_ty id shift (Delta i)
+def lift_delta (Delta : Fin (d + 1) -> ty l r d 0 )
+  : delta_context l r (d + 1)
+  := fun i => ren_ty id id shift id (Delta i)
 
 @[simp]
-def lift_delta_l (Delta : delta_context l d)
-  : delta_context (l + 1) d
-  := fun i => ren_ty shift id (Delta i)
+def lift_delta_l (Delta : delta_context l r d )
+  : delta_context (l + 1) r d
+  := fun i => ren_ty shift id id id (Delta i)
 
 @[simp]
-def lift_gamma_d (Gamma : gamma_context l d m)
-  : gamma_context l (d + 1) m
-  := fun i => ren_ty id shift (Gamma i)
+def lift_delta_r (Delta : delta_context l r d)
+  : delta_context l (r + 1) d
+  := fun i => ren_ty id shift id id (Delta i)
 
 @[simp]
-def lift_gamma_l (Gamma : gamma_context l d m)
-  : gamma_context (l + 1) d m
-  := fun i => ren_ty shift id (Gamma i)
+def lift_gamma_d (Gamma : gamma_context l r d m )
+  : gamma_context l r (d + 1) m
+  := fun i => ren_ty id id shift id (Gamma i)
+
+@[simp]
+def lift_gamma_l (Gamma : gamma_context l r d m )
+  : gamma_context (l + 1) r d m
+  := fun i => ren_ty shift id id id (Gamma i)
+
+@[simp]
+def lift_gamma_r (Gamma : gamma_context l r d m )
+  : gamma_context l (r + 1) d m
+  := fun i => ren_ty id shift id id (Gamma i)
 
 -- Convert from labels down to lattice elements
 @[simp]
@@ -112,7 +123,7 @@ def interp_lattice (l : label 0) : L.labels :=
   | .latl x => x
   | .ljoin x y => (L.join (interp_lattice x) (interp_lattice y))
   | .lmeet x y => (L.meet (interp_lattice x) (interp_lattice y))
-  | .var_label n => nomatch n
+  | .var_label _fail n => nomatch n
   | .default => L.bot
 
 @[simp]
@@ -162,8 +173,11 @@ def pcons (x : cond_sym × label l) (phi : phi_context l) : phi_context (l + 1) 
   (lift_phi (cons x phi))
 
 @[simp]
-def dcons (x : ty l d) (delta : delta_context l d) : delta_context l (d+1) :=
+def dcons (x : ty l r d 0) (delta : delta_context l r d ) : delta_context l r (d+1) :=
   (lift_delta (cons x delta))
+
+
+attribute [simp] Fin.foldr_succ
 
 @[simp]
 def phi_map.valid (p : phi_map l) (c : phi_context l) :=
@@ -219,9 +233,13 @@ structure CorruptionSet where
                     is_corrupt l' ->
                     L.leq (interp_lattice l) (interp_lattice l') = true ->
                     is_corrupt l
+  join_corrupt : forall l1 l2,
+                    is_corrupt l1 ->
+                    is_corrupt l2 ->
+                    is_corrupt (l1.ljoin l2)
 
 
-@[grind]
+@[grind .]
 theorem CorruptionSet.by_downwards_closed (C : CorruptionSet) :
   C.is_corrupt l ->
   Owl.L.leq (interp_lattice l') (interp_lattice l) = true ->
@@ -231,16 +249,25 @@ theorem CorruptionSet.by_downwards_closed (C : CorruptionSet) :
     apply h1
     assumption
 
-@[grind]
+@[simp, grind .]
 theorem CorruptionSet.has_bot_pf (C : CorruptionSet) :
   C.is_corrupt (label.latl L.bot) := by {
       apply C.has_bot
   }
 
-@[grind]
+@[grind .]
 theorem CorruptionSet.is_corrupt_bot (C : CorruptionSet) :
   C.is_corrupt (label.latl Owl.LabelTm.bot) := by
     apply C.has_bot
+
+@[grind .]
+theorem CorruptionSet.is_corrupt_join (C : CorruptionSet) :
+  C.is_corrupt l1 ->
+  C.is_corrupt l2 ->
+  C.is_corrupt (l1.ljoin l2) := by
+    apply C.join_corrupt
+
+
 
 
 @[simp]
@@ -288,6 +315,8 @@ def  phi_psi_entail_corr (phictx : phi_context l) (psictx : psi_context l) (co :
 notation:100 pctx " |= " co => phi_entails_c pctx co
 
 notation:100 "! " e => tm.dealloc e
+
+/-
 
 -- Checks for proper values within terms
 /-
@@ -498,3 +527,5 @@ inductive has_typeX : (Phi : phi_context l) -> (Psi : psi_context l) -> (Delta :
   has_type Phi Psi Delta Gamma e t ->
   has_typeX Phi Psi Delta Gamma (.annot e t) t
 end
+
+-/

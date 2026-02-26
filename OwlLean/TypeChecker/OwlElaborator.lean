@@ -7,13 +7,14 @@ open Lean Elab Meta
 
 deriving instance ToExpr for SLabel
 deriving instance ToExpr for SCondSym
+deriving instance ToExpr for SRexp
+deriving instance ToExpr for SProp
 deriving instance ToExpr for STy
 
 declare_syntax_cat owl_var
 declare_syntax_cat owl_tm
 declare_syntax_cat owl_label
 declare_syntax_cat owl_type
-declare_syntax_cat owl_binary
 declare_syntax_cat owl_constr
 declare_syntax_cat owl_cond_sym
 declare_syntax_cat owl_phi
@@ -24,6 +25,7 @@ declare_syntax_cat owl_delta_entry
 declare_syntax_cat owl_gamma_entry
 declare_syntax_cat owl_psi_entry
 declare_syntax_cat owl_psi
+declare_syntax_cat owl_rexp
 
 -- syntax for variables
 syntax ident : owl_var
@@ -32,6 +34,7 @@ syntax "_" : owl_var
 -- syntax for labels
 syntax ident : owl_label
 syntax "⟨" term "⟩"  : owl_label
+syntax "⊥" : owl_label
 syntax owl_label "⊔" owl_label : owl_label
 syntax owl_label "⊓" owl_label : owl_label
 syntax "$" term:max "[" owl_label,* "]" : owl_label
@@ -66,6 +69,9 @@ partial def elabLabel : Syntax → TermElabM Expr
       let empty_list <- mkListLit (mkConst ``SLabel) []
       let l' ← Term.elabTerm l (mkConst ``Owl.label)
       mkAppM ``SLabel.embedlabel #[l', empty_list]
+  | `(owl_label| ⊥) =>
+      let b := Owl.L.bot;
+      mkAppM ``SLabel.latl #[toExpr b]
   | _ => throwUnsupportedSyntax
 
 -- syntax for cond symbols
@@ -102,22 +108,62 @@ partial def elabConstr : Syntax → TermElabM Expr
       mkAppM ``SConstr.condition #[elab_c, elab_l1, elab_l2]
   | _ => throwUnsupportedSyntax
 
--- syntax for binary
-syntax str : owl_binary
 
-partial def buildSBinaryExpr (chars : List Char) : TermElabM Expr :=
-  match chars with
-  | [] => return mkConst ``SBinary.bend
-  | '0' :: rest => do
-    let restExpr <- buildSBinaryExpr rest
-    mkAppM ``SBinary.bzero #[restExpr]
-  | '1' :: rest => do
-    let restExpr <- buildSBinaryExpr rest
-    mkAppM ``SBinary.bone #[restExpr]
-  | _ :: _ => throwError "Invalid binary character"
+syntax ident : owl_rexp
+syntax "val(" ident ")" : owl_rexp
+syntax ident "(" owl_rexp "," owl_rexp ")" : owl_rexp
+syntax str : owl_rexp
 
-partial def elabBinary : Syntax → TermElabM Expr
-  | `(owl_binary| $val:str) => buildSBinaryExpr val.getString.data
+
+partial def elab_rexp : Syntax -> TermElabM Expr
+  | `(owl_rexp | $op:ident ( $e1, $e2 )) => do
+    let r1 <- elab_rexp e1
+    let r2 <- elab_rexp e2
+    mkAppM ``SRexp.op #[mkStrLit op.getId.toString, r1, r2]
+  | `(owl_rexp | val($i)) =>
+    mkAppM ``SRexp.tmvar #[mkStrLit i.getId.toString]
+  | `(owl_rexp | $i:ident ) => do
+    mkAppM ``SRexp.var #[mkStrLit i.getId.toString]
+  | `(owl_rexp |  $ob:str  ) => do
+    mkAppM ``SRexp.const #[mkStrLit ob.getString]
+  | _ => throwUnsupportedSyntax
+
+
+declare_syntax_cat owl_prop
+syntax "(" owl_prop ")" : owl_prop
+syntax owl_rexp "=" owl_rexp : owl_prop
+syntax owl_prop "∧" owl_prop : owl_prop
+syntax owl_prop "∨" owl_prop : owl_prop
+syntax owl_prop "→" owl_prop : owl_prop
+syntax "¬" owl_prop : owl_prop
+syntax "∀" ident "." owl_prop : owl_prop
+
+partial def elab_prop : Syntax -> TermElabM Expr
+  | `(owl_prop| ( $e:owl_prop )) => elab_prop e
+  | `(owl_prop| $e1:owl_rexp = $e2:owl_rexp) => do
+    let r1 <- elab_rexp e1
+    let r2 <- elab_rexp e2
+    mkAppM ``SProp.peq #[r1, r2]
+  | `(owl_prop| $p1:owl_prop ∧ $p2:owl_prop) => do
+    let ep1 <- elab_prop p1
+    let ep2 <- elab_prop p2
+    mkAppM ``SProp.pand #[ep1, ep2]
+  | `(owl_prop| $p1:owl_prop ∨ $p2:owl_prop) => do
+    let ep1 <- elab_prop p1
+    let ep2 <- elab_prop p2
+    mkAppM ``SProp.por #[ep1, ep2]
+  | `(owl_prop| $p1:owl_prop → $p2:owl_prop) => do
+    let ep1 <- elab_prop p1
+    let ep2 <- elab_prop p2
+    mkAppM ``SProp.pimpl #[ep1, ep2]
+  | `(owl_prop| ¬ $p:owl_prop) => do
+    let ep <- elab_prop p
+    mkAppM ``SProp.pnot #[ep]
+  | `(owl_prop| ∀ $x:ident . $p:owl_prop ) => do
+    let p' <- elab_prop p
+    mkAppM ``SProp.pall #[mkStrLit x.getId.toString, p']
+
+
   | _ => throwUnsupportedSyntax
 
 -- syntax for types
@@ -125,17 +171,24 @@ syntax "(" owl_type ")" : owl_type
 syntax ident : owl_type
 syntax "Any" : owl_type
 syntax "unit" : owl_type
+syntax "RData" owl_label "[" owl_rexp "]" : owl_type
 syntax "Data" owl_label : owl_type
 syntax "Ref" owl_type : owl_type
+syntax "Maybe" owl_type : owl_type
 syntax owl_type "->" owl_type : owl_type
 syntax owl_type "*" owl_type : owl_type
 syntax owl_type "+" owl_type : owl_type
-syntax "∀" owl_type "<:" owl_type "." owl_type : owl_type
-syntax "∃" owl_type "<:" owl_type "." owl_type : owl_type
-syntax "∀" owl_label owl_cond_sym owl_label "." owl_type : owl_type
+syntax owl_type "∪" owl_type : owl_type
+syntax owl_type "∩" owl_type : owl_type
+syntax "∀" ident "<:" owl_type "." owl_type : owl_type
+syntax "∃" ident "<:" owl_type "." owl_type : owl_type
+syntax "∀" ident owl_cond_sym owl_label "." owl_type : owl_type
+syntax "∃" ident "." owl_type : owl_type
+syntax "∀" ident "." owl_type : owl_type
 syntax "corr" "(" owl_label ")" "?" owl_type ":" owl_type : owl_type
 syntax "Public" : owl_type
 syntax "$" term:max "[" owl_label,* "]" "[" owl_type,* "]" : owl_type
+syntax owl_type "{" owl_prop "}" : owl_type
 
 partial def elabType : Syntax → TermElabM Expr
   | `(owl_type| ( $e:owl_type)) => elabType e
@@ -144,12 +197,18 @@ partial def elabType : Syntax → TermElabM Expr
   | `(owl_type| Any) => mkAppM ``STy.Any #[]
   | `(owl_type| unit) => mkAppM ``STy.Unit #[]
   | `(owl_type| Public) => mkAppM ``STy.Public #[]
-  | `(owl_type| Data $l:owl_label) => do
+  | `(owl_type| Data $l:owl_label ) => do
     let elab_l <- elabLabel l
     mkAppM ``STy.Data #[elab_l]
+  | `(owl_type| RData $l:owl_label [ $re ] ) => do
+    let elab_l <- elabLabel l
+    let elab_r <- elab_rexp re
+    mkAppM ``STy.RData #[elab_l, elab_r]
   | `(owl_type| Ref $t:owl_type) => do
     let elab_t <- elabType t
     mkAppM ``STy.Ref #[elab_t]
+  | `(owl_type| Maybe $t:owl_type) => do
+    elabType (<- `(owl_type| $t + unit))
   | `(owl_type| $t1:owl_type -> $t2:owl_type) => do
     let elab_t1 <- elabType t1
     let elab_t2 <- elabType t2
@@ -162,6 +221,14 @@ partial def elabType : Syntax → TermElabM Expr
     let elab_t1 <- elabType t1
     let elab_t2 <- elabType t2
     mkAppM ``STy.sum #[elab_t1, elab_t2]
+  | `(owl_type| $t1:owl_type ∪ $t2:owl_type) => do
+    let elab_t1 <- elabType t1
+    let elab_t2 <- elabType t2
+    mkAppM ``STy.union #[elab_t1, elab_t2]
+  | `(owl_type| $t1:owl_type ∩ $t2:owl_type) => do
+    let elab_t1 <- elabType t1
+    let elab_t2 <- elabType t2
+    mkAppM ``STy.inter #[elab_t1, elab_t2]
   | `(owl_type| ∀ $id:ident <: $t1:owl_type . $t2:owl_type) => do
     let elab_t1 <- elabType t1
     let elab_t2 <- elabType t2
@@ -170,6 +237,12 @@ partial def elabType : Syntax → TermElabM Expr
     let elab_t1 <- elabType t1
     let elab_t2 <- elabType t2
     mkAppM ``STy.ex #[mkStrLit id.getId.toString, elab_t1, elab_t2]
+  | `(owl_type| ∃ $id:ident . $t2:owl_type) => do
+    let t2' <- elabType t2
+    mkAppM ``STy.ex_r #[mkStrLit id.getId.toString, t2']
+  | `(owl_type| ∀ $id:ident . $t2:owl_type) => do
+    let t2' <- elabType t2
+    mkAppM ``STy.all_r #[mkStrLit id.getId.toString, t2']
   | `(owl_type| ∀ $id:ident $c:owl_cond_sym $l:owl_label . $t:owl_type) => do
     let elab_t <- elabType t
     let elab_l <- elabLabel l
@@ -187,7 +260,11 @@ partial def elabType : Syntax → TermElabM Expr
     let ts_list <- mkListLit (mkConst ``STy) ts'.toList
     let t' ← Term.elabTerm t (mkConst ``Owl.ty)
     mkAppM ``STy.embedty #[t', ls_list, ts_list]
-  | _ => throwUnsupportedSyntax
+  | `(owl_type| $t:owl_type { $p }) => do
+    let elab_t ← elabType t
+    let elab_p <- elab_prop p
+    mkAppM ``STy.refined #[elab_t, elab_p]
+  | _ => throwError "Unexpected syntax for elabType"
 
 notation:100 "PURE" => pure ()
 notation:100 "THROW" => throw ()
@@ -198,10 +275,11 @@ syntax ident : owl_tm
 syntax num : owl_tm
 syntax "error" : owl_tm
 syntax "()" : owl_tm
-syntax owl_binary : owl_tm
+syntax str : owl_tm
 syntax "fix" owl_var "(" owl_var ")" owl_tm : owl_tm
 syntax "Λ" owl_var "." owl_tm : owl_tm
 syntax "Λβ" owl_var "." owl_tm : owl_tm
+syntax "Λr" ident "." owl_tm : owl_tm
 syntax "⟨" owl_tm "," owl_tm "⟩" : owl_tm
 syntax "⟨" term "⟩" "(" owl_tm "," owl_tm ")" : owl_tm -- Binary Op case
 syntax "⟨" term "⟩" "(" owl_tm ")" : owl_tm -- Unary Op case
@@ -216,12 +294,15 @@ syntax "ı1" owl_tm : owl_tm
 syntax "ı2" owl_tm : owl_tm
 syntax "case" owl_tm "in" "|" "inl" owl_var "=>" owl_tm "|" "inr" owl_var "=>" owl_tm : owl_tm
 syntax owl_tm "[" owl_type "]" : owl_tm
+syntax owl_tm "[{" owl_rexp "}]" : owl_tm
 syntax owl_tm "⟨" owl_label "⟩" : owl_tm
 syntax "pack" "(" owl_type "," owl_tm ")" : owl_tm
+syntax "rpack" "(" owl_rexp "," owl_tm ")" : owl_tm
 syntax "unpack" owl_tm "as" "(" owl_var "," owl_var ")" "in" owl_tm : owl_tm
 syntax "if" owl_tm "then" owl_tm "else" owl_tm : owl_tm
 syntax "if" "corr" "(" owl_label ")" "then" owl_tm "else" owl_tm : owl_tm
 syntax "sync" owl_tm : owl_tm
+syntax "union_elim" ident "=" owl_tm "in" owl_tm : owl_tm
 syntax "let" owl_var "=" owl_tm "in" owl_tm : owl_tm
 syntax owl_tm ";" owl_tm : owl_tm
 syntax "let" owl_var ":" owl_type "=" owl_tm "in" owl_tm : owl_tm
@@ -232,6 +313,7 @@ syntax "λ" owl_var "=>" owl_tm : owl_tm
 syntax "$" term:max "[" owl_label,* "]" "[" owl_type,* "]" "[" owl_tm,* "]" : owl_tm
 syntax "corr_case" owl_label "in" owl_tm : owl_tm
 syntax "(" owl_tm ":" owl_type ")" : owl_tm
+syntax owl_tm "." num : owl_tm
 
 -- ALLOW : let (x , y) = e in ...
 -- expands to :
@@ -255,6 +337,7 @@ mutual
       let se <- mkAppM ``mkOpaqueSyntax #[toExpr stx]
       mkAppM ``SExpr.mk #[se, ← elabTmX stx]
 
+
 partial def elabTmX : Syntax → TermElabM Expr
   | `(owl_tm| ( $e:owl_tm)) => elabTmX e
   | `(owl_tm| $id:ident) =>
@@ -263,9 +346,8 @@ partial def elabTmX : Syntax → TermElabM Expr
     mkAppM ``SExprX.loc #[mkNatLit n.getNat]
   | `(owl_tm| error) => mkAppM ``SExprX.error #[]
   | `(owl_tm| ()) => mkAppM ``SExprX.skip #[]
-  | `(owl_tm| $b:owl_binary ) => do
-    let elab_b <- elabBinary b
-    mkAppM ``SExprX.bitstring #[elab_b]
+  | `(owl_tm| $b:str  ) => do
+    mkAppM ``SExprX.bitstring #[mkStrLit b.getString]
   | `(owl_tm| fix $f:owl_var ( $v:owl_var ) $e:owl_tm) => do
     let elab_e <- elabTm e
     mkAppM ``SExprX.fixlam #[mkStrLit (elabVar f), mkStrLit (elabVar v), elab_e]
@@ -275,6 +357,9 @@ partial def elabTmX : Syntax → TermElabM Expr
   | `(owl_tm| Λβ $v:owl_var . $e:owl_tm) => do
     let elab_e <- elabTm e
     mkAppM ``SExprX.l_lam #[mkStrLit (elabVar v), elab_e]
+  | `(owl_tm| Λr $id:ident . $e:owl_tm) => do
+    let elab_e <- elabTm e
+    mkAppM ``SExprX.rlam #[mkStrLit id.getId.toString, elab_e]
   | `(owl_tm|⟨ $e1:owl_tm , $e2:owl_tm ⟩) => do
     let elab_e1 <- elabTm e1
     let elab_e2 <- elabTm e2
@@ -287,10 +372,8 @@ partial def elabTmX : Syntax → TermElabM Expr
   | `(owl_tm| ⟨ $t:term ⟩ ( $e1:owl_tm )) => do
     let t' ← Term.elabTerm t (mkConst ``String)
     let elab_e1 <- elabTm e1
-    let bend ← mkAppM ``SBinary.bend #[]
-    let arbitrary_bit_x <- mkAppM ``SExprX.bitstring #[bend]
-    let se <- mkEmptySyntax "arbitrary"
-    let arbitrary_bit <- mkAppM ``SExpr.mk #[se, arbitrary_bit_x]
+    let bend ← mkAppM ``SExprX.bitstring #[mkStrLit ""]
+    let arbitrary_bit <- mkAppM ``SExpr.mk #[bend]
     mkAppM ``SExprX.Op #[t', elab_e1, arbitrary_bit]
   | `(owl_tm| $ $t:term [ $ls:owl_label,* ] [ $ts:owl_type,* ] [ $es:owl_tm,* ]) => do
     let ls' <- ls.getElems.mapM elabLabel
@@ -351,6 +434,10 @@ partial def elabTmX : Syntax → TermElabM Expr
     let elab_t <- elabType t
     let elab_e <- elabTm e
     mkAppM ``SExprX.pack #[elab_t, elab_e]
+  | `(owl_tm| rpack ($re:owl_rexp, $e:owl_tm)) => do
+    let elab_r <- elab_rexp re
+    let elab_e <- elabTm e
+    mkAppM ``SExprX.rpack #[elab_r, elab_e]
   | `(owl_tm| if $e1:owl_tm then $e2:owl_tm else $e3:owl_tm) => do
     let elab_e1 <- elabTm e1
     let elab_e2 <- elabTm e2
@@ -364,6 +451,8 @@ partial def elabTmX : Syntax → TermElabM Expr
   | `(owl_tm| sync $e:owl_tm) => do
     let elab_e <- elabTm e
     mkAppM ``SExprX.sync #[elab_e]
+  | `(owl_tm| union_elim $id1:ident = $e:owl_tm  in $b:owl_tm) => do
+    mkAppM ``SExprX.union_elim #[mkStrLit id1.getId.toString, <- elabTm e, <- elabTm b]
   | `(owl_tm| let $v1:owl_var = $e:owl_tm  in $b:owl_tm) => do
     let elab_e <- elabTm e
     let elab_b <- elabTm b
@@ -454,6 +543,23 @@ partial def elabPsiEntry : Syntax → TermElabM Expr
       let elab_l1 <- elabLabel l1
       mkAppM ``SPsiEntry.PsiNotCorr #[elab_l1]
   | _ => throwUnsupportedSyntax
+
+declare_syntax_cat owl_theta
+
+syntax "·" : owl_theta
+syntax owl_theta "," ident : owl_theta
+syntax owl_theta "," owl_prop : owl_theta
+
+partial def elabTheta : Syntax -> TermElabM Expr
+  | `(owl_theta | · ) =>
+    return (mkConst ``STheta.End)
+  | `(owl_theta | $th, $x:ident) => do
+    mkAppM ``STheta.STheta_var #[<- elabTheta th, mkStrLit x.getId.toString]
+  | `(owl_theta | $th , $p ) => do
+    mkAppM ``STheta.STheta_prop #[<- elabTheta th, <- elab_prop p]
+  | _ => throwUnsupportedSyntax
+
+
 
 syntax "(" owl_phi_entry "," owl_phi ")" : owl_phi
 syntax owl_phi_entry "," owl_phi : owl_phi

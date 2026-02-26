@@ -4,12 +4,6 @@ import Std.Data.HashMap
 
 open Owl
 
-inductive SBinary : Type
-| bzero : SBinary -> SBinary
-| bone : SBinary -> SBinary
-| bend : SBinary
-deriving Repr
-
 inductive SLabel : Type
 | var_label : String -> SLabel
 | latl : Owl.Lcarrier -> SLabel
@@ -34,20 +28,43 @@ inductive SConstr : Type where
 | condition : SCondSym -> SLabel -> SLabel -> SConstr
 deriving Repr
 
+inductive SRexp where
+| var : String -> SRexp
+| op : String -> SRexp -> SRexp -> SRexp
+| const : String -> SRexp
+| tmvar : String -> SRexp
+deriving Repr
+
+inductive SProp where
+| peq : SRexp -> SRexp -> SProp
+| pand : SProp -> SProp -> SProp
+| por : SProp -> SProp -> SProp
+| pimpl : SProp -> SProp -> SProp
+| pnot : SProp -> SProp
+| pall : String -> SProp -> SProp
+deriving Repr
+
 inductive STy : Type where
 | var_ty : String -> STy
 | Any : STy
 | Unit : STy
+| RData : SLabel -> SRexp -> STy
 | Data : SLabel -> STy
 | Ref : STy -> STy
 | arr : STy -> STy -> STy
 | prod : STy -> STy -> STy
 | sum : STy -> STy -> STy
+| union : STy -> STy -> STy
+| inter : STy -> STy -> STy
 | all : String -> STy -> STy -> STy
 | ex : String -> STy -> STy -> STy
+| ex_r : String -> STy -> STy
+| all_r : String -> STy -> STy
 | all_l : String -> SCondSym -> SLabel -> STy -> STy
 | t_if : SLabel -> STy -> STy -> STy
-| embedty : Owl.ty l d -> List SLabel -> List STy -> STy
+| refined : STy -> SProp -> STy
+-- TODO: for the List Unit, make it a List RefinementExp
+| embedty : Owl.ty l r d 0 -> List SLabel -> List STy -> STy
 | Public : STy
 | default : STy
 deriving Repr
@@ -62,11 +79,13 @@ inductive SExprX : Type where
 | var_tm : String -> SExprX
 | error : SExprX
 | skip : SExprX
-| bitstring : SBinary -> SExprX
+| bitstring : String -> SExprX
 | loc : Nat -> SExprX
 | fixlam : String -> String -> SExpr -> SExprX
 | elet : String -> SExpr -> SExpr -> SExprX
+| union_elim : String -> SExpr -> SExpr -> SExprX
 | tlam : String -> SExpr -> SExprX
+| rlam : String -> SExpr -> SExprX
 | l_lam : String -> SExpr -> SExprX
 | Op : String -> SExpr -> SExpr -> SExprX
 | zero : SExpr -> SExprX
@@ -82,14 +101,15 @@ inductive SExprX : Type where
 | case : SExpr -> String -> SExpr -> String -> SExpr -> SExprX
 | tapp : SExpr -> STy -> SExprX
 | lapp : SExpr -> SLabel -> SExprX
+| rapp : SExpr -> SRexp -> SExprX
 | pack : STy -> SExpr -> SExprX
+| rpack : SRexp -> SExpr -> SExprX
 | unpack : SExpr -> String -> String -> SExpr -> SExprX
 | if_tm :
     SExpr -> SExpr -> SExpr -> SExprX
 | if_c :
     SLabel -> SExpr -> SExpr -> SExprX
 | sync : SExpr -> SExprX
-| embedtm : Owl.tm l d m -> List SLabel -> List STy -> List SExpr -> SExprX
 | annot : SExpr -> STy -> SExprX
 | corr_case : SLabel -> SExpr -> SExprX
 | default : SExprX
@@ -121,6 +141,12 @@ deriving Repr
 inductive SGamma : Type where
 | Gamma_Cons : SGammaEntry -> SGamma -> SGamma
 | Gamma_End : SGamma
+deriving Repr
+
+inductive STheta where
+| End : STheta
+| STheta_prop : STheta -> SProp -> STheta
+| STheta_var : STheta -> String -> STheta
 deriving Repr
 
 inductive SPsiEntry : Type where
