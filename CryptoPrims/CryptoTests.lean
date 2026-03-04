@@ -20,9 +20,10 @@ def sample := OwlTy {
   ∀ l ⊒ ⊥. Public -> Data l
 }
 
-#tc tst1 := ⊢
+#tc tst1 := ⊢ {
   λ f =>
-    f [[[ ⊥ ]]]
+    f ⟨ ⊥ ⟩
+}
   :
   ($ sample [] [])
   ->
@@ -35,9 +36,10 @@ def sample := OwlTy {
 
 
 
-#tc example_rpack :=  ⊢
+#tc example_rpack :=  ⊢ {
   let x = "0" in
   rpack ("0", x)
+  }
   :
   ∃ x. RData ⊥ [x]
   by {

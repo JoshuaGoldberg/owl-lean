@@ -110,7 +110,7 @@ inductive SExprX : Type where
 | if_c :
     SLabel -> SExpr -> SExpr -> SExprX
 | sync : SExpr -> SExprX
-| embedtm : Owl.tm l d m 0 -> List SLabel -> List STy -> List SExpr -> SExprX
+-- | embedtm : Owl.tm l d m r -> List SLabel -> List STy -> List SExpr -> List SRexp -> SExprX
 | annot : SExpr -> STy -> SExprX
 | corr_case : SLabel -> SExpr -> SExprX
 | default : SExprX

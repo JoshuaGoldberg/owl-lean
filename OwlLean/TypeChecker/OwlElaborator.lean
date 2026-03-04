@@ -375,15 +375,15 @@ partial def elabTmX : Syntax → TermElabM Expr
     let bend ← mkAppM ``SExprX.bitstring #[mkStrLit ""]
     let arbitrary_bit <- mkAppM ``SExpr.mk #[bend]
     mkAppM ``SExprX.Op #[t', elab_e1, arbitrary_bit]
-  | `(owl_tm| $ $t:term [ $ls:owl_label,* ] [ $ts:owl_type,* ] [ $es:owl_tm,* ]) => do
-    let ls' <- ls.getElems.mapM elabLabel
-    let ts' <- ts.getElems.mapM elabType
-    let es' <- es.getElems.mapM elabTm
-    let ls_list <- mkListLit (mkConst ``SLabel) ls'.toList
-    let ts_list <- mkListLit (mkConst ``STy) ts'.toList
-    let es_list <- mkListLit (mkConst ``SExpr) es'.toList
-    let t' ← Term.elabTerm t (mkConst ``Owl.tm)
-    mkAppM ``SExprX.embedtm #[t', ls_list, ts_list, es_list]
+  -- | `(owl_tm| $ $t:term [ $ls:owl_label,* ] [ $ts:owl_type,* ] [ $es:owl_tm,* ]) => do
+  --   let ls' <- ls.getElems.mapM elabLabel
+  --   let ts' <- ts.getElems.mapM elabType
+  --   let es' <- es.getElems.mapM elabTm
+  --   let ls_list <- mkListLit (mkConst ``SLabel) ls'.toList
+  --   let ts_list <- mkListLit (mkConst ``STy) ts'.toList
+  --   let es_list <- mkListLit (mkConst ``SExpr) es'.toList
+  --   let t' ← Term.elabTerm t (mkConst ``Owl.tm)
+  --   mkAppM ``SExprX.embedtm #[t', ls_list, ts_list, es_list]
   | `(owl_tm| zero $e:owl_tm) => do
     let elab_e <- elabTm e
     mkAppM ``SExprX.zero #[elab_e]

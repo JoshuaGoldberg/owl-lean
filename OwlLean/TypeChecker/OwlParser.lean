@@ -249,35 +249,7 @@ def SExprX.elab (s : SExprX) (P : TCtx) (R:TCtx) (D : TCtx) (G : TCtx): Except S
     let e1' ← SExpr.elab e1 P R D G
     let e2' ← SExpr.elab e2 P R D G
     return tmX.Op op e1' e2'
-  | @SExprX.embedtm llen tlen mlen e ls ts es => do
-    let rec go1 : List SLabel → Except String (List (label P.length))
-      | [] => return []
-      | x::xs => do
-        let res ← SLabel.elab x P
-        let rest ← go1 xs
-        return (res :: rest)
-    let rec go2 : List STy → Except String (List (ty P.length D.length))
-      | [] => return []
-      | x::xs => do
-        let res ← STy.elab x P D
-        let rest ← go2 xs
-        return (res :: rest)
-    let rec go3 : List SExpr → Except String (List (tm P.length D.length G.length))
-      | [] => return []
-      | x::xs => do
-        let res ← SExpr.elab x P D G
-        let rest ← go3 xs
-        return (res :: rest)
-    let elab_ls ← go1 ls
-    let elab_ts ← go2 ts
-    let elab_es ← go3 es
-    if h : llen = elab_ls.length then
-      if k : tlen = elab_ts.length then
-        if j : mlen = elab_es.length then
-          return subst_tmX (list_to_finmap elab_ls) (list_to_finmap elab_ts) (list_to_finmap elab_es) (j ▸ (k ▸ (h ▸ e.get)))
-        else throw s!"SExprX.elab: embedtm term argument length mismatch: expected {mlen}, got {elab_es.length}"
-      else throw s!"SExprX.elab: embedtm type argument length mismatch: expected {tlen}, got {elab_ts.length}"
-    else throw s!"SExprX.elab: embedtm label argument length mismatch: expected {llen}, got {elab_ls.length}"
+  -- | @SExprX.embedtm llen tlen mlen e ls ts es => .error "unimp"
   | .zero e => do
     let e' ← SExpr.elab e P R D G
     return tmX.zero e'
