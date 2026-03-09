@@ -439,12 +439,6 @@ def value :=
     (Data ⟨Owl.L.bot⟩)
   }
 
--- trivial binary value
-def do_some_stuff :=
-  Owl [] [] [c1, c2] {
-    "1111011"
-  }
-
 -- trivial binary values
 def party1 :=
   Owl [lKL, lKH] [] [encH, encL, msg, send, recv] {
