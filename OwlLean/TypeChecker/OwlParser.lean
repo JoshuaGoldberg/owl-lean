@@ -228,6 +228,7 @@ def SExprX.elab (s : SExprX) (P : TCtx) (R:TCtx) (D : TCtx) (G : TCtx): Except S
     match TCtx.lookup G i with
     | .none    => throw s!"SExprX.elab: var index {i} not found in context"
     | .some j  => return tmX.var_tm j
+  | .admit => return tmX.admit
   | .error => return tmX.error
   | .skip  => return tmX.skip
   | .bitstring b =>

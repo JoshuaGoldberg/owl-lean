@@ -306,6 +306,7 @@ syntax "union_elim" ident "=" owl_tm "in" owl_tm : owl_tm
 syntax "let" owl_var "=" owl_tm "in" owl_tm : owl_tm
 syntax owl_tm ";" owl_tm : owl_tm
 syntax "let" owl_var ":" owl_type "=" owl_tm "in" owl_tm : owl_tm
+syntax "let" "admit" owl_var ":" owl_type "=" owl_tm "in" owl_tm : owl_tm
 syntax "let" "(" owl_var "," owl_var ")" "=" owl_tm "in" owl_tm : owl_tm
 syntax "let" "(" owl_var "," owl_var "," owl_var ")" "=" owl_tm "in" owl_tm : owl_tm
 syntax "λ" "(" owl_var ":" owl_type ")" ":" owl_type "=>" owl_tm : owl_tm
@@ -314,6 +315,7 @@ syntax "$" term:max "[" owl_label,* "]" "[" owl_type,* "]" "[" owl_tm,* "]" : ow
 syntax "corr_case" owl_label "in" owl_tm : owl_tm
 syntax "(" owl_tm ":" owl_type ")" : owl_tm
 syntax owl_tm "." num : owl_tm
+syntax "admit" : owl_tm
 
 -- ALLOW : let (x , y) = e in ...
 -- expands to :
@@ -340,6 +342,8 @@ mutual
 
 partial def elabTmX : Syntax → TermElabM Expr
   | `(owl_tm| ( $e:owl_tm)) => elabTmX e
+  | `(owl_tm| admit ) =>
+    mkAppM ``SExprX.admit #[]
   | `(owl_tm| $id:ident) =>
         mkAppM ``SExprX.var_tm #[mkStrLit id.getId.toString]
   | `(owl_tm| $n:num) =>
@@ -460,6 +464,10 @@ partial def elabTmX : Syntax → TermElabM Expr
   | `(owl_tm| let $v1:owl_var : $t:owl_type = $e:owl_tm  in $b:owl_tm) => do
     elabTmX (<- `(owl_tm |
       let $v1 = ($e : $t) in $b
+    ))
+  | `(owl_tm| let admit $v1:owl_var : $t:owl_type = $e:owl_tm  in $b:owl_tm) => do
+    elabTmX (<- `(owl_tm |
+      let $v1 = (admit : $t) in $b
     ))
   | `(owl_tm| let ($v1:owl_var, $v2:owl_var) = $e:owl_tm  in $b:owl_tm) => do
     elabTmX (<- `(owl_tm| let $v1 = π1 $e in let $v2 = π2 $e in $b))

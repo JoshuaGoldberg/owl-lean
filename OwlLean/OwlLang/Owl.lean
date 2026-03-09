@@ -205,11 +205,13 @@ inductive ty : Nat -> Nat -> Nat -> Nat -> Type where
 | refined : ty n_label n_ref n_ty n_tm -> prop n_ref n_tm -> ty n_label n_ref n_ty n_tm
 | Public : ty n_label n_ref n_ty n_tm
 | default : ty n_label n_ref n_ty n_tm
+| admit : ty n_label n_ref n_ty n_tm
 deriving Repr, BEq
 
 
 @[simp]
 def ty.r_free {l r d : Nat} (i : Fin r) : ty l r d k → Bool
+| .admit => true
 | .var_ty _ => true
 | .Any => true
 | .refined t0 p => t0.r_free i && p.rfree i
@@ -243,6 +245,7 @@ mutual
    deriving Repr
 
 inductive tmX : Nat -> Nat -> Nat -> Nat -> Type where
+| admit : tmX n_label n_ref n_ty n_tm
 | var_tm : Fin n_tm -> tmX n_label n_ref n_ty n_tm
 | error : tmX n_label n_ref n_ty n_tm
 | skip : tmX n_label n_ref n_ty n_tm
@@ -403,6 +406,7 @@ def ren_ty
 (xi_tm  : Fin m_tm -> Fin n_tm)
 (s : ty m_label m_ref m_ty m_tm)  : ty n_label n_ref n_ty n_tm :=
   match s with
+  | .admit => .admit
   | .var_ty s0 => .var_ty (xi_ty s0)
   | .Any => .Any
   | .Unit => .Unit
@@ -485,6 +489,7 @@ def ren_tmX
 (s : tmX m_label m_ref m_ty m_tm ) :
 tmX n_label n_ref n_ty n_tm :=
   match s with
+  | .admit => .admit
   | .var_tm s0 => .var_tm (xi_tm s0)
   | .error => .error
   | .skip => .skip
@@ -691,6 +696,7 @@ def subst_ty
 (s : ty m_label m_ref m_ty n_tm ) :
 ty n_label n_ref n_ty n_tm :=
   match s with
+  | .admit => .admit
   | .var_ty s0 => sigma_ty s0
   | .Any => .Any
   | .Unit => .Unit
@@ -769,6 +775,7 @@ def prop.resolve_tm [Monad m] (f : Fin n -> m (rexp r 0)) : prop r n -> m (prop 
 
 
 def ty.resolve_tm [Monad m] (f : Fin n -> m (rexp r 0)) : ty l r d n -> m (ty l r d 0)
+| .admit => pure .admit
 | .var_ty i => pure $ .var_ty i
 | .Any => pure .Any
 | .Unit => pure .Unit

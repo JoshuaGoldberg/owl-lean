@@ -251,7 +251,7 @@ theorem CorruptionSet.by_downwards_closed (C : CorruptionSet) :
 
 @[simp, grind .]
 theorem CorruptionSet.has_bot_pf (C : CorruptionSet) :
-  C.is_corrupt (label.latl L.bot) := by {
+  C.is_corrupt (label.latl Owl.LabelTm.bot) := by {
       apply C.has_bot
   }
 
@@ -266,6 +266,12 @@ theorem CorruptionSet.is_corrupt_join (C : CorruptionSet) :
   C.is_corrupt l2 ->
   C.is_corrupt (l1.ljoin l2) := by
     apply C.join_corrupt
+
+@[simp]
+theorem CorruptionSet.is_corrupt_join_bot (C : CorruptionSet) :
+  C.is_corrupt ((label.latl Owl.LabelTm.bot).ljoin
+                (label.latl Owl.LabelTm.bot)) := by
+    grind
 
 
 

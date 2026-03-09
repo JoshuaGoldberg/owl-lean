@@ -76,6 +76,7 @@ mutual
 
 
 inductive SExprX : Type where
+| admit : SExprX
 | var_tm : String -> SExprX
 | error : SExprX
 | skip : SExprX

@@ -68,6 +68,7 @@ def ty.pretty (t : ty l r d n ) : String :=
   | .t_if l t1 t2 =>
       "if[" ++ l.pretty ++ "] { " ++ t1.pretty ++ " } else { " ++ t2.pretty ++ " }"
   | .Public => "Public"
+  | .admit => "admit"
   | .default => "default"
 
 instance : ToString (ty l r d n) where

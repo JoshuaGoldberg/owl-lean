@@ -299,8 +299,8 @@ def two_sm := OwlTy {
           B msg
   in
 
-  let alice_sm =
-    (pack (Public,
+  let alice_sm : $ StateMachine [] [] =
+  pack (Public,
       ⟨"0",
         (λ (args : (Public * Public)) : (Public * Public) =>
           let enc_high = π1 (π2 encH) in
@@ -317,22 +317,22 @@ def two_sm := OwlTy {
           else
             ⟨"10", ""⟩)
       ⟩)
-    : $ StateMachine [] [])
   in
 
-  let bob_sm =
-    (pack (Public,
+  let bob_sm : $ StateMachine [] [] =
+    pack (Public,
       ⟨"0",
         (λ (args : (Public * Public)) : (Public * Public) =>
           let dec_high = π2 (π2 encH) in
           let dec_low = π2 (π2 encL) in
           let key_high = π1 encH in
-          let key_store = alloc (π1 encL) in
+          let key_store : Ref (corr (lKL)? Public : aKL) = alloc (admit : corr (lKL) ? Public : aKL) in
           let (state, input) = args in
           if (⟨"eq"⟩ (state, "0")) then
             corr_case lKH in
             case (dec_high ⟨key_high, input⟩) in
             | inl key_low' =>
+                corr_case lKL in
                 (key_store := key_low') ;
                 ⟨"1", "0"⟩
             | inr _fail =>
@@ -342,13 +342,12 @@ def two_sm := OwlTy {
             corr_case lKL in
             case (dec_low ⟨stored_key, input⟩) in
             | inl _ =>
-                ⟨"10", "0"⟩
+              ⟨"10", "0"⟩
             | inr _ =>
-                ⟨"10", "1"⟩
+              ⟨"10", "1"⟩
           else
-            ⟨"10", ""⟩)
-      ⟩)
-    : $ StateMachine [] [])
+            ⟨"10", ""⟩)⟩
+    )
   in
   let a = (alice_sm) in
   let b = (bob_sm) in
@@ -357,6 +356,7 @@ def two_sm := OwlTy {
   (Public * Public) -> Public
   by {
     unfold sideConditions
+    unfold interpSideConditions
     simp
     split_grind
   }

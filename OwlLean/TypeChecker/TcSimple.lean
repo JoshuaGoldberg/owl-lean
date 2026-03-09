@@ -10,6 +10,7 @@ open Lean Meta Elab Tactic
 @[simp]
 def Owl.ty.simplify (t : ty l r d m ) (corrs : List (corruption l)): ty l r d m :=
   match t with
+  | .admit => t
   | .var_ty _ => t
   | .Any => t
   | .Unit => t
@@ -286,6 +287,7 @@ def check_subtype  [Monad m] (fuel : Nat) (Phi : phi_context l) (Psi : psi_conte
     | 0 => throw "check_subtype: out of fuel"
     | (n + 1) =>
       match t1, t2 with
+      | .admit, _ => pure ()
       | _, .Any => pure ()
       | .Unit, .Unit => pure ()
       | _, .refined t p => do
@@ -437,6 +439,7 @@ def inferX [Monad M] (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_
           (Gamma : gamma_context l r d m) (e : tmX l r d m) (exp : Option (ty l r  d 0)) :
           CheckT M (ty l r  d 0) :=
   match e with
+  | .admit => from_synth Phi Psi Delta Theta .admit exp
   | .var_tm x =>
       -- TODO: flatten
       from_synth Phi Psi Delta Theta (Gamma x) exp
