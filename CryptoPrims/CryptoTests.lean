@@ -2,6 +2,8 @@ import Lean
 import OwlLean.TypeChecker.OwlComplete
 
 open Lean Meta Elab Tactic
+set_option maxHeartbeats 1000000
+set_option maxRecDepth 20000000
 
 open OwlTc
 
@@ -127,18 +129,18 @@ def tst := OwlTy {
 
 -- Bonus points: make it a record
 
-/-
+
 -- Type represention is a lean TreeMap from String to type
-def ENC_Inner := OwlTy [lK] [] [tM, tK] {
+def ENC_Inner := OwlTy_with [lK] [] [tM, tK] {
     ( tK *
         ((corr (lK) ? (Public * Public) -> Public : (tK * tM) -> Public) *
         (corr (lK) ? (Public * Public) -> (Public + unit) : (tK * Public) -> (tM + unit))))
 }
 
-def ENC := OwlTy [ lK ] [] [ tM ] {
+def ENC := OwlTy_with [ lK ] [] [ tM ] {
   ∃ alphaK <: (Data lK). $ ENC_Inner [ lK ] [ tM, alphaK ]
 }
--/
+
 
 
 /-
@@ -252,164 +254,105 @@ def ENC := OwlTy [ lK ] [] [ tM ] {
 -/
 
 -- state machine
-def StateMachine := OwlTy [] [] {
+def StateMachine := OwlTy {
   ∃ S <: Any . (S * ((S * Public) -> (S * Public)))
 }
 
 -- state machine execution type
-def run_sm_ty := OwlTy [] [] {
+def run_sm_ty := OwlTy {
   $ StateMachine [] [] -> (Public -> Public)
 }
 
--- actual code for the state machine
-def run_sm_tm := Owl [] [] [] {
-  λ (m : $ StateMachine [] []) : (Public -> Public) =>
-  unpack m as (S, contents) in
-  let state_ref = alloc (π1 contents) in
-  let step = π2 contents in
-  λ (input: Public) : Public =>
-    let result = step ⟨!state_ref, input⟩ in
-    (state_ref := π1 result) ;
-    π2 result
-}
-
-def two_sm := OwlTy [] [] {
+def two_sm := OwlTy {
   $ StateMachine [] [] -> $ StateMachine [] [] -> ((Public * Public) -> Public)
 }
 
-def run_two_tm := Owl [] [] [] {
-  λ (a : $ StateMachine [] []) : ($ StateMachine [] [] -> (Public * Public) -> Public) =>
-  λ (b : $ StateMachine [] []) : ((Public * Public) -> Public) =>
-  -- generate a single state machine run function
-  let A = ($ run_sm_tm [] [] [] a) in
-  -- let's do it again!
-  let B = $ run_sm_tm [] [] [] b in
-  λ (val : (Public * Public)) : Public =>
-    let (det, msg) = val in
-    if (⟨"eq"⟩ (det, "0")) then
-      A msg
-    else
-      B msg
-}
-
--- assume eq is a default function
-def alice_sm := Owl [lKL, lKH] [] [encH, encL, msg] {
-  (pack (Public,
-    ⟨"0",
-      (λ (args : (Public * Public)) : (Public * Public) =>
-        let enc_high = π1 (π2 encH) in
-        let enc_low = π1 (π2 encL) in
-        let key_high = π1 encH in
-        let key_low = π1 encL in
-        let (state, input) = args in
-        if (⟨"eq"⟩ (state, "0")) then
-          let ciphertext1 = (corr_case lKH in (enc_high ⟨key_high, key_low⟩)) in
-            ⟨"1", ciphertext1⟩
-        else if (⟨"eq"⟩ (state, "1")) then
-          let ciphertext2 = (corr_case lKL in (enc_low ⟨key_low, msg⟩)) in
-                ⟨"10", ciphertext2⟩
-        else
-          ⟨"10", ""⟩)
-    ⟩)
-  : $ StateMachine [] [])
-}
-
-def bob_sm := Owl [lKL, lKH] [] [encH, encL] {
-  (pack (Public,
-    ⟨"0",
-      (λ (args : (Public * Public)) : (Public * Public) =>
-        let dec_high = π2 (π2 encH) in
-        let dec_low = π2 (π2 encL) in
-        let key_high = π1 encH in
-        let key_store = alloc (π1 encL) in
-        let (state, input) = args in
-        if (⟨"eq"⟩ (state, "0")) then
-          corr_case lKH in
-          case (dec_high ⟨key_high, input⟩) in
-          | inl key_low' =>
-              (key_store := key_low') ;
-              ⟨"1", "0"⟩
-          | inr _fail =>
-              ⟨"10", "1"⟩
-        else if (⟨"eq"⟩ (state, "1")) then
-          let stored_key = (!key_store) in
-          corr_case lKL in
-          case (dec_low ⟨stored_key, input⟩) in
-          | inl _ =>
-              ⟨"10", "0"⟩
-          | inr _ =>
-              ⟨"10", "1"⟩
-        else
-          ⟨"10", ""⟩)
-    ⟩)
-  : $ StateMachine [] [])
-}
-
-def run_alice_bob :=
- Owl [lKL, lKH] [] [encH, encL, msg] {
-  let a = ($ alice_sm [lKL, lKH] [] [encH, encL, msg]) in
-  let b = ($ bob_sm [lKL, lKH] [] [encH, encL]) in
-  ((($ run_two_tm [] [] [] : $ two_sm [] []) a) b)
- }
-
--- typecheck (nice!)
-#tc run_sm_tc := · ; · ; · ; ·
-  ⊢
-  $ run_sm_tm [] [] []
-  :
-  $ run_sm_ty [] []
-  by {
-    unfold sideConditions
-    simp
-    try grind
-  }
-
--- typecheck 2 (nice!)
-#tc run_two_sm_tc := lM, lKL ⊐ lM, lKH ⊐ lKL ; · ; · ; ·
-  ⊢
-  $ run_two_tm [] [] []
-  :
-  $ two_sm [] []
-  by {
-    unfold sideConditions
-    simp
-    try grind
-  }
-
-#tc alice_tc := lM, lKL ⊐ lM, lKH ⊐ lKL ; · ; aKH <: Data lKH, aKL <: Data lKL ;
-  encH => ($ ENC_Inner [lKH] [aKL, aKH]),
-  encL => ($ ENC_Inner [lKL] [Data lM, aKL]),
-  msg => Data lM
-  ⊢
-  $ alice_sm [lKL, lKH] [] [encH, encL, msg]
-  :
-  $ StateMachine [] []
-  by {
-    unfold sideConditions
-    simp
-    grind
-  }
-
-#tc bob_tc := lM, lKL ⊐ lM, lKH ⊐ lKL ; · ; aKH <: Data lKH, aKL <: Data lKL ;
-  encH => ($ ENC_Inner [lKH] [aKL, aKH]),
-  encL => ($ ENC_Inner [lKL] [Data lM, aKL])
-  ⊢
-  $ bob_sm [lKL, lKH] [] [encH, encL]
-  :
-  $ StateMachine [] []
-  by {
-    unfold sideConditions
-    simp
-    grind
-  }
-
 -- the whole double state machine
-#tc tc_run_alice_bob := lM, lKL ⊐ lM, lKH ⊐ lKL ; · ; aKH <: Data lKH, aKL <: Data lKL ;
+#tc_with tc_run_alice_bob := lM, lKL ⊐ lM, lKH ⊐ lKL ; · ; aKH <: Data lKH, aKL <: Data lKL ; · ;
   encH => ($ ENC_Inner [lKH] [aKL, aKH]),
   encL => ($ ENC_Inner [lKL] [Data lM, aKL]),
   msg => Data lM
   ⊢
-  ($ run_alice_bob [lKL, lKH] [] [encH, encL, msg])
+  let run_sm_tm =
+    λ (m : $ StateMachine [] []) : (Public -> Public) =>
+      unpack m as (S, contents) in
+      let state_ref = alloc (π1 contents) in
+      let step = π2 contents in
+      λ (input: Public) : Public =>
+        let result = step ⟨!state_ref, input⟩ in
+        (state_ref := π1 result) ;
+        π2 result
+  in
+
+  let run_two_sm =
+    λ (a : $ StateMachine [] []) : ($ StateMachine [] [] -> (Public * Public) -> Public) =>
+      λ (b : $ StateMachine [] []) : ((Public * Public) -> Public) =>
+      -- generate a single state machine run function
+      let A = (run_sm_tm a) in
+      -- let's do it again!
+      let B = (run_sm_tm b) in
+      λ (val : (Public * Public)) : Public =>
+        let (det, msg) = val in
+        if (⟨"eq"⟩ (det, "0")) then
+          A msg
+        else
+          B msg
+  in
+
+  let alice_sm =
+    (pack (Public,
+      ⟨"0",
+        (λ (args : (Public * Public)) : (Public * Public) =>
+          let enc_high = π1 (π2 encH) in
+          let enc_low = π1 (π2 encL) in
+          let key_high = π1 encH in
+          let key_low = π1 encL in
+          let (state, input) = args in
+          if (⟨"eq"⟩ (state, "0")) then
+            let ciphertext1 = (corr_case lKH in (enc_high ⟨key_high, key_low⟩)) in
+              ⟨"1", ciphertext1⟩
+          else if (⟨"eq"⟩ (state, "1")) then
+            let ciphertext2 = (corr_case lKL in (enc_low ⟨key_low, msg⟩)) in
+                  ⟨"10", ciphertext2⟩
+          else
+            ⟨"10", ""⟩)
+      ⟩)
+    : $ StateMachine [] [])
+  in
+
+  let bob_sm =
+    (pack (Public,
+      ⟨"0",
+        (λ (args : (Public * Public)) : (Public * Public) =>
+          let dec_high = π2 (π2 encH) in
+          let dec_low = π2 (π2 encL) in
+          let key_high = π1 encH in
+          let key_store = alloc (π1 encL) in
+          let (state, input) = args in
+          if (⟨"eq"⟩ (state, "0")) then
+            corr_case lKH in
+            case (dec_high ⟨key_high, input⟩) in
+            | inl key_low' =>
+                (key_store := key_low') ;
+                ⟨"1", "0"⟩
+            | inr _fail =>
+                ⟨"10", "1"⟩
+          else if (⟨"eq"⟩ (state, "1")) then
+            let stored_key = (!key_store) in
+            corr_case lKL in
+            case (dec_low ⟨stored_key, input⟩) in
+            | inl _ =>
+                ⟨"10", "0"⟩
+            | inr _ =>
+                ⟨"10", "1"⟩
+          else
+            ⟨"10", ""⟩)
+      ⟩)
+    : $ StateMachine [] [])
+  in
+  let a = (alice_sm) in
+  let b = (bob_sm) in
+  (((run_two_sm : $ two_sm [] []) a) b)
   :
   (Public * Public) -> Public
   by {
