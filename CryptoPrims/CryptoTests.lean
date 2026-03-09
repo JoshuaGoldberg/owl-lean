@@ -447,53 +447,144 @@ def do_some_stuff :=
 
 -- trivial binary values
 def party1 :=
-  Owl [] [] [send, recv] {
-    (send "10101") (λ (_ : unit) : unit => (send "1010") (λ (_ : unit) : unit => ()))
+  Owl [lKL, lKH] [] [encH, encL, msg, send, recv] {
+    let enc_high = π1 (π2 encH) in
+    let enc_low  = π1 (π2 encL) in
+    let key_high = π1 encH in
+    let key_low  = π1 encL in
+    let ciphertext1 = (corr_case lKH in (enc_high ⟨key_high, key_low⟩)) in
+    (send ciphertext1) (λ (_ : unit) : unit =>
+      let ciphertext2 = (corr_case lKL in (enc_low ⟨key_low, msg⟩)) in
+      (send ciphertext2) (λ (_ : unit) : unit =>
+        ()))
   }
 
+
 def party2 :=
-  Owl [] [] [send, recv] {
+  Owl [lKL, lKH] [] [encH, encL, send, recv] {
+    let dec_high  = π2 (π2 encH) in
+    let dec_low   = π2 (π2 encL) in
+    let key_high  = π1 encH in
+    let key_store = alloc (π1 encL) in
     recv (λ (c1 : Public) : unit =>
-      recv (λ (c2 : Public) : unit =>
-        if (⟨"eq"⟩ ($ do_some_stuff [] [] [c1, c2], "1111011")) then
-          (send (⟨"^"⟩(c1, c2))) (λ (_ : unit) : unit => ())
-        else ()))
+      corr_case lKH in
+      case (dec_high ⟨key_high, c1⟩) in
+      | inl key_low' =>
+          (key_store := key_low') ;
+          recv (λ (c2 : Public) : unit =>
+            corr_case lKL in
+            case (dec_low ⟨!key_store, c2⟩) in
+            | inl _ => (send "0") (λ (_ : unit) : unit => ())
+            | inr _ => (send "1") (λ (_ : unit) : unit => ()))
+      | inr _ =>
+          (send "1") (λ (_ : unit) : unit => ()))
   }
 
 def run_protocol :=
-  Owl [] [] [] {
+  Owl [lKL, lKH] [] [encH, encL, msg] {
     λ (_ : unit) : (Public * ($ value [] [])) -> ($ value [] []) =>
-      let k1 : Ref (($ value [] []) -> unit) = alloc (λ (_ : $ value [] []) : unit => ())  in
-      let k2 : Ref (($ value [] []) -> unit) = alloc (λ (_ : $ value [] []) : unit => ())  in
+      let k1  = alloc (λ (_ : Public) : unit => ()) in
+      let k2  = alloc (λ (_ : Public) : unit => ()) in
       let out1 = alloc ("" : Public) in
-      let out2 = alloc  ("" : Public) in
+      let out2 = alloc ("" : Public) in
       let send1 = (λ (v : Public) : ((unit -> unit) -> unit) =>
         λ (k : (unit -> unit)) : unit =>
           (out1 := v) ;
-          (k1 := (λ ( _ : Public) : unit => k ()))) in
+          (k1 := (λ (_ : Public) : unit => k ()))) in
       let recv1 = (λ (k : (Public -> unit)) : unit =>
         (k1 := k)) in
-      let send2 : Public -> ((unit -> unit) -> unit)= (λ (v : Public) : ((unit -> unit) -> unit) =>
+      let send2 = (λ (v : Public) : ((unit -> unit) -> unit) =>
         λ (k : (unit -> unit)) : unit =>
           (out2 := v) ;
-          (k2 := (λ ( _ : Public) : unit => k ()))) in
-      let recv2 : (Public -> unit) -> unit = (λ (k : (Public -> unit)) : unit =>
+          (k2 := (λ (_ : Public) : unit => k ()))) in
+      let recv2 = (λ (k : (Public -> unit)) : unit =>
         (k2 := k)) in
-      ($ party1 [] [] [send1, recv1] : unit) ;
-      ($ party2 [] [] [send2, recv2] : unit) ;
+      ($ party1 [lKL, lKH] [] [encH, encL, msg, send1, recv1] : unit) ;
+      ($ party2 [lKL, lKH] [] [encH, encL, send2, recv2] : unit) ;
       (λ (args : (Public * Public)) : Public =>
         let (b, v) = args in
           if b then
-            ((!k1) v) ;
-            !out1
+            ((!k1) v) ; !out1
           else
-            ((!k2) v) ;
-            !out2)
+            ((!k2) v) ; !out2)
   }
 
-#tc run_protocol_tc := · ; · ; · ; ·
+#tc run_protocol_tc := lM, lKL ⊐ lM, lKH ⊐ lKL ; · ; aKH <: Data lKH, aKL <: Data lKL ;
+  encH => ($ ENC_Inner [lKH] [aKL, aKH]),
+  encL => ($ ENC_Inner [lKL] [Data lM, aKL]),
+  msg  => Data lM
   ⊢
-  $ run_protocol [] [] []
+  $ run_protocol [lKL, lKH] [] [encH, encL, msg]
+  :
+  unit -> ((Public * Public) -> Public)
+  by {
+    unfold sideConditions
+    simp
+    split_grind
+  }
+
+#tc run_protocol_tc_inlined := lM, lKL ⊐ lM, lKH ⊐ lKL ; · ; aKH <: Data lKH, aKL <: Data lKL ;
+  encH => ($ ENC_Inner [lKH] [aKL, aKH]),
+  encL => ($ ENC_Inner [lKL] [Data lM, aKL]),
+  msg  => Data lM
+  ⊢
+  let party1 = (λ (send : Public -> ((unit -> unit) -> unit)) : unit =>
+      let enc_high = π1 (π2 encH) in
+      let enc_low  = π1 (π2 encL) in
+      let key_high = π1 encH in
+      let key_low  = π1 encL in
+      let ciphertext1 = (corr_case lKH in (enc_high ⟨key_high, key_low⟩)) in
+      let ciphertext2 = (corr_case lKL in (enc_low ⟨key_low, msg⟩)) in
+      (send ciphertext1) (λ (_ : unit) : unit =>
+        (send ciphertext2) (λ (_ : unit) : unit => ()))) in
+
+
+  let party2 = (λ (send : Public -> ((unit -> unit) -> unit)) : ((Public -> unit) -> unit) -> unit =>
+    λ (recv : (Public -> unit) -> unit) : unit =>
+      let dec_high  = π2 (π2 encH) in
+      let dec_low   = π2 (π2 encL) in
+      let key_high  = π1 encH in
+      let key_store = alloc (π1 encL) in
+      recv (λ (c1 : Public) : unit =>
+        corr_case lKH in
+        case (dec_high ⟨key_high, c1⟩) in
+        | inl key_low' =>
+            (key_store := key_low') ;
+            recv (λ (c2 : Public) : unit =>
+              corr_case lKL in
+              case (dec_low ⟨!key_store, c2⟩) in
+              | inl _ => (send "0") (λ (_ : unit) : unit => ())
+              | inr _ => (send "1") (λ (_ : unit) : unit => ()))
+        | inr _ =>
+            (send "1") (λ (_ : unit) : unit => ()))) in
+
+
+  -- run protocol
+  λ (_ : unit) : (Public * ($ value [] [])) -> ($ value [] []) =>
+      let k1    = alloc (λ (_ : Public) : unit => ()) in
+      let k2    = alloc (λ (_ : Public) : unit => ()) in
+      let out1  = alloc ("" : Public) in
+      let out2  = alloc ("" : Public) in
+      let send1 = (λ (v : Public) : ((unit -> unit) -> unit) =>
+        λ (k : (unit -> unit)) : unit =>
+          (out1 := v) ;
+          (k1 := (λ (_ : Public) : unit => k ()))) in
+      let recv1 = (λ (k : (Public -> unit)) : unit =>
+        (k1 := k)) in
+      let send2 = (λ (v : Public) : ((unit -> unit) -> unit) =>
+        λ (k : (unit -> unit)) : unit =>
+          (out2 := v) ;
+          (k2 := (λ (_ : Public) : unit => k ()))) in
+      let recv2 = (λ (k : (Public -> unit)) : unit =>
+        (k2 := k)) in
+      (party1 send1) ;
+      ((party2 send2) recv2) ;
+      (λ (args : (Public * Public)) : Public =>
+        let (b, v) = args in
+          if b then
+            ((!k1) v) ; !out1
+          else
+            ((!k2) v) ; !out2)
   :
   unit -> ((Public * Public) -> Public)
   by {
