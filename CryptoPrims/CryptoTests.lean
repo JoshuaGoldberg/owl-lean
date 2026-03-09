@@ -320,31 +320,38 @@ def two_sm := OwlTy {
   in
 
   let bob_sm : $ StateMachine [] [] =
+    let key_store : Ref (unit + (corr (lKL)? Public : aKL)) = alloc (
+      let v : unit + (corr (lKL)? Public : aKL) = ı1 () in
+      v
+      )
+    in
     pack (Public,
       ⟨"0",
         (λ (args : (Public * Public)) : (Public * Public) =>
           let dec_high = π2 (π2 encH) in
           let dec_low = π2 (π2 encL) in
           let key_high = π1 encH in
-          let key_store : Ref (corr (lKL)? Public : aKL) = alloc (admit : corr (lKL) ? Public : aKL) in
           let (state, input) = args in
           if (⟨"eq"⟩ (state, "0")) then
             corr_case lKH in
-            case (dec_high ⟨key_high, input⟩) in
+            case (dec_high ⟨key_high, input⟩) with
             | inl key_low' =>
                 corr_case lKL in
-                (key_store := key_low') ;
+                (key_store := (ı2 key_low' : unit + (corr (lKL)? Public : aKL))) ;
                 ⟨"1", "0"⟩
             | inr _fail =>
                 ⟨"10", "1"⟩
           else if (⟨"eq"⟩ (state, "1")) then
             let stored_key = (!key_store) in
-            corr_case lKL in
-            case (dec_low ⟨stored_key, input⟩) in
-            | inl _ =>
-              ⟨"10", "0"⟩
-            | inr _ =>
-              ⟨"10", "1"⟩
+            case stored_key with
+            | inl _ => ⟨"10", "err"⟩
+            | inr k =>
+              corr_case lKL in
+              case (dec_low ⟨k, input⟩) with
+              | inl _ =>
+                ⟨"10", "0"⟩
+              | inr _ =>
+                ⟨"10", "1"⟩
           else
             ⟨"10", ""⟩)⟩
     )

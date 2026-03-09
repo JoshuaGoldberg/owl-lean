@@ -497,13 +497,13 @@ def inferX [Monad M] (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_
     | .some (.sum t1 t2) => do
        let _ <- infer Phi Psi Delta Theta Gamma e (.some t1)
        pure (.sum t1 t2)
-    | _ => throw "inl"
+    | _ => throw "inl: need annotation for full type"
   | .inr e =>
     match exp with
     | .some (.sum t1 t2) => do
        let _ <- infer Phi Psi Delta Theta Gamma e (.some t2)
        pure (.sum t1 t2)
-    | _ => throw "inr"
+    | _ => throw "inr: need annotation for full type"
   | .fixlam _ e =>
     match exp with
     | .some (.arr t t') => do

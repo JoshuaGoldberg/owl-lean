@@ -292,7 +292,7 @@ syntax "π1" owl_tm : owl_tm
 syntax "π2" owl_tm : owl_tm
 syntax "ı1" owl_tm : owl_tm
 syntax "ı2" owl_tm : owl_tm
-syntax "case" owl_tm "in" "|" "inl" owl_var "=>" owl_tm "|" "inr" owl_var "=>" owl_tm : owl_tm
+syntax "case" owl_tm "with" "|" "inl" owl_var "=>" owl_tm "|" "inr" owl_var "=>" owl_tm : owl_tm
 syntax owl_tm "[" owl_type "]" : owl_tm
 syntax owl_tm "[{" owl_rexp "}]" : owl_tm
 syntax owl_tm "⟨" owl_label "⟩" : owl_tm
@@ -417,7 +417,7 @@ partial def elabTmX : Syntax → TermElabM Expr
   | `(owl_tm| ı2 $e:owl_tm) => do
     let elab_e <- elabTm e
     mkAppM ``SExprX.inr #[elab_e]
-  | `(owl_tm| case $e1:owl_tm in | inl $v1:owl_var => $e2:owl_tm | inr $v2:owl_var => $e3:owl_tm) => do
+  | `(owl_tm| case $e1:owl_tm with | inl $v1:owl_var => $e2:owl_tm | inr $v2:owl_var => $e3:owl_tm) => do
     let elab_e1 <- elabTm e1
     let elab_e2 <- elabTm e2
     let elab_e3 <- elabTm e3
