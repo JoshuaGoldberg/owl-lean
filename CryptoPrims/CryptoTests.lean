@@ -49,13 +49,14 @@ def sample := OwlTy {
     simp
   }
 
-#tc example_rlam0 :=  ⊢
+#tc example_rlam0 :=  ⊢ {
   let foo : (∀ r. RData ⊥ [r] -> RData ⊥ [r])  = (Λr r.
     λ (x : RData ⊥ [ r ]) : RData ⊥ [ r ] =>
       x
   )
   in
   foo
+}
   :
   ∀ x.
     RData ⊥ [x]
@@ -71,15 +72,15 @@ def tst := OwlTy {
     ∀ x . Public
 }
 
-#tc example0 :=  ⊢
-  "0" : (Public)  by {
+#tc example0 :=  ⊢ {
+  "0" } : (Public)  by {
       unfold sideConditions
       simp
-      grind
+      try grind
   }
 
-#tc rexp := ⊢
-  "0" : Data ⊥
+#tc rexp := ⊢ {
+  "0" } : Data ⊥
   by  {
     unfold sideConditions
     simp
@@ -89,7 +90,7 @@ def tst := OwlTy {
 
 
 
-#tc ENC_FUNC := ⊢
+#tc ENC_FUNC := ⊢ {
     Λβ betaK .
     Λβ betaM .
     Λ tau .
@@ -109,7 +110,7 @@ def tst := OwlTy {
                (if corr (betaK) then λ (x : (Public * Public)) : Public => ⟨"dec"⟩(π1 x, π2 x)
                 else λ (x : (Data betaK * Public)) : (tau + unit) => (!L) π2 x))
     in
-    pack (Data betaK, ⟨k, ⟨(corr_case betaK in enc'), dec'⟩⟩)
+    pack (Data betaK, ⟨k, ⟨(corr_case betaK in enc'), dec'⟩⟩) }
     :
     ∀ betaK ⊒ ⊥ .
     ∀ betaM ⊏ betaK .
@@ -369,71 +370,86 @@ def two_sm := OwlTy {
   }
 
 def value :=
-  OwlTy [] [] {
-    (Data ⟨Owl.L.bot⟩)
+  OwlTy {
+    (Data ⟨⊥⟩)
   }
 
--- trivial binary value
-def do_some_stuff :=
-  Owl [] [] [c1, c2] {
-    "1111011"
+def party_type :=
+  OwlTy {
+    ((Public -> ((unit -> unit) -> unit)) -> ((Public -> unit) -> unit) -> unit)
   }
 
--- trivial binary values
-def party1 :=
-  Owl [] [] [send, recv] {
-    (send "10101") (λ (_ : unit) : unit => (send "1010") (λ (_ : unit) : unit => ()))
-  }
+#tc_with run_protocol_tc_inlined := lM, lKL ⊐ lM, lKH ⊐ lKL ; · ; aKH <: Data lKH, aKL <: Data lKL ; · ;
+  encH => ($ ENC_Inner [lKH] [aKL, aKH]),
+  encL => ($ ENC_Inner [lKL] [Data lM, aKL]),
+  msg  => Data lM
+  ⊢
+  let party1 : ($ party_type [] []) =
+   (λ send =>
+      λ recv =>
+        let enc_high = π1 (π2 encH) in
+        let enc_low  = π1 (π2 encL) in
+        let key_high = π1 encH in
+        let key_low  = π1 encL in
+        let ciphertext1 = (corr_case lKH in (enc_high ⟨key_high, key_low⟩)) in
+        let ciphertext2 = (corr_case lKL in (enc_low ⟨key_low, msg⟩)) in
+        (send ciphertext1) (λ (_ : unit) : unit =>
+          (send ciphertext2) (λ (_ : unit) : unit => ()))) in
 
-def party2 :=
-  Owl [] [] [send, recv] {
-    recv (λ (c1 : Public) : unit =>
-      recv (λ (c2 : Public) : unit =>
-        if (⟨"eq"⟩ ($ do_some_stuff [] [] [c1, c2], "1111011")) then
-          (send (⟨"^"⟩(c1, c2))) (λ (_ : unit) : unit => ())
-        else ()))
-  }
 
-def run_protocol :=
-  Owl [] [] [] {
-    λ (_ : unit) : (Public * ($ value [] [])) -> ($ value [] []) =>
-      let k1 : Ref (($ value [] []) -> unit) = alloc (λ (_ : $ value [] []) : unit => ())  in
-      let k2 : Ref (($ value [] []) -> unit) = alloc (λ (_ : $ value [] []) : unit => ())  in
-      let out1 = alloc ("" : Public) in
-      let out2 = alloc  ("" : Public) in
-      let send1 = (λ (v : Public) : ((unit -> unit) -> unit) =>
-        λ (k : (unit -> unit)) : unit =>
-          (out1 := v) ;
-          (k1 := (λ ( _ : Public) : unit => k ()))) in
-      let recv1 = (λ (k : (Public -> unit)) : unit =>
-        (k1 := k)) in
-      let send2 : Public -> ((unit -> unit) -> unit)= (λ (v : Public) : ((unit -> unit) -> unit) =>
+  let party2 : ($ party_type [] []) =
+  (λ send =>
+    λ recv =>
+      let dec_high  = π2 (π2 encH) in
+      let dec_low   = π2 (π2 encL) in
+      let key_high  = π1 encH in
+      recv (λ (c1 : Public) : unit =>
+        corr_case lKH in
+        case (dec_high ⟨key_high, c1⟩) with
+        | inl key_low' =>
+            recv (λ (c2 : Public) : unit =>
+              corr_case lKL in
+              case (dec_low ⟨key_low', c2⟩) with
+              | inl _ => (send "0") (λ (_ : unit) : unit => ())
+              | inr _ => (send "1") (λ (_ : unit) : unit => ()))
+        | inr _ =>
+            (send "1") (λ (_ : unit) : unit => ()))) in
+
+
+  -- run protocol
+  λ (_ : unit) : (Public * Public) -> Public =>
+      let k1 : (Ref (Public -> unit))   = alloc (λ (_ : Public) : unit => ()) in
+      let k2 : (Ref (Public -> unit))   = alloc (λ (_ : Public) : unit => ()) in
+      let out1 : (Ref Public) = alloc ("" : Public) in
+      let out2 : (Ref Public) = alloc ("" : Public) in
+      let send1 : (Public -> ((unit -> unit) -> unit)) = (λ (v : Public) : ((unit -> unit) -> unit) =>
+       λ (k : (unit -> unit)) : unit =>
+         (out1 := v) ;
+         (k1 := (λ (_ : Public) : unit => k ()))) in
+      let recv1 : (Public -> unit) -> unit = (λ (k : (Public -> unit)) : unit =>
+         (k1 := k)) in
+      let send2 : (Public -> (unit -> unit) -> unit) = (λ (v : Public) : ((unit -> unit) -> unit) =>
         λ (k : (unit -> unit)) : unit =>
           (out2 := v) ;
-          (k2 := (λ ( _ : Public) : unit => k ()))) in
-      let recv2 : (Public -> unit) -> unit = (λ (k : (Public -> unit)) : unit =>
+          (k2 := (λ (_ : Public) : unit => k ()))) in
+       let recv2 : (Public -> unit) -> unit = (λ (k : (Public -> unit)) : unit =>
         (k2 := k)) in
-      ($ party1 [] [] [send1, recv1] : unit) ;
-      ($ party2 [] [] [send2, recv2] : unit) ;
-      (λ (args : (Public * Public)) : Public =>
-        let (b, v) = args in
-          if b then
-            ((!k1) v) ;
-            !out1
-          else
-            ((!k2) v) ;
-            !out2)
-  }
-
-#tc run_protocol_tc := · ; · ; · ; ·
-  ⊢
-  $ run_protocol [] [] []
+    ((party1 send1) recv1) ;
+    ((party2 send2) recv2) ;
+    (λ (args : (Public * Public)) : Public =>
+      let (b, v) = args in
+        if b then
+          let _  = ((!k1) v) in
+          !out1
+        else
+          let _ = ((!k2) v) in
+          !out2)
   :
   unit -> ((Public * Public) -> Public)
   by {
     unfold sideConditions
     simp
-    split_grind
+    try split_grind
   }
 /-
 
