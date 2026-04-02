@@ -180,7 +180,7 @@ import OwlLean.TypeChecker.OwlTyping
 --       auto_solve
 --     )
 --
--- noncomputable def ENC :=
+-- def ENC :=
 --   OwlTy [betaK, betaM, betaC] [] {
 --     ∃ alphaK <: (Data betaK) . (alphaK * ((corr ( betaK ) ? (Public * Public) -> Public : (alphaK * Data betaM) -> Public)
 --                                           *
@@ -233,7 +233,7 @@ import OwlLean.TypeChecker.OwlTyping
 --     fix f (z) z
 --   }
 --
--- noncomputable def lemma_phi_new :=
+-- def lemma_phi_new :=
 --   Ψ:= (x, y ⊒ x, z ⊒ y, a ⊒ z)
 --
 -- -- OLD WAY (cool, but not *as* cool)
