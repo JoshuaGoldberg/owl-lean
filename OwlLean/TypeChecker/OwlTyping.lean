@@ -71,6 +71,11 @@ instance : Lean.ToExpr (delta_context_repr l r d) := by
 
 abbrev phi_context_repr l := vec (cond_sym × label l) l
 
+deriving instance Repr for cond_sym
+deriving instance Repr for label
+deriving instance Repr for vec
+deriving instance Repr for phi_context_repr
+
 instance : Lean.ToExpr (phi_context_repr l) := by
   infer_instance
 

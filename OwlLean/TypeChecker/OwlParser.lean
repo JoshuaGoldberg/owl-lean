@@ -691,34 +691,8 @@ structure Sequent where
   t : ty l r d 0
 
 
-def addTypeInfo (stx : Syntax) (s : String) := do
-    let n : Name := Name.mkSimple s
-
-    withEnableInfoTree true do withLocalDeclD n (mkSort levelOne) fun dslType => do
-      let forgedExpr ← mkFreshExprMVar dslType
-      pushInfoLeaf <| .ofTermInfo {
-        elaborator := `Sequent
-        stx := stx
-        lctx := (← getLCtx)
-        expectedType? := some dslType
-        expr := forgedExpr
-        isBinder := false
-      }
-    PURE
-
-def tcVisit l r d n (o : Owl.opaqueSyntax) (t : Owl.ty l r d n) : Command.CommandElabM Unit  := do
-  Command.liftTermElabM $ addTypeInfo o.inner (toString t)
-  PURE
-
-def tcLog (s : String) : Command.CommandElabM Unit := do
-  -- Command.liftTermElabM $ logInfo s
-  IO.println s
-  PURE
-
 syntax "#tc" term "by" tacticSeq : command
 
-def tcFresh : Command.CommandElabM Lean.Name :=
-  Command.liftCoreM $ mkFreshId
 
 open OwlTc
 
@@ -729,44 +703,13 @@ def owl_f_interp (s x y : String) : String :=
   | "concat" => x ++ y
   | _ => owl_f_interp' s x y
 
-@[simp]
-def interpSideConditions (sc : CheckOutput) : Prop :=
-  match sc with
-  | .true => True
-  | .and e1 e2 => interpSideConditions e1 ∧ interpSideConditions e2
-  | .or e1 e2 => interpSideConditions e1 ∨ interpSideConditions e2
-  | .sc ⟨_, theta, sc⟩ =>
-    (forall bv fv, RCtx.interp theta bv fv owl_f_interp -> sc.eval bv fv owl_f_interp)
 
-
-
-def mkFreshDefn (n : TSyntax `ident) (e : Expr) : Command.CommandElabM Ident := do
-  let name := Name.mkStr2 (n.getId.toString) "sideConditions"
-  let id := mkIdent name
-  Command.liftTermElabM <| do
-    -- add definition: freshDef := e
-    Lean.addDecl <| .defnDecl {
-      name := name,
-      levelParams := [],
-      type := ← inferType e,
-      value := e,
-      hints := .abbrev,
-      safety := DefinitionSafety.safe
-    }
-  pure id
-
-def doTc (n : TSyntax `ident) (s : Sequent) tkp pf := do
-    match <- OwlTc.infer s.Phi s.Psi s.Delta s.Theta s.Gamma s.e s.t (CheckContext.init tcVisit tcLog tcFresh) with
-    | .ok (_, sc) => do
-      let sc' := sc.simpl
-      let id <- mkFreshDefn n (toExpr sc')
-      let lemmaName := Name.mkStr2 (n.getId.toString) "soundness"
-      let thmCmd <- withRef tkp `(command|
-        theorem $(mkIdent lemmaName) : interpSideConditions $id := by $pf
-      )
-      Command.elabCommand thmCmd
+def doTc (n : TSyntax `ident) (s : Sequent) := do
+    match <- OwlTc.infer s.Phi s.Psi s.Delta s.Theta s.Gamma s.e s.t CheckContext.init with
+    | .ok _ => do
+      println! "Successfully checked {n}"
     | .err e =>
-      logInfo s!"err: {e.2}"
+      logError s!"err: {e.2}"
       match e.1 with
       | .none => PURE
       | .some v =>
@@ -777,9 +720,9 @@ def doTc (n : TSyntax `ident) (s : Sequent) tkp pf := do
 
 -- For easier usage of the has_type inductive
 
-syntax "#tc_with" ident ":=" owl_phi ";" owl_psi ";" owl_delta ";" owl_theta ";" owl_gamma "⊢" owl_tm ":" owl_type "by" tacticSeq : command
+syntax "#tc_with" ident ":=" owl_phi ";" owl_psi ";" owl_delta ";" owl_theta ";" owl_gamma "⊢" owl_tm ":" owl_type : command
 elab_rules : command
-  | `(#tc_with $n := $p ; $ps; $d; $th; $g ⊢ $e : $t by%$tkp $pf ) => do
+  | `(#tc_with $n := $p ; $ps; $d; $th; $g ⊢ $e : $t ) => do
     let seq_e <- Command.liftTermElabM $ withEnableInfoTree false do
 
       let sphiExpr2 ← elabPhi p
@@ -858,9 +801,9 @@ elab_rules : command
 
       mkAppM ``Sequent.mk #[mkNatLit lvars.length, mkNatLit rvars.length, mkNatLit tvars.length, mkNatLit vars.length, phiExpr, psiExpr, deltaExpr, thetaExpr, gammaExpr, tmExpr, tyExpr]
     let seq <- Command.liftTermElabM $ unsafe evalExpr Sequent (mkConst `Sequent) seq_e
-    doTc n seq tkp pf
+    Command.liftTermElabM $ doTc n seq
 
-syntax "#tc" ident ":=" "⊢" "{" owl_tm "}" ":" owl_type "by" tacticSeq : command
+syntax "#tc" ident ":=" "⊢" "{" owl_tm "}" ":" owl_type : command
 elab_rules : command
-  | `(#tc $n := ⊢ { $e } : $t by%$_ $pf ) => do
-    Command.elabCommand (<- `(#tc_with $n := · ; · ; · ; · ; ·  ⊢ $e : $t by $pf))
+  | `(#tc $n := ⊢ { $e } : $t ) => do
+    Command.elabCommand (<- `(#tc_with $n := · ; · ; · ; · ; ·  ⊢ $e : $t))

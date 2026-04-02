@@ -7,16 +7,6 @@ set_option maxRecDepth 20000000
 
 open OwlTc
 
--- New syntax:
--- rpack
--- ∀ r. τ
--- Λr r. e
--- ∃ r. e
-
--- τ { p }
-
-
-attribute [simp] Fin.foldr_succ
 
 def sample := OwlTy {
   ∀ l ⊒ ⊥. Public -> Data l
@@ -30,11 +20,6 @@ def sample := OwlTy {
   ($ sample [] [])
   ->
   (Public -> Data ⊥)
-  by {
-    unfold sideConditions
-    simp
-    grind
-  }
 
 
 
@@ -44,10 +29,6 @@ def sample := OwlTy {
   }
   :
   ∃ x. RData ⊥ [x]
-  by {
-    unfold sideConditions
-    simp
-  }
 
 #tc example_rlam0 :=  ⊢ {
   let foo : (∀ r. RData ⊥ [r] -> RData ⊥ [r])  = (Λr r.
@@ -62,10 +43,6 @@ def sample := OwlTy {
     RData ⊥ [x]
     ->
     RData ⊥ [x]
-  by {
-      unfold sideConditions
-      simp
-  }
 
 
 def tst := OwlTy {
@@ -73,21 +50,10 @@ def tst := OwlTy {
 }
 
 #tc example0 :=  ⊢ {
-  "0" } : (Public)  by {
-      unfold sideConditions
-      simp
-      try grind
-  }
+"0" } : (Public)
 
 #tc rexp := ⊢ {
   "0" } : Data ⊥
-  by  {
-    unfold sideConditions
-    simp
-    intros
-    grind
-  }
-
 
 
 #tc ENC_FUNC := ⊢ {
@@ -118,13 +84,6 @@ def tst := OwlTy {
     (∃ alphaK <: (Data betaK) . (alphaK *
                                  ((corr (betaK) ? (Public * Public) -> Public : (alphaK * tau) -> Public) *
                                   (corr (betaK) ? (Public * Public) -> Public : (alphaK * Public) -> (tau + unit)))))
-    by {
-      unfold sideConditions
-
-      simp
-
-      grind
-    }
 
 
 
@@ -362,12 +321,6 @@ def two_sm := OwlTy {
   (((run_two_sm : $ two_sm [] []) a) b)
   :
   (Public * Public) -> Public
-  by {
-    unfold sideConditions
-    unfold interpSideConditions
-    simp
-    split_grind
-  }
 
 def value :=
   OwlTy {
@@ -379,6 +332,7 @@ def party_type :=
     ((Public -> ((unit -> unit) -> unit)) -> ((Public -> unit) -> unit) -> unit)
   }
 
+/-
 #tc_with run_protocol_tc_inlined := lM, lKL ⊐ lM, lKH ⊐ lKL ; · ; aKH <: Data lKH, aKL <: Data lKL ; · ;
   encH => ($ ENC_Inner [lKH] [aKL, aKH]),
   encL => ($ ENC_Inner [lKL] [Data lM, aKL]),
@@ -446,12 +400,9 @@ def party_type :=
           !out2)
   :
   unit -> ((Public * Public) -> Public)
-  by {
-    unfold sideConditions
-    simp
-    try split_grind
-  }
+-/
 
+/-
 #tc_with run_protocol_client_server := lM, lKL ⊐ lM, lKH ⊐ lKL ; · ; aPSK <: Data lKH, aKX <: Data lKL, aX <: Data lM ; · ;
   encPSK => ($ ENC_Inner [lKH] [aKX, aPSK]),
   encKX => ($ ENC_Inner [lKL] [Data lM, aKX]) ,
@@ -526,85 +477,5 @@ def party_type :=
           let _ = ((!c2s_k) v) in !c2s_out)
   :
   unit -> ((Public * Public) -> Public)
-  by {
-    unfold sideConditions
-    simp
-    try split_grind
-  }
-/-
-
-#tc protocol := lM, lKL ⊐ lM, lKH ⊐ lKL; · ; aKH <: Data lKH, aKL <: Data lKL ;
-  --  Make it : instead of =>
-  encH => ($ ENC_Inner [lKH] [aKL, aKH]),
-  encL => ($ ENC_Inner [lKL] [Data lM, aKL] ),
-  msg => Data lM,
-  io => Public -> Public
- ⊢
-  let key_low = π1 encL in
-  let enc_low = π1 (π2 encL) in
-  let dec_low = π2 (π2 encL) in
-
-  let key_high = π1 encH in
-  let enc_high = π1 (π2 encH) in
-  let dec_high = π2 (π2 encH) in
-
-  -- Alice's code
-  let ctxt1 = (corr_case lKH in ( enc_high ⟨ key_high, key_low⟩ ))  in
-  let ctxt2 = (corr_case lKL in ( enc_low ⟨ key_low, msg ⟩ )) in
-  -- TODO: Ask Michael about parsing this better vvv
-  let unused = io ctxt1  in -- Should be "let _ "
-  let unused = io ctxt2  in
-
-  -- Alice's state = whether or not she's been run
-  -- Query Alice, if true, do things, else nothing
-  -- 3 states : 1. do nothing 2. output ciphertexts 3. ciphertexts
-
-  -- Bob's code (similar):
-  -- Initial State
-  -- Supply First CipherText -> First Decryption State
-  -- Supply Second CipherText -> Second Decryption State
-  -- Final State -> State
-  -- Output to the network via the state machine "0" or "1"
-
-  -- Alice in detail
-  -- Initial State1
-  -- (_, State1) -> (CipherText1, State2)
-  -- (_, State2) -> (CipherText2, Done)
-  -- (_, Done) -> ("", Done)
-
-  -- Bob in detail
-  -- Initial State1
-  -- (CipherText1 -> (0, State2)) -- Store key when entering State2 (key type is aKL if lKH is NOT corrupt, using corr ?)
-  --                                                                (key type is Public if lKH is corrupt)
-  -- (CipherText1 -> (1, Done))
-  -- (CipherText2 -> (0/1, Done)) -- make sure to grab key from memory
-  -- (_, Done) -> ("", Done)
-
-  -- Bob's code
-  corr_case lKH in
-  -- For the binary: 0x1234. Represent this as a list of U8s.
-  case dec_high ⟨key_high, io ""⟩ in -- Case "with"
-  | inl key_low' =>
-    corr_case lKL in
-    case dec_low ⟨key_low', io ""⟩ in
-    | inl success => () -- Use () instead of *
-    | inr _fail => ()
-  --  Make "_" work as an identifier
-  | inr _fail => ()
-  :
-    unit
-
-  /-
-    Unit -> (
-      (Public -> Public) // Oracle for the adversary to call alice
-      *
-      (Public -> Public) // oracle for the adversary to call bob
-    )
-  -/
-by {
-    unfold sideConditions
-    simp
-    grind
-}
 
 -/
