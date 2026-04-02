@@ -1,10 +1,11 @@
 name = "owl-lean"
 version = "0.1.0"
-defaultTargets = ["owl-lean"]
+defaultTargets = ["OwlLean"]
+
 
 [[lean_lib]]
 name = "OwlLean"
+globs = ["OwlLean.OwlLang.+", "OwlLean.TypeChecker.+", "CryptoPrims.CryptoTests", "OwlLean.CryptoPrims.+"]
 
-[[lean_exe]]
-name = "owl-lean"
-root = "Main"
+
+

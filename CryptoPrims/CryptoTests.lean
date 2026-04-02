@@ -1,245 +1,610 @@
+import Lean
 import OwlLean.TypeChecker.OwlComplete
 
+open Lean Meta Elab Tactic
 set_option maxHeartbeats 1000000
+set_option maxRecDepth 20000000
+
+open OwlTc
+
+-- New syntax:
+-- rpack
+-- ∀ r. τ
+-- Λr r. e
+-- ∃ r. e
+
+-- τ { p }
 
 
--- "[0]" represents garbage values not needed for computation
-theorem enc_i :
-  ( · ; · ; · ; · ⊢
+attribute [simp] Fin.foldr_succ
+
+def sample := OwlTy {
+  ∀ l ⊒ ⊥. Public -> Data l
+}
+
+#tc tst1 := ⊢ {
+  λ f =>
+    f ⟨ ⊥ ⟩
+}
+  :
+  ($ sample [] [])
+  ->
+  (Public -> Data ⊥)
+  by {
+    unfold sideConditions
+    simp
+    grind
+  }
+
+
+
+#tc example_rpack :=  ⊢ {
+  let x = "0" in
+  rpack ("0", x)
+  }
+  :
+  ∃ x. RData ⊥ [x]
+  by {
+    unfold sideConditions
+    simp
+  }
+
+#tc example_rlam0 :=  ⊢ {
+  let foo : (∀ r. RData ⊥ [r] -> RData ⊥ [r])  = (Λr r.
+    λ (x : RData ⊥ [ r ]) : RData ⊥ [ r ] =>
+      x
+  )
+  in
+  foo
+}
+  :
+  ∀ x.
+    RData ⊥ [x]
+    ->
+    RData ⊥ [x]
+  by {
+      unfold sideConditions
+      simp
+  }
+
+
+def tst := OwlTy {
+    ∀ x . Public
+}
+
+#tc example0 :=  ⊢ {
+  "0" } : (Public)  by {
+      unfold sideConditions
+      simp
+      try grind
+  }
+
+#tc rexp := ⊢ {
+  "0" } : Data ⊥
+  by  {
+    unfold sideConditions
+    simp
+    intros
+    grind
+  }
+
+
+
+#tc ENC_FUNC := ⊢ {
     Λβ betaK .
     Λβ betaM .
     Λ tau .
-    let k = (⟨"genKey"⟩ (["0"], ["0"]) : Data betaK) in
-    let L = alloc (λ (null : Public) : (tau + Unit) => ı2 *) in
+    let k = (⟨"genKey"⟩ ("0", "0") : Data betaK ) in
+    let L = alloc (λ (null : Public) : (tau + unit) => ı2 ()) in
     let enc' = (corr_case betaK in
                 (if corr ( betaK )
                   then (λ (x : (Public * Public)) : Public => ⟨"enc"⟩ (π1 x, π2 x))
                   else
-                    λ (x : (Data betaK * tau)) : Public =>
-                    let c = ⟨"rand"⟩ (zero ((π2 x) : Data betaM), ["0"]) in
+                    λ (x : (Data betaK * tau )) : Public =>
+                    let c = ⟨"rand"⟩ (zero ((π2 x) : Data betaM), "0") in
                     let L_old = (! L) in
-                    let sc = L := (λ (y : Public) : (tau + Unit) => if ⟨"eq"⟩(y, c) then ı1 (π2 x) else L_old [y]) in
+                    let sc = (L := (λ (y : Public) : (tau + unit) => if ⟨"eq"⟩(y, c) then ı1 (π2 x) else (L_old y))) in
                     c))
     in
-    let dec' = (corr_case betaK in
+    let dec' : corr (betaK) ? (Public * Public) -> Public : (Data betaK * Public) -> (tau + unit) = (corr_case betaK in
                (if corr (betaK) then λ (x : (Public * Public)) : Public => ⟨"dec"⟩(π1 x, π2 x)
-                else λ (x : (Data betaK * Public)) : (tau + Unit) => (!L) [π2 x]))
+                else λ (x : (Data betaK * Public)) : (tau + unit) => (!L) π2 x))
     in
-    pack (Data betaK, ⟨k, ⟨(corr_case betaK in enc'), (corr_case betaK in dec')⟩⟩)
+    pack (Data betaK, ⟨k, ⟨(corr_case betaK in enc'), dec'⟩⟩) }
     :
-    ∀ betaK ⊒ ⟨Owl.L.bot⟩ .
+    ∀ betaK ⊒ ⊥ .
     ∀ betaM ⊏ betaK .
     ∀ tau <: Data betaM .
     (∃ alphaK <: (Data betaK) . (alphaK *
                                  ((corr (betaK) ? (Public * Public) -> Public : (alphaK * tau) -> Public) *
-                                  (corr (betaK) ? (Public * Public) -> Public : (alphaK * Public) -> (tau + Unit)))))) :=
-    by
-    tc_man (
-      try simp
-      auto_solve
+                                  (corr (betaK) ? (Public * Public) -> Public : (alphaK * Public) -> (tau + unit)))))
+    by {
+      unfold sideConditions
+
+      simp
+
+      grind
+    }
+
+
+
+-- Bonus points: make it a record
+
+
+-- Type represention is a lean TreeMap from String to type
+def ENC_Inner := OwlTy_with [lK] [] [tM, tK] {
+    ( tK *
+        ((corr (lK) ? (Public * Public) -> Public : (tK * tM) -> Public) *
+        (corr (lK) ? (Public * Public) -> (Public + unit) : (tK * Public) -> (tM + unit))))
+}
+
+def ENC := OwlTy_with [ lK ] [] [ tM ] {
+  ∃ alphaK <: (Data lK). $ ENC_Inner [ lK ] [ tM, alphaK ]
+}
+
+
+
+/-
+
+  A                   B
+  --                 ---
+
+        enc(kH, kL)
+        enc(kL, m)
+        --->
+
+
+
+                        --> "ok" or "bad", depending on if decryption succeeded
+
+
+
+
+  A has some state type S_A
+
+  A has a transition function S_A -> Public -> (S_A * Public)
+
+
+  B has some state type S_B
+
+  B has a transition function S_B -> Public -> (Public * S_B)
+
+
+
+  A, B: StateMachine := ∃ S. (S * (S -> Public -> (Public * S)))
+
+
+
+  TODO:
+
+  1.
+  - Define a function of type StateMachine -> StateMachine -> ((Public * Public) -> Public)
+    - First public input: who is running
+      - "0" for alice
+      - not "0" for bob
+
+
+    - Second public input: the input to the state machine
+    - Output: output from the state machine
+
+    - Need to create references to the internal states
+
+    - Implement in OCaml first?
+
+
+  2.
+  - re-Implement below protocol as state machines
+
+
+  3.
+  - future: beef up protocol
+
+
+  ----------------
+  Option 2 (do this after the above)
+
+  - Give a coroutine semantics to the protocol
+
+
+  output:
+    Public  -- Thing to output
+    -> (Unit -> Public)  -- Continuation that is given to the adversary
+    -> Public -- "final return value"
+
+
+  input:
+    (Public -> Public)  -- Continuation given to adversary, where input is adv's input from network
+    -> Public -- "Final return value"
+
+
+  Alice:
+
+  let (c1, c2) = do_encrypts () in
+  output c1 (fun _ =>
+    output c2 (fun _ =>
+      return "ok"
     )
+  )
 
-theorem enc_ty2 :
-  ((betaK, betaM ⊑ betaK) ; · ; · ; · ⊢
-      pack (Unit, *)
-      :
-      (∃ alphaK <: Unit . alphaK)) :=
-    by
-    tc_man (
-      try simp
-      try auto_solve
-    )
-
-theorem test_let_2 :
-  ( · ; · ; · ; · ⊢
-      let (x, y) = ⟨* , ["0"]⟩ in
-      y
-      :
-      Public) :=
-    by
-    tc_man (
-      try simp
-      try auto_solve
-    )
-
-theorem test_let_3 :
-  ( · ; · ; · ; · ⊢
-      let (x, y, z) = ⟨⟨* , *⟩ , ⟨*, ["0"]⟩⟩ in
-      z
-      :
-      Public) :=
-    by
-    tc_man (
-      try simp
-      try auto_solve
-    )
-
-theorem enc_ty_contra :
-  ((betaK, betaM ⊑ betaK, betaC ⊒ betaK) ; (corr(betaK)) ; · ; · ⊢
-      (if corr (betaK) then ((λ x => *) : Public -> Unit) else ((λ x => x) : Data betaC -> Data betaC))
-      :
-      (Public -> Unit)) :=
-    by
-    tc_man (
-      try simp
-      auto_solve
-    )
-
-theorem enc_length_test :
-  ( (betaK, betaM ⊑ betaK, betaC ⊒ betaK) ; (corr(betaK)) ; · ; · ⊢
-      λ x => λ x => λ x => λ x => λ x => λ x => λ x => λ x => λ x => λ x => λ a => λ x => λ x => λ b =>
-      λ x => λ x => λ y => λ x => λ h => λ x => λ a => λ x => λ x => λ x => λ x => λ x => λ x => λ x =>
-      λ x => λ x => λ x => λ x => λ x => λ x => λ x => λ x => λ z => λ x => λ x => λ x => λ x => λ x => ⟨a, ⟨x, ⟨x, ⟨x, ⟨x, ⟨x, ⟨x, ⟨x, ⟨x, ⟨z, x⟩⟩⟩⟩⟩⟩⟩⟩⟩⟩
-      :
-      (Data betaM -> Data betaM -> Data betaM -> Data betaM -> Data betaM -> Data betaM -> Data betaM ->
-       Data betaM -> Data betaM -> Data betaM -> Data betaM -> Data betaM -> Data betaM -> Data betaM ->
-       Data betaM -> Data betaM -> Data betaM -> Data betaM -> Data betaM -> Data betaM -> Data betaM ->
-       Data betaM -> Data betaM -> Data betaM -> Data betaM -> Data betaM -> Data betaM -> Data betaM ->
-       Data betaM -> Data betaM -> Data betaM -> Data betaM -> Data betaM -> Data betaM -> Data betaM ->
-       Data betaM -> Data betaM -> Data betaM -> Data betaM -> Data betaM -> Data betaM -> Data betaM ->
-
-       ((Public * (Public * (Public * (Public * (Public * (Public * (Public * (Public * (Public * (Public * Public))))))))))))) :=
-    by
-    tc_man (
-      try simp
-      auto_solve
-    )
+  State := (Public -> Public)
 
 
-theorem enc_r :
-  ( (betaK, betaM) ; (corr(betaK)) ; (tau <: Data betaM) ; · ⊢
-    let k = (⟨"genKey"⟩ (["0"], ["0"]) : Data betaK) in
-    pack (Data betaK, ⟨k, ⟨λ (x : (Public * Public)) : Public => ⟨"enc"⟩ (π1 x, π2 x),
-                           λ (y : (Public * Public)) : Public => ⟨"dec"⟩ (π1 y, π2 y)⟩⟩)
-    :
-    (∃ alphaK <: (Data betaK) . (alphaK *
-                                 ((corr (betaK) ? (Public * Public) -> Public : (alphaK * (Data betaM)) -> Public) *
-                                  (corr (betaK) ? (Public * Public) -> Public : (alphaK * Public) -> (tau + Unit)))))) :=
-    by
-    tc_man (
-      try simp
-      auto_solve
-    )
+  Bob:
 
-theorem enc_unpack :
-  ( (betaK, betaM ⊑ betaK) ; · ; (tau <: Data betaM) ;
-  (E => (∃ alphaK <: (Data betaK) . (alphaK *
-                                     ((corr (betaK) ? (Public * Public) -> Public : (alphaK * tau) -> Public) *
-                                      (corr (betaK) ? (Public * Public) -> Public : (alphaK * Public) -> (tau + Unit))))),
-   x => tau) ⊢
-    (corr_case betaK in
-     unpack E as (alpha, ked) in
-     (π1 (π2 ked)) [⟨(π1 ked), x⟩])
-    :
-    Public) :=
-    by
-    tc_man (
-      try simp
-      auto_solve
-    )
-
-theorem enc_layered :
-  ( (l1, l2 ⊒ l1, l3 ⊒ l2) ; · ; (a <: Data l2, b <: Data l1) ;
-  (E1 => (∃ alphaK <: (Data l3) .
-                        (alphaK *
-                         ((corr (l3) ? (Public * Public) -> Public : (alphaK * (Data l2)) -> Public) *
-                          (corr (l3) ? (Public * Public) -> Public : (alphaK * Public) -> (a + Unit))))),
-   E2 => (∃ alphaK <: (Data l2) .
-                        (alphaK *
-                         ((corr (l2) ? (Public * Public) -> Public : (alphaK * (Data l1)) -> Public) *
-                          (corr (l2) ? (Public * Public) -> Public : (alphaK * Public) -> (b + Unit)))))) ⊢
-    (corr_case l3 in
-       unpack E1 as (alpha1, ked1) in
-       unpack E2 as (alpha2, ked2) in
-       (π1 (π2 ked1)) [⟨(π1 ked1), (π1 ked2)⟩])
-    :
-    Public) :=
-    by
-    tc_man (
-      try simp
-      auto_solve_fast
-    )
-
--- partial
-theorem enc_sig :
-  ( · ; · ; · ; · ⊢
-    Λβ betaK .
-    Λ tau .
-    corr_case betaK in
-    (if corr (betaK) then
-      ((let sk = ⟨"genSK"⟩(["0"], ["0"]) in
-      let vk = ⟨"vk_of_sk"⟩(sk, ["0"]) in
-      pack(Public, pack (Public, ⟨sk, ⟨vk,
-                    ⟨((λ xy => ⟨"sign"⟩(π1 xy, π2 xy)) : (Public * Public) -> Public),
-                     ((λ xyz => ⟨"vrfy"⟩(π1 xyz, π1 (π2 xyz))) : (Public * (Public * Public)) -> Public)⟩⟩⟩))) :
-                     ∃ alpha <: Data betaK .
-                     ∃ beta <: Public .
-                     (alpha *
-                     (beta *
-                     ((corr (betaK) ? ((Public * Public) -> Public) : ((alpha * tau) -> Public)) *
-                     (corr (betaK) ? ((Public * (Public * Public)) -> Public) : ((beta * (Public * Public)) -> (tau + Unit)))))))
+  input (fun i =>
+    if decrypt_ok(i) then
+      output "ok" (fun _ => ())
     else
-      ((let sk = ⟨"genSK"⟩(["0"], ["0"]) in
-      let pk = ⟨"vk_of_sk"⟩(["0"], ["0"]) in
-      let L = ((alloc (λ (null : (Public * Public)) : (tau + Unit) => (ı2 *))) : Ref ((Public * Public) -> (tau + Unit))) in
-      let sign =  ((λ (skm : (Data betaK * tau)) : Public =>
-                  let sig = (⟨"rand"⟩(((π2 skm) : Public), ["0"]) : Public) in
-                  let L_old = (! L) in
-                  let action =  (L := (λ (msig' : (Public * Public)) : (tau + Unit) => if ⟨"and"⟩(⟨"eq"⟩(π2 skm, π2 msig'), ⟨"eq"⟩(sig, π2 msig'))
-                                                then (ı1 (π2 skm))
-                                                else L_old [msig']))
-                  in
-                  sig) : (((Data betaK * tau) -> Public)))
-      in
-      let vrfy = ((λ vkmsig =>
-                  (! L) [⟨π1 (π2 vkmsig), π2 (π2 vkmsig)⟩]) : ((Public * (Public * Public)) -> (tau + Unit))) in
-      pack(Data betaK, pack(Public, ⟨sk, ⟨pk, ⟨sign, vrfy⟩⟩⟩))) :
-      ∃ alpha <: Data betaK .
-      ∃ beta <: Public .
-      (alpha *
-      (beta *
-      ((corr (betaK) ? ((Public * Public) -> Public) : ((alpha * tau) -> Public)) *
-       (corr (betaK) ? ((Public * (Public * Public)) -> Public) : ((beta * (Public * Public)) -> (tau + Unit))))))))
-    :
-    ∀ betaK ⊒ ⟨Owl.L.bot⟩ .
-    ∀ tau <: Public .
-    ∃ alpha <: Data betaK .
-    ∃ beta <: Public .
-    (alpha *
-    (beta *
-    ((corr (betaK) ? ((Public * Public) -> Public) : ((alpha * tau) -> Public)) *
-     (corr (betaK) ? ((Public * (Public * Public)) -> Public) : ((beta * (Public * Public)) -> (tau + Unit))))))
-    ) :=
-    by
-    tc_man (
-      try simp
-      auto_solve_fast
-    )
+      output "bad" (fun _ => ())
+  )
 
-    -- the issue here is that just because tau <: public, does that mean public <: tau?
 
-theorem enc_layered2_high_low :
-  ( (L_sec, L_low ⊒ L_sec, L_high ⊒ L_low) ; · ; (a <: Data L_sec, b <: Data L_low) ;
-  (E1 => (∃ alphaK <: (Data L_low) .
-                        (alphaK *
-                         ((corr (L_low) ? (Public * Public) -> Public : (alphaK * (Data L_sec)) -> Public) *
-                          (corr (L_low) ? (Public * Public) -> Public : (alphaK * Public) -> (a + Unit))))),
-   E2 => (∃ alphaK <: (Data L_high) .
-                        (alphaK *
-                         ((corr (L_high) ? (Public * Public) -> Public : (alphaK * (Data L_low)) -> Public) *
-                          (corr (L_high) ? (Public * Public) -> Public : (alphaK * Public) -> (b + Unit)))))) ⊢
-    (corr_case L_low in
-      (corr_case L_high in
-       unpack E1 as (alpha1, ked1) in
-       unpack E2 as (alpha2, ked2) in
-       ((λ x =>
-        let c1 = ((π1 (π2 ked1)) [⟨(π1 ked1), x⟩] : Public) in
-        let c2 = ((π1 (π2 ked2)) [⟨(π1 ked2), (π1 ked1)⟩] : Public) in
-        ⟨"combine"⟩(c1, c2)) : ((Data L_sec) -> Public))))
-    :
-    ((Data L_sec) -> Public)) :=
-    by
-    tc_man (
-      try simp
-      auto_solve_fast
+  ==========
+
+
+  Along the way:
+  - Fix the syntax
+  - Fix error messages
+
+
+  ==========
+
+  - Prove soundness theorems in TcSimple
+
+
+-/
+
+-- state machine
+def StateMachine := OwlTy {
+  ∃ S <: Any . (S * ((S * Public) -> (S * Public)))
+}
+
+-- state machine execution type
+def run_sm_ty := OwlTy {
+  $ StateMachine [] [] -> (Public -> Public)
+}
+
+def two_sm := OwlTy {
+  $ StateMachine [] [] -> $ StateMachine [] [] -> ((Public * Public) -> Public)
+}
+
+-- the whole double state machine
+#tc_with tc_run_alice_bob := lM, lKL ⊐ lM, lKH ⊐ lKL ; · ; aKH <: Data lKH, aKL <: Data lKL ; · ;
+  encH => ($ ENC_Inner [lKH] [aKL, aKH]),
+  encL => ($ ENC_Inner [lKL] [Data lM, aKL]),
+  msg => Data lM
+  ⊢
+  let run_sm_tm =
+    λ (m : $ StateMachine [] []) : (Public -> Public) =>
+      unpack m as (S, contents) in
+      let state_ref = alloc (π1 contents) in
+      let step = π2 contents in
+      λ (input: Public) : Public =>
+        let result = step ⟨!state_ref, input⟩ in
+        (state_ref := π1 result) ;
+        π2 result
+  in
+
+  let run_two_sm =
+    λ (a : $ StateMachine [] []) : ($ StateMachine [] [] -> (Public * Public) -> Public) =>
+      λ (b : $ StateMachine [] []) : ((Public * Public) -> Public) =>
+      -- generate a single state machine run function
+      let A = (run_sm_tm a) in
+      -- let's do it again!
+      let B = (run_sm_tm b) in
+      λ (val : (Public * Public)) : Public =>
+        let (det, msg) = val in
+        if (⟨"eq"⟩ (det, "0")) then
+          A msg
+        else
+          B msg
+  in
+
+  let alice_sm : $ StateMachine [] [] =
+  pack (Public,
+      ⟨"0",
+        (λ (args : (Public * Public)) : (Public * Public) =>
+          let enc_high = π1 (π2 encH) in
+          let enc_low = π1 (π2 encL) in
+          let key_high = π1 encH in
+          let key_low = π1 encL in
+          let (state, input) = args in
+          if (⟨"eq"⟩ (state, "0")) then
+            let ciphertext1 = (corr_case lKH in (enc_high ⟨key_high, key_low⟩)) in
+              ⟨"1", ciphertext1⟩
+          else if (⟨"eq"⟩ (state, "1")) then
+            let ciphertext2 = (corr_case lKL in (enc_low ⟨key_low, msg⟩)) in
+                  ⟨"10", ciphertext2⟩
+          else
+            ⟨"10", ""⟩)
+      ⟩)
+  in
+
+  let bob_sm : $ StateMachine [] [] =
+    let key_store : Ref (unit + (corr (lKL)? Public : aKL)) = alloc (
+      let v : unit + (corr (lKL)? Public : aKL) = ı1 () in
+      v
+      )
+    in
+    pack (Public,
+      ⟨"0",
+        (λ (args : (Public * Public)) : (Public * Public) =>
+          let dec_high = π2 (π2 encH) in
+          let dec_low = π2 (π2 encL) in
+          let key_high = π1 encH in
+          let (state, input) = args in
+          if (⟨"eq"⟩ (state, "0")) then
+            corr_case lKH in
+            case (dec_high ⟨key_high, input⟩) with
+            | inl key_low' =>
+                corr_case lKL in
+                (key_store := (ı2 key_low' : unit + (corr (lKL)? Public : aKL))) ;
+                ⟨"1", "0"⟩
+            | inr _fail =>
+                ⟨"10", "1"⟩
+          else if (⟨"eq"⟩ (state, "1")) then
+            let stored_key = (!key_store) in
+            case stored_key with
+            | inl _ => ⟨"10", "err"⟩
+            | inr k =>
+              corr_case lKL in
+              case (dec_low ⟨k, input⟩) with
+              | inl _ =>
+                ⟨"10", "0"⟩
+              | inr _ =>
+                ⟨"10", "1"⟩
+          else
+            ⟨"10", ""⟩)⟩
     )
+  in
+  let a = (alice_sm) in
+  let b = (bob_sm) in
+  (((run_two_sm : $ two_sm [] []) a) b)
+  :
+  (Public * Public) -> Public
+  by {
+    unfold sideConditions
+    unfold interpSideConditions
+    simp
+    split_grind
+  }
+
+def value :=
+  OwlTy {
+    (Data ⟨⊥⟩)
+  }
+
+def party_type :=
+  OwlTy {
+    ((Public -> ((unit -> unit) -> unit)) -> ((Public -> unit) -> unit) -> unit)
+  }
+
+#tc_with run_protocol_tc_inlined := lM, lKL ⊐ lM, lKH ⊐ lKL ; · ; aKH <: Data lKH, aKL <: Data lKL ; · ;
+  encH => ($ ENC_Inner [lKH] [aKL, aKH]),
+  encL => ($ ENC_Inner [lKL] [Data lM, aKL]),
+  msg  => Data lM
+  ⊢
+  let party1 : ($ party_type [] []) =
+   (λ send =>
+      λ recv =>
+        let enc_high = π1 (π2 encH) in
+        let enc_low  = π1 (π2 encL) in
+        let key_high = π1 encH in
+        let key_low  = π1 encL in
+        let ciphertext1 = (corr_case lKH in (enc_high ⟨key_high, key_low⟩)) in
+        let ciphertext2 = (corr_case lKL in (enc_low ⟨key_low, msg⟩)) in
+        (send ciphertext1) (λ (_ : unit) : unit =>
+          (send ciphertext2) (λ (_ : unit) : unit => ()))) in
+
+
+  let party2 : ($ party_type [] []) =
+  (λ send =>
+    λ recv =>
+      let dec_high  = π2 (π2 encH) in
+      let dec_low   = π2 (π2 encL) in
+      let key_high  = π1 encH in
+      recv (λ (c1 : Public) : unit =>
+        corr_case lKH in
+        case (dec_high ⟨key_high, c1⟩) with
+        | inl key_low' =>
+            recv (λ (c2 : Public) : unit =>
+              corr_case lKL in
+              case (dec_low ⟨key_low', c2⟩) with
+              | inl _ => (send "0") (λ (_ : unit) : unit => ())
+              | inr _ => (send "1") (λ (_ : unit) : unit => ()))
+        | inr _ =>
+            (send "1") (λ (_ : unit) : unit => ()))) in
+
+
+  -- run protocol
+  λ (_ : unit) : (Public * Public) -> Public =>
+      let k1 : (Ref (Public -> unit))   = alloc (λ (_ : Public) : unit => ()) in
+      let k2 : (Ref (Public -> unit))   = alloc (λ (_ : Public) : unit => ()) in
+      let out1 : (Ref Public) = alloc ("" : Public) in
+      let out2 : (Ref Public) = alloc ("" : Public) in
+      let send1 : (Public -> ((unit -> unit) -> unit)) = (λ (v : Public) : ((unit -> unit) -> unit) =>
+       λ (k : (unit -> unit)) : unit =>
+         (out1 := v) ;
+         (k1 := (λ (_ : Public) : unit => k ()))) in
+      let recv1 : (Public -> unit) -> unit = (λ (k : (Public -> unit)) : unit =>
+         (k1 := k)) in
+      let send2 : (Public -> (unit -> unit) -> unit) = (λ (v : Public) : ((unit -> unit) -> unit) =>
+        λ (k : (unit -> unit)) : unit =>
+          (out2 := v) ;
+          (k2 := (λ (_ : Public) : unit => k ()))) in
+       let recv2 : (Public -> unit) -> unit = (λ (k : (Public -> unit)) : unit =>
+        (k2 := k)) in
+    ((party1 send1) recv1) ;
+    ((party2 send2) recv2) ;
+    (λ (args : (Public * Public)) : Public =>
+      let (b, v) = args in
+        if b then
+          let _  = ((!k1) v) in
+          !out1
+        else
+          let _ = ((!k2) v) in
+          !out2)
+  :
+  unit -> ((Public * Public) -> Public)
+  by {
+    unfold sideConditions
+    simp
+    try split_grind
+  }
+
+#tc_with run_protocol_client_server := lM, lKL ⊐ lM, lKH ⊐ lKL ; · ; aPSK <: Data lKH, aKX <: Data lKL, aX <: Data lM ; · ;
+  encPSK => ($ ENC_Inner [lKH] [aKX, aPSK]),
+  encKX => ($ ENC_Inner [lKL] [Data lM, aKX]) ,
+  x => Data lM
+  ⊢
+  let server : ($ party_type [] []) =
+    λ send =>
+    λ recv =>
+      let enc_psk = π1 (π2 encPSK) in
+      let psk = π1 encPSK in
+      let dec_kx = π2 (π2 encKX) in
+      let key_x = π1 encKX in
+      let ct1 = corr_case lKH in (enc_psk ⟨psk, key_x⟩) in
+      (send ct1) (λ (_ : unit) : unit =>
+        recv (λ (ct2 : Public) : unit =>
+          corr_case lKL in
+          case (dec_kx ⟨key_x, ct2⟩) with
+          | inl _ => ()
+          | inr _ => ())) in
+
+
+  let client : ($ party_type [] []) =
+    λ send =>
+    λ recv =>
+      let dec_psk = π2 (π2 encPSK) in
+      let enc_kx = π1 (π2 encKX) in
+      let psk = π1 encPSK in
+      recv (λ (ct1 : Public) : unit =>
+        corr_case lKH in
+        case (dec_psk ⟨psk, ct1⟩) with
+        | inl key_x' =>
+            let ct2 = corr_case lKL in (enc_kx ⟨key_x', x⟩) in
+            (send ct2) (λ (_ : unit) : unit => ())
+        | inr _ => ()) in
+
+
+  -- run protocol
+  λ (_ : unit) : (Public * Public) -> Public =>
+    let s2c_k   : (Ref (Public -> unit)) = alloc (λ (_ : Public) : unit => ()) in
+    let s2c_out : (Ref Public) = alloc ("" : Public) in
+    let c2s_k : (Ref (Public -> unit)) = alloc (λ (_ : Public) : unit => ()) in
+    let c2s_out : (Ref Public) = alloc ("" : Public) in
+
+    let send_server : (Public -> (unit -> unit) -> unit) =
+      λ (v : Public) : ((unit -> unit) -> unit) =>
+      λ (k : (unit -> unit)) : unit =>
+        (s2c_out := v) ;
+        (s2c_k := (λ (_ : Public) : unit => k ())) in
+
+    let recv_server : (Public -> unit) -> unit =
+      λ (k : (Public -> unit)) : unit =>
+        (c2s_k := k) in
+
+    let recv_client : (Public -> unit) -> unit =
+      λ (k : (Public -> unit)) : unit =>
+        (s2c_k := k) in
+
+    let send_client : (Public -> (unit -> unit) -> unit) =
+      λ (v : Public) : ((unit -> unit) -> unit) =>
+      λ (k : (unit -> unit)) : unit =>
+        (c2s_out := v) ;
+        k () in
+
+    ((server send_server) recv_server) ;
+    ((client send_client) recv_client) ;
+
+    (λ (args : (Public * Public)) : Public =>
+      let (b, v) = args in
+        if b then
+          let _ = ((!s2c_k) v) in !s2c_out
+        else
+          let _ = ((!c2s_k) v) in !c2s_out)
+  :
+  unit -> ((Public * Public) -> Public)
+  by {
+    unfold sideConditions
+    simp
+    try split_grind
+  }
+/-
+
+#tc protocol := lM, lKL ⊐ lM, lKH ⊐ lKL; · ; aKH <: Data lKH, aKL <: Data lKL ;
+  --  Make it : instead of =>
+  encH => ($ ENC_Inner [lKH] [aKL, aKH]),
+  encL => ($ ENC_Inner [lKL] [Data lM, aKL] ),
+  msg => Data lM,
+  io => Public -> Public
+ ⊢
+  let key_low = π1 encL in
+  let enc_low = π1 (π2 encL) in
+  let dec_low = π2 (π2 encL) in
+
+  let key_high = π1 encH in
+  let enc_high = π1 (π2 encH) in
+  let dec_high = π2 (π2 encH) in
+
+  -- Alice's code
+  let ctxt1 = (corr_case lKH in ( enc_high ⟨ key_high, key_low⟩ ))  in
+  let ctxt2 = (corr_case lKL in ( enc_low ⟨ key_low, msg ⟩ )) in
+  -- TODO: Ask Michael about parsing this better vvv
+  let unused = io ctxt1  in -- Should be "let _ "
+  let unused = io ctxt2  in
+
+  -- Alice's state = whether or not she's been run
+  -- Query Alice, if true, do things, else nothing
+  -- 3 states : 1. do nothing 2. output ciphertexts 3. ciphertexts
+
+  -- Bob's code (similar):
+  -- Initial State
+  -- Supply First CipherText -> First Decryption State
+  -- Supply Second CipherText -> Second Decryption State
+  -- Final State -> State
+  -- Output to the network via the state machine "0" or "1"
+
+  -- Alice in detail
+  -- Initial State1
+  -- (_, State1) -> (CipherText1, State2)
+  -- (_, State2) -> (CipherText2, Done)
+  -- (_, Done) -> ("", Done)
+
+  -- Bob in detail
+  -- Initial State1
+  -- (CipherText1 -> (0, State2)) -- Store key when entering State2 (key type is aKL if lKH is NOT corrupt, using corr ?)
+  --                                                                (key type is Public if lKH is corrupt)
+  -- (CipherText1 -> (1, Done))
+  -- (CipherText2 -> (0/1, Done)) -- make sure to grab key from memory
+  -- (_, Done) -> ("", Done)
+
+  -- Bob's code
+  corr_case lKH in
+  -- For the binary: 0x1234. Represent this as a list of U8s.
+  case dec_high ⟨key_high, io ""⟩ in -- Case "with"
+  | inl key_low' =>
+    corr_case lKL in
+    case dec_low ⟨key_low', io ""⟩ in
+    | inl success => () -- Use () instead of *
+    | inr _fail => ()
+  --  Make "_" work as an identifier
+  | inr _fail => ()
+  :
+    unit
+
+  /-
+    Unit -> (
+      (Public -> Public) // Oracle for the adversary to call alice
+      *
+      (Public -> Public) // oracle for the adversary to call bob
+    )
+  -/
+by {
+    unfold sideConditions
+    simp
+    grind
+}
+
+-/
