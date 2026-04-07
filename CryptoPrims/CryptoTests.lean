@@ -375,8 +375,8 @@ def value :=
   }
 
 def party_type :=
-  OwlTy {
-    ((Public -> ((unit -> unit) -> unit)) -> ((Public -> unit) -> unit) -> unit)
+  OwlTy_with [] [] [α]  {
+    ((Public -> ((unit -> unit) -> unit)) -> ((Public -> unit) -> unit) -> α)
   }
 
 #tc_with run_protocol_tc_inlined := lM, lKL ⊐ lM, lKH ⊐ lKL ; · ; aKH <: Data lKH, aKL <: Data lKL ; · ;
@@ -384,7 +384,7 @@ def party_type :=
   encL => ($ ENC_Inner [lKL] [Data lM, aKL]),
   msg  => Data lM
   ⊢
-  let party1 : ($ party_type [] []) =
+  let party1 : ($ party_type [] [unit]) =
    (λ send =>
       λ recv =>
         let enc_high = π1 (π2 encH) in
@@ -397,7 +397,7 @@ def party_type :=
           (send ciphertext2) (λ (_ : unit) : unit => ()))) in
 
 
-  let party2 : ($ party_type [] []) =
+  let party2 : ($ party_type [] [unit]) =
   (λ send =>
     λ recv =>
       let dec_high  = π2 (π2 encH) in
@@ -452,12 +452,13 @@ def party_type :=
     try split_grind
   }
 
-#tc_with run_protocol_client_server := lM, lKL ⊐ lM, lKH ⊐ lKL ; · ; aPSK <: Data lKH, aKX <: Data lKL, aX <: Data lM ; · ;
+#tc_with run_protocol_client_server := lM, lKL ⊐ lM, lKH ⊐ lKL ; · ;
+  aPSK <: Data lKH, aKX <: Data lKL, aX <: Data lM ; · ;
   encPSK => ($ ENC_Inner [lKH] [aKX, aPSK]),
-  encKX => ($ ENC_Inner [lKL] [Data lM, aKX]) ,
-  x => Data lM
+  encKX => ($ ENC_Inner [lKL] [aX, aKX]) ,
+  x => aX
   ⊢
-  let server : ($ party_type [] []) =
+  let server : ($ party_type [] [unit]) =
     λ send =>
     λ recv =>
       let enc_psk = π1 (π2 encPSK) in
@@ -473,7 +474,7 @@ def party_type :=
           | inr _ => ())) in
 
 
-  let client : ($ party_type [] []) =
+  let client : ($ party_type [] [unit]) =
     λ send =>
     λ recv =>
       let dec_psk = π2 (π2 encPSK) in
