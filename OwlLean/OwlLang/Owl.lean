@@ -122,7 +122,7 @@ inductive cond_sym : Type
 | ngeq : cond_sym
 | ngt : cond_sym
 | nlt : cond_sym
-deriving Repr, DecidableEq
+deriving Repr, DecidableEq, Lean.ToExpr
 
 
 inductive label : Nat -> Type where
@@ -131,16 +131,16 @@ inductive label : Nat -> Type where
 | ljoin : label n -> label n -> label n
 | lmeet : label n -> label n -> label n
 | default : label n
-deriving Repr, BEq
+deriving Repr, BEq, Lean.ToExpr
 
 inductive corruption : Nat -> Type where
 | corr : label n -> corruption n
 | not_corr : label n -> corruption n
-deriving Repr, BEq
+deriving Repr, BEq, Lean.ToExpr
 
 inductive constr (n_label : Nat) : Type where
 | condition : cond_sym -> label n_label -> label n_label -> constr n_label
-deriving Repr, BEq
+deriving Repr, BEq, Lean.ToExpr
 
 abbrev GUId := Nat
 
@@ -150,7 +150,7 @@ inductive rexp : Nat -> Nat -> Type where
   | op : String -> rexp r n -> rexp r n -> rexp r n
   | tmvar : Fin n -> rexp r n
   | const : String -> rexp r n
-deriving Repr, BEq
+deriving Repr, BEq, Lean.ToExpr
 
 def rexp.free (i : Fin r) (re : rexp r n) :=
   match re with
@@ -168,7 +168,7 @@ inductive prop : Nat -> Nat -> Type where
   | pimpl : prop r n -> prop r n -> prop r n
   | pnot : prop r n -> prop r n
   | pall : prop (r + 1) n -> prop r n
-  deriving Repr, BEq
+  deriving Repr, BEq, Lean.ToExpr
 
 
 
@@ -206,7 +206,7 @@ inductive ty : Nat -> Nat -> Nat -> Nat -> Type where
 | Public : ty n_label n_ref n_ty n_tm
 | default : ty n_label n_ref n_ty n_tm
 | admit : ty n_label n_ref n_ty n_tm
-deriving Repr, BEq
+deriving Repr, BEq, Lean.ToExpr
 
 
 @[simp]
@@ -239,10 +239,16 @@ inductive Dist (a : Type) : Type where
 | flip : (Bool -> Dist a) → Dist a
 
 
+deriving instance Lean.ToExpr for String.Pos.Raw
+deriving instance Lean.ToExpr for Substring.Raw
+deriving instance Lean.ToExpr for Lean.SourceInfo
+deriving instance Lean.ToExpr for Lean.Syntax
+deriving instance Lean.ToExpr for Owl.opaqueSyntax
+
 mutual
   inductive tm : Nat -> Nat -> Nat -> Nat -> Type where
    | mk : opaqueSyntax -> tmX l d m r -> tm l d m r
-   deriving Repr
+   deriving Repr, Lean.ToExpr
 
 inductive tmX : Nat -> Nat -> Nat -> Nat -> Type where
 | admit : tmX n_label n_ref n_ty n_tm
@@ -286,18 +292,10 @@ inductive tmX : Nat -> Nat -> Nat -> Nat -> Type where
 | corr_case : label n_label -> tm n_label n_ref n_ty n_tm -> tmX n_label n_ref n_ty n_tm
 | annot : tm n_label n_ref n_ty n_tm -> ty n_label n_ref n_ty n_tm -> tmX n_label n_ref n_ty n_tm
 | default : tmX n_label n_ref n_ty n_tm
-deriving Repr
+deriving Repr, Lean.ToExpr
 
 end
 
-deriving instance Lean.ToExpr for Owl.Lcarrier
-deriving instance Lean.ToExpr for Owl.label
-deriving instance Lean.ToExpr for Owl.corruption
-deriving instance Lean.ToExpr for Owl.cond_sym
-deriving instance Lean.ToExpr for Owl.constr
-deriving instance Lean.ToExpr for Owl.rexp
-deriving instance Lean.ToExpr for Owl.prop
-deriving instance Lean.ToExpr for Owl.ty
 
 @[always_inline]
 abbrev tm.get (t : tm l d m r) : tmX l d m r :=
@@ -811,6 +809,19 @@ def ty.resolve_tm [Monad m] (f : Fin n -> m (rexp r 0)) : ty l r d n -> m (ty l 
 | .t_if l t1 t2 => do
   return .t_if l (← t1.resolve_tm f) (← t2.resolve_tm f)
 | .default => pure .default
+
+
+structure ScopeEnv where
+  l : Nat
+  r : Nat
+  d : Nat
+  m : Nat
+
+inductive Decl : ScopeEnv -> ScopeEnv -> Type where
+  | Nil : Decl se se
+  | DeclTy {se : ScopeEnv} (name : String) (ty : ty se.l se.r se.d se.m) : Decl se {se with d := se.d + 1}
+  | DeclTm : String -> tm l r d m -> Decl se {se with m := se.m + 1}
+  | DeclApp : Decl se se' -> Decl se' se'' -> Decl se se''
 
 
 end Owl

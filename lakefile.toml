@@ -5,7 +5,6 @@ defaultTargets = ["OwlLean"]
 
 [[lean_lib]]
 name = "OwlLean"
-globs = ["OwlLean.OwlLang.+", "OwlLean.TypeChecker.+", "CryptoPrims.CryptoTests", "OwlLean.CryptoPrims.+"]
 
 
 

@@ -12,6 +12,10 @@ inductive vec (α : Type u) : Nat → Type u
 | cons : α → vec α n → vec α (n + 1)
   deriving Lean.ToExpr
 
+def vec.toList (v : vec α n) : List α :=
+  match v with
+  | vec.nil => []
+  | vec.cons x xs => x :: xs.toList
 
 @[simp]
 def vec.to_fn (v : vec α n) : Fin n → α :=
