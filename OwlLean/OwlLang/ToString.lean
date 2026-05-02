@@ -28,7 +28,7 @@ instance : ToString (label n) where
   toString := label.pretty
 
 
-def rexp.pretty (re : rexp r n) : String :=
+def rexp.pretty (re : rexp s) : String :=
   match re with
   | .var i => "r" ++ toString i.toNat
   | .op s r1 r2 => s ++ "(" ++ r1.pretty ++ "," ++ r2.pretty ++ ")"
@@ -36,7 +36,7 @@ def rexp.pretty (re : rexp r n) : String :=
   | .fvar n => "<guid " ++ Lean.Name.toString n ++ ">"
   | .tmvar j => "val(" ++ toString j.toNat ++ ")"
 
-def prop.pretty (p : prop r n) : String :=
+def prop.pretty (p : prop s) : String :=
   match p with
   | .peq r1 r2 => r1.pretty ++ " = " ++ r2.pretty
   | .pand p1 p2 => p1.pretty ++ " ∧ " ++ p2.pretty
@@ -45,7 +45,7 @@ def prop.pretty (p : prop r n) : String :=
   | .pnot p1 => "¬ " ++ p1.pretty
   | .pall p1 => "∀ ." ++ p1.pretty
 
-def ty.pretty (t : ty l r d n ) : String :=
+def ty.pretty (t : ty s) : String :=
   match t with
   | .var_ty i => "X" ++ toString i.toNat
   | .Any => "Any"
@@ -71,5 +71,5 @@ def ty.pretty (t : ty l r d n ) : String :=
   | .admit => "admit"
   | .default => "default"
 
-instance : ToString (ty l r d n) where
+instance : ToString (ty s) where
   toString := ty.pretty

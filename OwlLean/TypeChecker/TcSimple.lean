@@ -8,7 +8,7 @@ open Owl
 open Lean Meta Elab Tactic
 
 @[simp]
-def Owl.ty.simplify (t : ty l r d m ) (corrs : List (corruption l)): ty l r d m :=
+def Owl.ty.simplify (t : ty s) (corrs : corr_ctx s) : ty s :=
   match t with
   | .admit => t
   | .var_ty _ => t
@@ -22,10 +22,10 @@ def Owl.ty.simplify (t : ty l r d m ) (corrs : List (corruption l)): ty l r d m 
   | .arr t0 t1 => .arr (t0.simplify corrs) (t1.simplify corrs)
   | .union t0 t1 => .union (t0.simplify corrs) (t1.simplify corrs)
   | .inter t0 t1 => .inter (t0.simplify corrs) (t1.simplify corrs)
-  | .ex t0 t1 => .ex (t0.simplify corrs) (t1.simplify corrs)
-  | .ex_r t0 => .ex_r (t0.simplify corrs)
-  | .all_r t0 => .all_r (t0.simplify corrs)
-  | .all t0 t1 => .all (t0.simplify corrs) (t1.simplify corrs)
+  | .ex t0 t1 => .ex (t0.simplify corrs) (t1.simplify corrs.bumpTy)
+  | .ex_r t0 => .ex_r (t0.simplify corrs.bumpRef)
+  | .all_r t0 => .all_r (t0.simplify corrs.bumpRef)
+  | .all t0 t1 => .all (t0.simplify corrs) (t1.simplify corrs.bumpTy)
   | .t_if l t0 t1 =>
     match List.find? (fun corr =>
       match corr with
@@ -38,68 +38,65 @@ def Owl.ty.simplify (t : ty l r d m ) (corrs : List (corruption l)): ty l r d m 
   | .sum t0 t1 => .sum (t0.simplify corrs) (t1.simplify corrs)
   | .prod t0 t1 => .prod (t0.simplify corrs) (t1.simplify corrs)
   | .default => .default
-  | .all_l cs l t => .all_l cs l (t.simplify $ lift_psi corrs)
+  | .all_l cs l t => .all_l cs l (t.simplify corrs.bumpLbl)
 
 
-namespace OwlTc
+namespace Owl
+
+-- abbrev RCtx n := List (prop n 0)
 
 
-abbrev RCtx n := List (prop n 0)
-
-
-inductive SideCondition r where
-  | PhiEntails : phi_context_repr l -> Owl.constr l -> SideCondition r
-  | PhiPsiEntailCorr : String -> phi_context_repr l -> psi_context l -> corruption l -> SideCondition r
-  | TyVarEq : Fin d -> Fin d -> SideCondition r
-  | TyEq : ty l r d m -> ty l r d m -> SideCondition r
-  | CondSymEq : cond_sym -> cond_sym -> SideCondition r
-  | PsiContextInconsistent : String -> phi_context_repr l -> psi_context l -> SideCondition r
-  | RexpEq : rexp r 0 -> rexp r 0 -> SideCondition r
-  | PropHolds : prop r 0 -> SideCondition r
-  | ScOr : SideCondition r -> SideCondition r -> SideCondition r
-  | ScAnd : SideCondition r -> SideCondition r -> SideCondition r
+inductive SideCondition s where
+  | LblEntails : lbl_ctx s -> Owl.constr s -> SideCondition s
+  | PhiPsiEntailCorr : String -> lbl_ctx s -> corr_ctx s -> corruption s -> SideCondition s
+  | LblContextInconsistent : String -> lbl_ctx s -> corr_ctx s -> SideCondition s
+  | PropHolds : prop s -> SideCondition s
+  | RexpEq : rexp s -> rexp s -> SideCondition s
+  | ScOr : SideCondition s -> SideCondition s -> SideCondition s
+  | ScAnd : SideCondition s -> SideCondition s -> SideCondition s
   | ScTrue
   | ScFalse
 deriving ToExpr
 
 
+
 @[simp]
-def rexp_interp (re : rexp r 0) (bvar_interp : Fin r -> String) (fvar_interp : Lean.Name -> String) (f_interp : String -> String -> String -> String )  :=
+def rexp.interp {s : Scope} (h : s.nTm = 0) (re : rexp s) (bvar_interp : Fin s.nRef -> String) (fvar_interp : Lean.Name -> String) (f_interp : String -> String -> String -> String )  :=
   match re with
   | .var i => bvar_interp i
-  | .op s r1 r2 => f_interp s (rexp_interp r1 bvar_interp fvar_interp f_interp) (rexp_interp r2 bvar_interp fvar_interp f_interp)
+  | .op s r1 r2 => f_interp s (r1.interp h bvar_interp fvar_interp f_interp) (r2.interp h bvar_interp fvar_interp f_interp)
   | .const b => b
   | .fvar i => fvar_interp i
+  | .tmvar  i => nomatch (h ▸ i)
 
 @[simp]
-def interp_prop (p : prop r 0) (bvar_interp : Fin r -> String) (fvar_interp : Lean.Name -> String) (f_interp : String -> String -> String -> String) :=
+def prop.interp {s : Scope} (h : s.nTm = 0) (p : prop s) (bvar_interp : Fin s.nRef -> String) (fvar_interp : Lean.Name -> String) (f_interp : String -> String -> String -> String) :=
   match p with
-  | .peq re1 re2 => (rexp_interp re1 bvar_interp fvar_interp f_interp) = (rexp_interp re2 bvar_interp fvar_interp f_interp)
-  | .pand p1 p2 => interp_prop p1 bvar_interp fvar_interp f_interp ∧ interp_prop p2 bvar_interp fvar_interp f_interp
-  | .por p1 p2 => interp_prop p1 bvar_interp fvar_interp f_interp ∨  interp_prop p2 bvar_interp fvar_interp f_interp
-  | .pimpl p1 p2 => interp_prop p1 bvar_interp fvar_interp f_interp → interp_prop p2 bvar_interp fvar_interp f_interp
-  | .pnot p1 => ¬ interp_prop p1 bvar_interp fvar_interp f_interp
+  | .peq re1 re2 => (re1.interp h bvar_interp fvar_interp f_interp) = (re2.interp h bvar_interp fvar_interp f_interp)
+  | .pand p1 p2 => p1.interp h bvar_interp fvar_interp f_interp ∧ p2.interp h bvar_interp fvar_interp f_interp
+  | .por p1 p2 => p1.interp h bvar_interp fvar_interp f_interp ∨  p2.interp h bvar_interp fvar_interp f_interp
+  | .pimpl p1 p2 => p1.interp h bvar_interp fvar_interp f_interp → p2.interp h bvar_interp fvar_interp f_interp
+  | .pnot p1 => ¬ p1.interp h bvar_interp fvar_interp f_interp
   | .pall p1 =>
     forall v,
-    interp_prop p1 (cons v bvar_interp) fvar_interp f_interp
+      p1.interp (by simpa [Scope.bumpRef]) (cons v bvar_interp) fvar_interp f_interp
 
 
 
 @[simp]
-def SideCondition.eval (p : SideCondition r) (bvar_interp : Fin r -> String) (fvar_interp : Lean.Name -> String) (f_interp : String -> String -> String -> String) : Prop :=
+def SideCondition.eval (p : SideCondition s) (h : s.nTm = 0)  (bvar_interp : Fin s.nRef -> String) (fvar_interp : Lean.Name -> String) (f_interp : String -> String -> String -> String) : Prop :=
   match p with
-  | PhiEntails phi c => vec.to_fn phi |= c
-  | PhiPsiEntailCorr _ phi psi l => phi_psi_entail_corr (vec.to_fn phi) psi l
-  | TyVarEq x y => x = y
-  | TyEq t1 t2 => t1 = t2
-  | CondSymEq c1 c2 => c1 = c2
-  | PsiContextInconsistent _ phi psi => psi_context_inconsistent (vec.to_fn phi) psi
-  | RexpEq re1 re2 => (rexp_interp re1 bvar_interp fvar_interp f_interp) = (rexp_interp re2 bvar_interp fvar_interp f_interp)
-  | PropHolds p1 => interp_prop p1 bvar_interp fvar_interp f_interp
-  | ScOr e1 e2 => e1.eval bvar_interp fvar_interp f_interp ∨ e2.eval bvar_interp fvar_interp f_interp
-  | ScAnd e1 e2 => e1.eval bvar_interp fvar_interp f_interp ∧  e2.eval bvar_interp fvar_interp f_interp
+  | LblEntails phi c => phi.entails c
+  | PhiPsiEntailCorr _ phi psi l => entail_corr phi psi l
+  | LblContextInconsistent _ phi psi => lbl_ctx.inconsistent_with phi psi
+  | RexpEq r1 r2 => r1.interp h bvar_interp fvar_interp f_interp = r2.interp h bvar_interp fvar_interp f_interp
+  | PropHolds p1 => p1.interp h bvar_interp fvar_interp f_interp
+  | ScOr e1 e2 => e1.eval h bvar_interp fvar_interp f_interp ∨ e2.eval h bvar_interp fvar_interp f_interp
+  | ScAnd e1 e2 => e1.eval h bvar_interp fvar_interp f_interp ∧  e2.eval h bvar_interp fvar_interp f_interp
   | ScTrue => True
   | ScFalse => False
+
+/-
 
 def SideCondition.pretty (p : SideCondition r) : String :=
   match p with
@@ -116,12 +113,14 @@ def SideCondition.pretty (p : SideCondition r) : String :=
   | SideCondition.ScTrue => "True"
   | SideCondition.ScFalse => "False"
 
-instance : ToString (SideCondition r) where
-  toString := SideCondition.pretty
+-/
 
-@[simp]
-def RCtx.interp (theta : RCtx r) (bvar_interp : Fin r -> String) (fvar_interp : Lean.Name -> String) (f_interp : String -> String -> String -> String) : Prop :=
-  List.foldr (fun i acc => interp_prop i bvar_interp fvar_interp f_interp ∧ acc) True theta
+instance : ToString (SideCondition r) where
+  toString := fun _ => "<sc>" -- SideCondition.pretty
+
+
+def interp_proplist {s : Scope} (props : List (prop s.withoutTms)) (bvar_interp : Fin s.nRef -> String) (fvar_interp : Lean.Name -> String) (f_interp : String -> String -> String -> String) : Prop :=
+  List.foldr (fun i acc => @prop.interp s.withoutTms (by rfl) i bvar_interp fvar_interp f_interp ∧ acc) True props
 
 
 inductive Result ε α where
@@ -129,27 +128,27 @@ inductive Result ε α where
   | err : ε -> Result ε α
 
 structure SideConditionWithContext where
-  r : Nat
-  theta : RCtx r
-  sc : SideCondition r
+  s : Scope
+  props : List (prop s.withoutTms)
+  sc : SideCondition s.withoutTms
   deriving ToExpr
 
 
-structure Env l r d m where
-  phi : phi_context l
-  psi : psi_context l
-  delta : delta_context l r d
-  theta : RCtx r
-  gamma : gamma_context l r d m
+structure Env (s : Scope) where
+  lbl : lbl_ctx s.withoutTms
+  corr : corr_ctx s.withoutTms
+  ty_vars : ty_var_ctx s.withoutTms
+  prop_ctx : List (prop s.withoutTms)
+  tms :  tm_ctx s
   curSyntax : Option Owl.opaqueSyntax
 
 
 
-abbrev CheckT' l r d m (α : Type) :=
-  ReaderT (Env l r d m) TermElabM (Result (Option Owl.opaqueSyntax × String) α)
+abbrev CheckT' s (α : Type) :=
+  ReaderT (Env s) TermElabM (Result (Option Owl.opaqueSyntax × String) α)
 
 @[always_inline, simp]
-instance {l r d m} : Monad (CheckT' l r d m) where
+instance {s} : Monad (CheckT' s) where
   pure x := fun _ => pure (.ok x)
   bind c k := fun env => do
     match ← c env with
@@ -159,47 +158,65 @@ instance {l r d m} : Monad (CheckT' l r d m) where
       | .err e2 => pure (.err e2)
       | .ok res => pure (.ok res)
 
-def lift_RCtx_r (θ : RCtx n) : RCtx (n + 1) :=
-  θ.map (ren_prop shift id)
+-- def lift_RCtx_r (θ : RCtx n) : RCtx (n + 1) :=
+--   θ.map (ren_prop shift id)
 
 /-- Extend `gamma` with one term variable (its typing is at type index `0`). -/
-def withGammaVar {l r d m α} (t : ty l r d 0) (body : CheckT' l r d (m + 1) α) : CheckT' l r d m α :=
-  fun env => body { env with gamma := cons t env.gamma }
+def withTmVar {s} (t : ty s) (body : CheckT' s.bumpTm α) : CheckT' s α :=
+  fun env => body { env with
+    lbl := env.lbl
+    corr := env.corr
+    ty_vars := env.ty_vars
+    prop_ctx := env.prop_ctx
+    tms := vec.cons (t.rename Scope.liftTm) (env.tms.map fun t => t.rename Scope.liftTm)
+   }
 
-/-- Extend `theta` and `gamma` as in `tlet` after `extract_refinements`. -/
-def withThetaAppendAndGammaVar {l r d m α} (θs : RCtx r) (t : ty l r d 0)
-    (body : CheckT' l r d (m + 1) α) : CheckT' l r d m α :=
-  fun env => body { env with theta := env.theta ++ θs, gamma := cons t env.gamma }
+-- /-- Extend `theta` and `gamma` as in `tlet` after `extract_refinements`. -/
+-- def withThetaAppendAndGammaVar {l r d m α} (θs : RCtx r) (t : ty l r d 0)
+--     (body : CheckT' l r d (m + 1) α) : CheckT' l r d m α :=
+--   fun env => body { env with theta := env.theta ++ θs, gamma := cons t env.gamma }
 
-def withPsi {l r d m α} (ψ : psi_context l) (body : CheckT' l r d m α) : CheckT' l r d m α :=
-  fun env => body { env with psi := ψ }
+def withCorruption {s} (c : corruption s.withoutTms) (body : CheckT' s α) : CheckT' s α :=
+  fun env => body { env with corr := c :: env.corr }
 
-def withDeltaTyVar {l r d m α} (t0 : ty l r d 0) (body : CheckT' l r (d + 1) m α) : CheckT' l r d m α :=
+def withTyVar {s} (t0 : ty s.withoutTms) (body : CheckT' s.bumpTy α) : CheckT' s α :=
   fun env =>
-    body { env with delta := lift_delta (cons t0 env.delta), gamma := lift_gamma_d env.gamma }
+    body { env with
+      lbl := env.lbl.map fun (s, l) => (s, l.rename Scope.liftTy)
+      corr := env.corr.map fun c => c.rename Scope.liftTy
+      ty_vars := vec.cons (t0.rename Scope.liftTy) (env.ty_vars.map fun t => t.rename Scope.liftTy)
+      prop_ctx := env.prop_ctx.map fun p => p.rename Scope.liftTy
+      tms := env.tms.map fun t => t.rename Scope.liftTy
+    }
 
-def withRefLevel {l r d m α} (body : CheckT' l (r + 1) d m α) : CheckT' l r d m α :=
+def withRefVar {s : Scope} (body : CheckT' s.bumpRef α) : CheckT' s α :=
   fun env =>
     body {
       env with
-      delta := lift_delta_r env.delta
-      theta := lift_RCtx_r env.theta
-      gamma := lift_gamma_r env.gamma }
+      lbl := env.lbl.map fun (s, l) => (s, l.rename Scope.liftRef)
+      corr := env.corr.map fun c => c.rename Scope.liftRef
+      ty_vars := env.ty_vars.map fun t => t.rename Scope.liftRef
+      prop_ctx := env.prop_ctx.map fun p => p.rename Scope.liftRef
+      tms := env.tms.map fun t => t.rename Scope.liftRef
+    }
 
-def withLabelVar {l r d m α} (cs : cond_sym) (lab : label l) (body : CheckT' (l + 1) r d m α) :
-    CheckT' l r d m α :=
+
+def withLabelVar {s} (cs : cond_sym) (lab : label s.withoutTms) (body : CheckT' s.bumpLbl α) :
+    CheckT' s α :=
   fun env =>
     body {
       env with
-      phi := lift_phi (cons (cs, lab) env.phi)
-      psi := lift_psi env.psi
-      delta := lift_delta_l env.delta
-      gamma := lift_gamma_l env.gamma }
+      lbl := vec.cons (cs, lab.rename Scope.liftLbl) $ env.lbl.map fun (s, l) => (s, l.rename Scope.liftLbl)
+      corr := env.corr.map fun c => c.rename Scope.liftLbl
+      ty_vars := env.ty_vars.map fun t => t.rename Scope.liftLbl
+      prop_ctx := env.prop_ctx.map fun p => p.rename Scope.liftLbl
+      tms := env.tms.map fun t => t.rename Scope.liftLbl
+    }
 
-def withUnpackBinders {l r d m α} (t0 : ty l r d 0) (t : ty l r (d + 1) 0)
-    (body : CheckT' l r (d + 1) (m + 1) α) : CheckT' l r d m α :=
-  fun env =>
-    body { env with delta := lift_delta (cons t0 env.delta), gamma := cons t (lift_gamma_d env.gamma) }
+-- def withUnpackBinders {l r d m α} (t0 : ty l r d 0) (t : ty l r (d + 1) 0)
+--     (body : CheckT' l r (d + 1) (m + 1) α) : CheckT' l r d m α :=
+--   fun env =>
+--     body { env with delta := lift_delta (cons t0 env.delta), gamma := cons t (lift_gamma_d env.gamma) }
 
 
 attribute [simp] Fin.foldr_succ
@@ -215,7 +232,7 @@ def owl_f_interp (s x y : String) : String :=
 
 @[simp]
 def SideConditionWithContext.eval (sc : SideConditionWithContext) : Prop :=
-  forall bv fv, RCtx.interp sc.theta bv fv owl_f_interp -> sc.sc.eval bv fv owl_f_interp
+forall bv fv, interp_proplist sc.props bv fv owl_f_interp -> sc.sc.eval (by rfl) bv fv owl_f_interp
 
 def runGrind (g : Expr) : TermElabM Bool := do
   let g <- mkFreshExprMVar g
@@ -229,8 +246,8 @@ def doSimp (e : Expr) : TermElabM Expr := do
   return res.fst.expr
 
 
- def doGrindSc {r} (theta : RCtx r) (sc : SideCondition r) : TermElabM Bool := do
-  let scc : SideConditionWithContext := {r := r, theta := theta, sc := sc}
+ def doGrindSc {s : Scope} (theta : List (prop s.withoutTms)) (sc : SideCondition s.withoutTms) : TermElabM Bool := do
+  let scc : SideConditionWithContext := {s := s, props := theta, sc := sc}
   let e  <- mkAppM ``SideConditionWithContext.eval #[toExpr scc]
   let e <- doSimp e
   -- logInfo s!"doGrindSc: simped to {<- PrettyPrinter.ppExpr e}"
@@ -238,25 +255,25 @@ def doSimp (e : Expr) : TermElabM Expr := do
 
 end Proof
 
-instance {l r d m} : MonadReaderOf (Env l r d m) (CheckT' l r d m) where
+instance : MonadReaderOf (Env s) (CheckT' s) where
   read := fun env => pure (.ok env)
 
-def prove  (p : SideCondition r) : CheckT' l r d m Bool :=
-  fun env => .ok <$> Proof.doGrindSc env.theta p
+def prove  (p : SideCondition r) : CheckT' s Bool :=
+  sorry
+  -- fun env => .ok <$> Proof.doGrindSc env.theta p
 
-def printTyCtx : CheckT' l r d m String := do
+def printTyCtx : CheckT' s String := do
   let env ← read
-  let g_repr := vec.from_fn env.gamma
-  let pretties := g_repr.toList.map fun t => s!"    {t.pretty}"
+  let pretties := env.tms.toList.map fun t => s!"    {t.pretty}"
   pure (String.intercalate "\n" pretties)
 
 
-def throw' {l r d m α} (s : String) : CheckT' l r d m α := do
+def throw' (s : String) : CheckT' sc α := do
   let tyErr := s!"Type error: {s}\nType context: \n {<- printTyCtx}"
   fun env => pure (.err (env.curSyntax, tyErr))
 
-def withSyntax' {l r d m α} (s : Owl.opaqueSyntax) (k : CheckT' l r d m α) : CheckT' l r d m α :=
-  fun env => k { env with curSyntax := .some s }
+def withSyntax'  (stx : Owl.opaqueSyntax) (k : CheckT' s α) : CheckT' s α :=
+  fun env => k { env with curSyntax := .some stx }
 
 
 
@@ -275,15 +292,15 @@ def addTypeInfo (stx : Syntax) (s : String) := do
       }
     pure ()
 
-def visit {l r d m} (s : Owl.opaqueSyntax) (t : ty l r d 0) : CheckT' l r d m Unit := fun _ => do
-  addTypeInfo s.inner (toString t)
+def visit (stx : Owl.opaqueSyntax) (t : ty s) : CheckT' s Unit := fun _ => do
+  addTypeInfo stx.inner (toString t)
   pure (.ok ())
 
-def log {l r d m} (s : String) : CheckT' l r d m Unit := fun _ => do
-  println! s
+def log  (st : String) : CheckT' s Unit := fun _ => do
+  println! st
   pure (.ok ())
 
-def freshName {l r d m} : CheckT' l r d m Lean.Name := fun _ => do
+def freshName  : CheckT' s Lean.Name := fun _ => do
   let i <- mkFreshId
   pure (.ok i)
 
@@ -294,11 +311,11 @@ abbrev subtype_fuel := 10
 -- TODO : Finish up various cases that have not yet been completed (for check_subtype and infer)!
 
 
-partial def extract_refinements {l r d m} (t : ty l r d 0) : CheckT' l r d m (RCtx r × ty l r d 0) :=
+partial def extract_refinements (t : ty s.withoutTms) : CheckT' s (List (prop s.withoutTms) × ty s.withoutTms) :=
   match t with
   | .ex_r t0 => do -- ∃ x. t
     let i <- freshName
-    let t1 := t0.subst_rexp i
+    let t1 := t0.subst (Scope.subst.downRef (rexp.fvar i))
     extract_refinements t1
   | .refined t p => do -- t { φ }
     let (x, y) <- extract_refinements t
@@ -311,7 +328,7 @@ partial def extract_refinements {l r d m} (t : ty l r d 0) : CheckT' l r d m (RC
 
 
 -- Computes the side condition necessary for t1 <: t2
-partial def check_subtype' {l r d m : Nat} (t1 t2 : ty l r d 0) : CheckT' l r d m (SideCondition r) := do
+partial def check_subtype'  (t1 t2 : ty s.withoutTms) : CheckT' s (SideCondition s.withoutTms) := do
   log s!"check_subtype': {t1.pretty} <: {t2.pretty}"
   if t1 == t2 then pure .ScTrue else
     match t1, t2 with
@@ -335,33 +352,33 @@ partial def check_subtype' {l r d m : Nat} (t1 t2 : ty l r d 0) : CheckT' l r d 
       pure (r1.ScOr r2)
     | .RData l1 _, .Data l2 => do
       let env ← read
-      pure (.PhiEntails (vec.from_fn env.phi) (.condition .leq l1 l2))
+      pure (.LblEntails env.lbl (.condition .leq l1 l2))
     | .RData l1 re1, .RData l2 re2 => do
       let env ← read
-      let r1 := SideCondition.PhiEntails (vec.from_fn env.phi) (.condition .leq l1 l2)
+      let r1 := SideCondition.LblEntails env.lbl (.condition .leq l1 l2)
       let r2 := SideCondition.RexpEq re1 re2
       pure (r1.ScAnd r2)
     | .Data l1, .Public => do
       let env ← read
-      pure (.PhiPsiEntailCorr s!"Data {l1}, Public" (vec.from_fn env.phi) env.psi (.corr l1))
+      pure (.PhiPsiEntailCorr s!"Data {l1}, Public" env.lbl env.corr (.corr l1))
     | .Data l1, .Data l2 =>
       let env ← read
-      pure (.PhiEntails (vec.from_fn env.phi) (.condition .leq l1 l2))
+      pure (.LblEntails env.lbl (.condition .leq l1 l2))
     | .RData l1 _, .Public => do
       let env ← read
-      pure (.PhiPsiEntailCorr s!"RData {l1}, Public" (vec.from_fn env.phi) env.psi (.corr l1))
+      pure (.PhiPsiEntailCorr s!"RData {l1}, Public" env.lbl env.corr (.corr l1))
     | .Data l1, ty.ex_r (.RData l2 (.var 0)) => do
       let env ← read
-      pure (.PhiEntails (vec.from_fn env.phi) (.condition .leq l1 l2))
+      pure (.LblEntails env.lbl (.condition .leq l1 l2)) -- Here: write a down-coercion for l2 that relies on l2 not using refs
     | .var_ty x1, .var_ty x2 =>
-      pure (.TyVarEq x1 x2)
+      pure (if x1 = x2 then .ScTrue else .ScFalse)
     | .Public, .Public => pure .ScTrue
     | .var_ty x, t' => do
       let env ← read
-      check_subtype' (env.delta x) t'
+      check_subtype' (env.ty_vars.get x) t'
     | t, .var_ty x => do
       let env ← read
-      check_subtype' t (env.delta x)
+      check_subtype' t (env.ty_vars.get x)
     | (.arr ta1 ta2), (.arr ta1' ta2') => do
       let r1 ← check_subtype' ta1' ta1
       let r2 ← check_subtype' ta2 ta2'
@@ -375,57 +392,57 @@ partial def check_subtype' {l r d m : Nat} (t1 t2 : ty l r d 0) : CheckT' l r d 
       let r2 ← check_subtype' ta2 ta2'
       pure (r1.ScAnd r2)
     | .Ref u, .Ref v =>
-      pure (.TyEq u v)
+      if u == v then pure .ScTrue else pure .ScFalse
     | .all t0 t, .all t0' t' => do
       let r1 ← check_subtype' t0 t0'
-      let r2 ← withDeltaTyVar t0' (check_subtype' t t')
+      let r2 ← withTyVar t0' (check_subtype' t t')
       pure (r1.ScAnd r2)
     | .ex t0 t, .ex t0' t' => do
       let r1 ← check_subtype' t0 t0'
-      let r2 ← withDeltaTyVar t0 (check_subtype' t t')
+      let r2 ← withTyVar t0 (check_subtype' t t')
       pure (r1.ScAnd r2)
     | .all_l cs lab t, .all_l _cs' lab' t' => do
       let env ← read
-      let extPhi := lift_phi (cons (cs, lab) env.phi)
-      let constraint := (.condition cs (.var_label "_" var_zero) (ren_label shift lab'))
-      let r1 := SideCondition.PhiEntails (vec.from_fn extPhi) constraint
+      let extPhi := vec.cons (cs, lab.rename Scope.liftLbl) (env.lbl.map fun (sc, l) => (sc, l.rename Scope.liftLbl))
+      let constraint := (.condition cs (.var_label "_" var_zero) (lab'.rename Scope.liftLbl))
+      let r1 := SideCondition.LblEntails extPhi constraint
       let r2 ← withLabelVar cs lab (check_subtype' t t')
       pure (r1.ScAnd r2)
     | .t_if lab ta1 ta2, t' => do
       let env ← read
-      let r1 ← withPsi ((.corr lab) :: env.psi) (check_subtype' ta1 t')
-      let r2 ← withPsi ((.not_corr lab) :: env.psi) (check_subtype' ta2 t')
+      let r1 ← withCorruption (.corr lab) (check_subtype' ta1 t')
+      let r2 ← withCorruption (.not_corr lab) (check_subtype' ta2 t')
       pure (r1.ScAnd r2)
     | t, .t_if lab ta1' ta2' => do
       let env ← read
-      let r1 ← withPsi ((.corr lab) :: env.psi) (check_subtype' t ta1')
-      let r2 ← withPsi ((.not_corr lab) :: env.psi) (check_subtype' t ta2')
+      let r1 ← withCorruption ((.corr lab)) (check_subtype' t ta1')
+      let r2 ← withCorruption ((.not_corr lab)) (check_subtype' t ta2')
       pure (r1.ScAnd r2)
     | _, _ => do
       let env ← read
-      pure (.PsiContextInconsistent s!"check_subtype': {t1} and {t2} are not comparable" (vec.from_fn env.phi) env.psi)
+      pure (.LblContextInconsistent s!"check_subtype': {t1} and {t2} are not comparable" env.lbl env.corr)
 
-def check_subtype {l r d m} (t1 t2 : ty l r d 0) : CheckT' l r d m Unit := do
+def check_subtype  (t1 t2 : ty s) : CheckT' s Unit := do
   let sc ← check_subtype' t1 t2
   let b ← prove sc
   if b then pure ()
-  else throw' s!"Could not prove {t1.pretty} <: {t2.pretty} (side condition: {sc.pretty})"
+  else throw' s!"Could not prove {t1.pretty} <: {t2.pretty} (side condition: {sc})"
 
 @[simp]
-def from_synth {l r d m} (t : ty l r d 0) (exp : Option (ty l r d 0)) : CheckT' l r d m (ty l r d 0) :=
+def from_synth (t : ty s) (exp : Option (ty s)) : CheckT' s (ty s) :=
   match exp with
   | .none => pure t
   | .some t' => do
     check_subtype t t'
     pure t'
 
-def check_corrupt {l r d m} (lab : label l) :
-    CheckT' l r d m (Option Bool) := do
-  if (<- read).psi.contains (.corr lab) then pure (.some True)
-  else if ← prove (.PhiPsiEntailCorr s!"check_corrupt" (vec.from_fn (<- read).phi) (<- read).psi (.corr lab))
+def check_corrupt (lab : label s) :
+    CheckT' s (Option Bool) := do
+  if (<- read).corr.contains (.corr lab) then pure (.some True)
+  else if ← prove (.PhiPsiEntailCorr s!"check_corrupt" (<- read).lbl (<- read).corr (.corr lab))
   then pure (.some True)
-  else if (<- read).psi.contains (.not_corr lab) then pure (.some False)
-  else if ← prove (.PhiPsiEntailCorr s!"check_corrupt" (vec.from_fn (<- read).phi) (<- read).psi (.not_corr lab))
+  else if (<- read).corr.contains (.not_corr lab) then pure (.some False)
+  else if ← prove (.PhiPsiEntailCorr s!"check_corrupt" ((<- read).lbl) (<- read).corr (.not_corr lab))
   then pure (.some False)
   else pure (.none)
 
@@ -448,16 +465,16 @@ def check_corrupt {l r d m} (lab : label l) :
 -- If no type is provided, infer will attempt to synthesize the type of the input term
 -- If successful, it will return the synthesized type, and a proof that the input term has that type
 
-def infer_op {l r d m} (op : String) (t1 t2 : ty l r d 0) : CheckT' l r d m (ty l r d 0) := do
+def infer_op (op : String) (t1 t2 : ty s) : CheckT' s (ty s) := do
   let env ← read
   match t1, t2 with
   | .RData l1 r1, .RData l2 r2 => do
-    let b ← prove (.PhiEntails (vec.from_fn env.phi) (.condition .leq l2 l1))
+    let b ← prove (.LblEntails env.lbl (.condition .leq l2 l1))
     if b then pure (.RData l1 (.op op r1 r2))
     else throw' "infer_op: could not prove Phi |= l2 <= l1"
   | .Public, .Public => return .Public
   | _, _ => do
-    let getLabel (t : ty l r d 0) : CheckT' l r d m (label l) :=
+    let getLabel (t : ty s) : CheckT' s (label s) :=
       match t with
       | .Public => return .latl L.bot
       | .RData l _ => return l
@@ -467,9 +484,9 @@ def infer_op {l r d m} (op : String) (t1 t2 : ty l r d 0) : CheckT' l r d m (ty 
     let l2 ← getLabel t2
     return (.Data (label.ljoin l1 l2))
 
-def resolve_ty {l r d m} (t : ty l r d m) : CheckT' l r d m (ty l r d 0) := do
+def resolve_ty (t : ty s) : CheckT' s (ty s) := do
   let env ← read
-  t.resolve_tm fun i =>
+  t.subst fun i =>
     match env.gamma i with
     | ty.RData _ a => return a
     | _ => throw' s!"Refinement expression or prop cannot make reference to non-refinfed variable"
@@ -483,20 +500,20 @@ def resolve_re {l r d m} (t : rexp r m) : CheckT' l r d m (rexp r 0) := do
 
 
 mutual
-def infer {l r d m} (e : tm l r d m) (exp : Option (ty l r d 0)) : CheckT' l r d m (ty l r d 0) :=
+def infer (e : tm s) (exp : Option (ty s)) : CheckT' s (ty s) :=
   match e with
   | .mk stx v => do
     let t ← withSyntax' stx (inferX v exp)
-    let psi := (← read).psi
-    let t := t.simplify psi
+    let corrs := (← read).corr
+    let t := t.simplify corrs
     visit stx t
     return t
 
-def inferX {l r d m} (e : tmX l r d m) (exp : Option (ty l r d 0)) : CheckT' l r d m (ty l r d 0) :=
+def inferX (e : tmX s) (exp : Option (ty s)) : CheckT' s (ty s)  :=
   match e with
   | .admit => from_synth .admit exp
   | .var_tm x => do
-    from_synth ((<- read).gamma x) exp
+    from_synth ((<- read).tms.get x) exp
   | .skip => from_synth .Unit exp
   | .bitstring b => from_synth (.RData (.latl L.bot) (.const b)) exp
   | .Op op e1 e2 => do
@@ -523,11 +540,13 @@ def inferX {l r d m} (e : tmX l r d m) (exp : Option (ty l r d 0)) : CheckT' l r
     let t1 ← infer e1 .none
     match t1 with
     | .union t11 t12 => do
-      let res1 ← withGammaVar t11 (infer e2 exp)
-      let res2 ← withGammaVar t12 (infer e2 exp)
-      if res1 == res2 then return res1
+      let res1 ← withTmVar t11 (infer e2 (exp.map fun t => t.rename Scope.liftTm))
+      let res2 ← withTmVar t12 (infer e2 (exp.map fun t => t.rename Scope.liftTm))
+      if res1 == res2 then return res1 -- Downcast
       else throw' "union_elim: must get same type on both sides"
-    | _ => withGammaVar t1 (infer e2 exp)
+    | _ => do
+        let res <- withTmVar t1 (infer e2 (exp.map fun t => t.rename Scope.liftTm))
+        pure res
   | .alloc e => do
     let t ← infer e .none
     from_synth (.Ref t) exp
@@ -605,7 +624,7 @@ def inferX {l r d m} (e : tmX l r d m) (exp : Option (ty l r d 0)) : CheckT' l r
   | .tlam e =>
     match exp with
     | .some (.all t0 t) => do
-      let _ ← withDeltaTyVar t0 (infer e (.some t))
+      let _ ← withTyVar t0 (infer e (.some t))
       pure (.all t0 t)
     | _ => throw' s!"Error when type checking Λ: expected type must be a ∀. Instead, got {exp} "
   | .rapp e re => do
@@ -719,4 +738,4 @@ macro_rules
       | (constructor <;> split_grind)
       | grind)
 
-end OwlTc
+end Owl
