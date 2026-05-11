@@ -5,12 +5,12 @@ import Lean
 open Owl
 open Vec
 
-abbrev tm_ctx (s : ScopeMap 4) := vec (ty (s.restrict 3)) (s.get Tm)
-abbrev ty_var_ctx (s : ScopeMap 3) := vec (ty s) (s.get Ty)
-abbrev lbl_ctx (s : ScopeMap 1) := vec (cond_sym × label s) (s.get L)
+abbrev tm_ctx (s : ScopeMap 4) := vec (ty (s.restrict 3)) (s.get #Tm)
+abbrev ty_var_ctx (s : ScopeMap 3) := vec (ty s) (s.get #Ty)
+abbrev lbl_ctx (s : ScopeMap 1) := vec (cond_sym × label s) (s.get #L)
 
-def tm_ctx.bumpTy  (ctx : tm_ctx s) : tm_ctx (s.bump Ty) :=
-  let ctx' := ctx.map fun _ t => t.rename ((s.lift Ty).restrict (by simp))
+def tm_ctx.bumpTy  (ctx : tm_ctx s) : tm_ctx (s.bump #Ty) :=
+  let ctx' := ctx.map fun _ t => t.rename ((s.lift #Ty).restrict (by simp))
   ctx'.castLength (by simp)
 
 @[simp]
@@ -208,7 +208,7 @@ abbrev Owl.label.interp (l : label (ScopeMap.empty _)) : LabelTm :=
 
 
 abbrev corr_ctx.bumpLbl (c : corr_ctx s) :=
-  c.map fun corr => corr.rename (s.lift L)
+  c.map fun corr => corr.rename (s.lift #L)
 
 abbrev corr_ctx.subst (c : corr_ctx s) (i : lbl_interp s) : corr_ctx (ScopeMap.empty _) :=
   c.map fun corr => corr.subst i
