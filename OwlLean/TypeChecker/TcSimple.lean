@@ -264,10 +264,13 @@ partial def rexp.interp {s : ScopeMap 2}
   match re with
   | .fvar nm => fv nm
   | .var i => bv.get (i.cast $ by simp)
-  | .op s r1 r2 =>
+  | .binop s r1 r2 =>
     let r1_interp := r1.interp f_interp fv bv
     let r2_interp := r2.interp f_interp fv bv
     f_interp s r1_interp r2_interp
+  | .unop s r1 =>
+    let r1_interp := r1.interp f_interp fv bv
+    f_interp ("<UNOP>" ++ s) r1_interp ""
   | .const b => b
 
 
@@ -429,6 +432,7 @@ def emitDefinition (name : Name) (type : Expr) (value : Expr) : TermElabM Unit :
     safety      := DefinitionSafety.safe
   }
   addDecl decl
+  compileDecl decl
 
  def decideProp {s : ScopeMap 4} (sc : SideCondition (s.restrict _)) : CheckT' s Bool := do
   let scc : SideConditionWithContext := {s := (s.restrict _), hyps := (<- read).hyps, sc := sc}
@@ -525,7 +529,6 @@ partial def extract_refinements {s : Scope} (t : ty (s.restrict _)) : CheckT' s 
 --
 -- instance : NeqFin (0 : Fin 4) (3 : Fin 4) where
 --   h := by grind
-
 
 
 -- Computes the side condition necessary for t1 <: t2
@@ -683,19 +686,28 @@ private def ty.getLabel {s : Scope} (t : ty (s.restrict 3)) :
   | .Data l => pure l
   | _ => throw' "infer_op: argument must be of type Data / RData / Public"
 
-def infer_op {s : Scope} (op : String) (t1 t2 : ty (s.restrict _)) : CheckT' s (ty (s.restrict _)) := do
+def infer_binop {s : Scope} (op : String) (t1 t2 : ty (s.restrict _)) : CheckT' s (ty (s.restrict _)) := do
   let env ← read
   match t1, t2 with
   | .RData l1 r1, .RData l2 r2 => do
     prove (.LblEntails env.lbl.cast (.condition .leq l2.cast l1.cast))
       s!"infer_op: could not prove |= {l2} <= {l1}"
-    pure (.RData l1 (.op op r1 r2))
+    pure (.RData l1 (.binop op r1 r2))
   | .Public, .Public => return .Public
   | _, _ => do
     let l1 ← t1.getLabel
     let l2 ← t2.getLabel
     pure (.Data (label.ljoin l1 l2))
 
+-- TODO: the logic here could be simplified between infer_ops and getLabel
+def infer_unop {s : Scope} (op : String) (t : ty (s.restrict _)) : CheckT' s (ty (s.restrict _)) :=
+  match t with
+  | .RData l r =>
+    pure (.RData l (.unop op r))
+  | .Public => pure .Public
+  | _ => do
+  let l <- t.getLabel
+  pure (.Data l)
 
 mutual
 def infer (e : tm s) (exp : Option (ty (s.restrict _))) : CheckT' s (ty (s.restrict _)) :=
@@ -714,16 +726,20 @@ def inferX (e : tmX s) (exp : Option (ty (s.restrict _))) : CheckT' s (ty (s.res
     from_synth ((<- read).tms.get x) exp
   | .skip => from_synth .Unit exp
   | .bitstring b => from_synth (.RData (.latl LabelTm.bot) (.const b)) exp
-  | .Op op e1 e2 => do
+  | .binop op e1 e2 => do
     let t1 ← infer e1 .none
     let t2 ← infer e2 .none
-    let tres ← infer_op op t1 t2
+    let tres ← infer_binop op t1 t2
+    from_synth tres exp
+  | .unop op e1 => do
+    let t1 ← infer e1 .none
+    let tres ← infer_unop op t1
     from_synth tres exp
   | .zero e => do
     let t ← infer e none
     match t with
     | .Public | .Data _ | .RData _ _ => from_synth .Public exp
-    | _ => throw' "zero: not bitstring"
+    | _ => throw' s!"Error when checking zero: did not get a bitstring; got {t}"
   | .if_tm e e1 e2 => do
     let _ ← infer e (.some .Public)
     let t1 ← infer e1 exp

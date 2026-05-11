@@ -22,6 +22,7 @@ Known gaps (no active `#tc` here; the typechecker or empty sequent does not supp
 -- Information flow / `Public`: constant bitstrings carry `RData` and subtype to `Public`.
 #tc tc_bitstring_sub_public := ⊢ { "32" } : Public
 
+
 -- Base type `unit`.
 #tc tc_unit := ⊢ { () } : unit
 

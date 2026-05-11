@@ -111,7 +111,11 @@ def doTc (n : TSyntax `ident) (s : Sequent) := do
   match ← ReaderT.run (infer s.e (some s.t)) env with
   | .ok _ => do
     println! "Successfully checked {n}"
-  | .err e =>
+    let eTy <- mkAppM ``tm #[
+      <- mkAppM ``ScopeMap.ofList #[toExpr [s.l, s.r, s.d, s.m]]
+    ]
+    emitDefinition n.getId eTy (toExpr $ s.e)
+  | .err e => do
     logError s!"err: {e.2}"
     match e.1 with
     | .none => PURE
@@ -139,13 +143,109 @@ elab_rules : command
     Command.liftTermElabM $ doTc n seq
 -/
 
-elab "#tc" n:ident ":=" "⊢" "{" e:owl_tm "}" ":" t:owl_type : command => do
-  let seq ← Command.liftTermElabM $ withEnableInfoTree false do
-    let tmE ← elabTm e [] [] [] []
-    let tyE ← elabType t [] [] []
-    return Sequent.mk 0 0 0 0 .nil [] .nil [] .nil tmE tyE
-  Command.liftTermElabM $ doTc n seq
+instance : OfNat (Fin ([A].length)) 0 where
+  ofNat := by simp; exact 0
+
+instance : OfNat (Fin ([A, B, C].length)) 2 where
+  ofNat := by simp; exact 2
+
+declare_syntax_cat label_entry
+
+syntax ident owl_cond_sym owl_label : label_entry
+
+def elabLabelEntry (stx : TSyntax `label_entry) (L : TCtx) : TermElabM (String × cond_sym × label (ScopeMap.ofList [L.length])) :=
+  match stx with
+  | `(label_entry | $n:ident $cs:owl_cond_sym $lbl:owl_label ) => do
+      let cs <- elabCondSym cs
+      let l <- elabLabel lbl L
+      return (n.getId.toString, cs, l)
+  | _ => throwUnsupportedSyntax
+
+def elabLabelEntries (stx : List (TSyntax `label_entry)) (L : TCtx) (ctx : lbl_ctx (ScopeMap.ofList [L.length])): TermElabM ((L' : TCtx) × lbl_ctx (ScopeMap.ofList [L'.length])) :=
+  match stx with
+  | [] => return ⟨L, ctx⟩
+  | e :: es => do
+    let (n, cs, l) <- elabLabelEntry e L
+    let l' : label ((ScopeMap.ofList [L.length + 1])) := l.rename (((ScopeMap.ofList [L.length]).lift #L))
+    let L' := n :: L
+    let ctx' : lbl_ctx (ScopeMap.ofList [L'.length]) :=
+       Vec.vec.cons (cs, l') (ctx.map fun _ (c, l) => (c, l.rename (((ScopeMap.ofList [L.length]).lift #L))))
+    elabLabelEntries es L' ctx'
+
+
+def elabRvarEntries (stx : List (TSyntax `ident)) (L : TCtx) (R : TCtx) : TermElabM (TCtx) :=
+  match stx with
+  | [] => return R
+  | e :: es => do
+    let R' := e.getId.toString :: R
+    elabRvarEntries es L R'
+
+declare_syntax_cat ty_var_entry
+
+syntax ident "<:" owl_type : ty_var_entry
+
+def elabTyVarEntry (stx : TSyntax `ty_var_entry) (L : TCtx) (R : TCtx) (D : TCtx) : TermElabM (String × ty (ScopeMap.ofList [L.length, R.length, D.length])) :=
+  match stx with
+  | `(ty_var_entry | $n:ident <: $t:owl_type ) => do
+    let t <- elabType t L R D
+    return (n.getId.toString, t)
+  | _ => throwUnsupportedSyntax
+
+def elabTyVarEntries (stx : List (TSyntax `ty_var_entry)) (L : TCtx) (R : TCtx) (D : TCtx) (ctx : ty_var_ctx (ScopeMap.ofList [L.length, R.length, D.length])) : TermElabM ((D' : TCtx) × ty_var_ctx (ScopeMap.ofList [L.length, R.length, D'.length])) :=
+  match stx with
+  | [] => return ⟨D, ctx⟩
+  | e :: es => do
+    let (n, t) <- elabTyVarEntry e L R D
+    let t' := t.rename (((ScopeMap.ofList [L.length, R.length, D.length]).lift #Ty))
+    let D' := n :: D
+    let ctx' : ty_var_ctx (ScopeMap.ofList [L.length, R.length, D'.length]) :=
+       Vec.vec.cons t' (ctx.map fun _ t => t.rename (((ScopeMap.ofList [L.length, R.length, D.length]).lift #Ty)))
+    elabTyVarEntries es L R D' ctx'
+
+
+elab "#tc" n:ident "[" lvars:(label_entry),* "]" "[" rvars:ident,* "]" "[" tvars:ty_var_entry,* "]" ":=" "⊢" "{" e:owl_tm "}" ":" t:owl_type : command => do
+  Command.liftTermElabM $ withEnableInfoTree false do
+    let lvars := lvars.getElems.toList
+    let ⟨L, Lctx⟩ <- elabLabelEntries lvars [] .nil
+    let rvars := rvars.getElems.toList
+    let R <- elabRvarEntries rvars L []
+    let tvars := tvars.getElems.toList
+    let ⟨D, Dctx⟩ <- elabTyVarEntries tvars L R [] .nil
+    let tmE ← elabTm e L R D []
+    let tyE ← elabType t L R D
+    let seq : Sequent := {
+      l := L.length
+      r := R.length
+      d := D.length
+      m := 0
+      Phi := Lctx
+      Psi := .nil
+      Delta := Dctx
+      Theta := .nil
+      Gamma := .nil
+      e := tmE
+      t := tyE
+    }
+    doTc n seq
+
+    --Sequent.mk L.length R.length D.length 0 Lctx [] Dctx .nil [] .nil [] .nil tmE tyE
+    -- Command.liftTermElabM $ doTc n seq
 --    Command.elabCommand (← `(#tc_with $n := · ; · ; · ; · ; ·  ⊢ $e : $t))
+
+elab "#tc" n:ident ":=" "⊢" "{" e:owl_tm "}" ":" t:owl_type : command => do
+  Command.elabCommand (← `(#tc $n [] [] [] := ⊢ { $e } : $t))
+
+elab "#ty" n:ident "[" lvars:ident,* "]" "[" rvars:ident,* "]" "[" tvars:ident,* "]" ":=" t:owl_type : command => do
+  let lvars := lvars.getElems.toList.map (·.getId.toString)
+  let rvars := rvars.getElems.toList.map (·.getId.toString)
+  let tvars := tvars.getElems.toList.map (·.getId.toString)
+  Command.liftTermElabM $ withEnableInfoTree false do
+    let t <- elabType t lvars rvars tvars
+    emitDefinition n.getId
+       (<- mkAppM ``ty #[
+          <- mkAppM ``ScopeMap.ofList #[ toExpr [lvars.length, rvars.length, tvars.length] ]
+       ])
+       (toExpr t)
 
 
 -- Example (must live in a downstream module so `command_elab` from `elab` above is active):

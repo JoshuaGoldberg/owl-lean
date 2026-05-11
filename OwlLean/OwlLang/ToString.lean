@@ -38,7 +38,8 @@ def rexp.pretty (re : rexp s) : String :=
   match re with
   | .fvar nm => nm.toString
   | .var i => "r" ++ toString i.toNat
-  | .op s r1 r2 => s ++ "(" ++ r1.pretty ++ "," ++ r2.pretty ++ ")"
+  | .binop s r1 r2 => s ++ "(" ++ r1.pretty ++ "," ++ r2.pretty ++ ")"
+  | .unop s r1 => s ++ "(" ++ r1.pretty ++ ")"
   | .const b => b
 
 def prop.pretty (p : prop s) : String :=
@@ -56,7 +57,7 @@ def ty.pretty (t : ty s) : String :=
   | .Any => "Any"
   | .Unit => "Unit"
   | .refined t p => t.pretty ++ "{" ++ p.pretty ++ "}"
-  | .RData l re => "RData[" ++ l.pretty ++ "," ++ re.pretty ++ "]"
+  | .RData l re => "RData " ++ l.pretty ++ " [" ++ re.pretty ++ "]"
   | .Data l => "Data[" ++ l.pretty ++ "]"
   | .Ref t' => "Ref(" ++ t'.pretty ++ ")"
   | .arr t1 t2 => "(" ++ t1.pretty ++ " -> " ++ t2.pretty ++ ")"

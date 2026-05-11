@@ -78,6 +78,8 @@ grind_pattern lattice_leq_trans => LabelTm.leq l1 l2, LabelTm.leq l2 l3
 def lattice_leq_refl : forall {l}, LabelTm.leq l l := fun {l} => by
   grind [LabelTm.leq]
 
+grind_pattern lattice_leq_refl => LabelTm.leq l l
+
 def lattice_bot_all : forall {l}, LabelTm.leq LabelTm.bot l := fun {l} => by
   simp [LabelTm.leq]
 
@@ -157,7 +159,8 @@ deriving instance BEq, Lean.ToExpr for Owl.opaqueSyntax
 inductive rexp : ScopeMap 2 -> Type where
   | fvar : Lean.Name -> rexp s
   | var : Fin (s.get #R) -> rexp s
-  | op : String -> rexp s -> rexp s -> rexp s
+  | binop : String -> rexp s -> rexp s -> rexp s
+  | unop : String -> rexp s -> rexp s
   | const : String -> rexp s
 deriving Repr, BEq, Lean.ToExpr
 
@@ -220,7 +223,8 @@ inductive tmX : ScopeMap 4 -> Type where
 | tlam : tm (s.bump #Ty) -> tmX s
 | rlam : tm (s.bump #R) -> tmX s
 | l_lam : tm (s.bump #L) -> tmX s
-| Op : String -> tm s -> tm s -> tmX s
+| binop : String -> tm s -> tm s -> tmX s
+| unop : String -> tm s -> tmX s
 | zero : tm s -> tmX s
 | app : tm s -> tm s -> tmX s
 | alloc : tm s -> tmX s
@@ -257,7 +261,8 @@ def rexp.free (i : Fin (s.get #R)) (re : rexp s) :=
   match re with
   | .fvar _ => true
   | .var j      => i != j
-  | .op _ r1 r2 => rexp.free i r1 && rexp.free i r2
+  | .binop _ r1 r2 => rexp.free i r1 && rexp.free i r2
+  | .unop _ r1 => rexp.free i r1
   | .const _    => true
 
 
@@ -526,7 +531,8 @@ def rexp.rename (r : rexp s) (ren : s.renaming s')
     match r with
     | .fvar nm => .fvar nm
     | .var j => .var (ren.apply #R j)
-    | .op s r1 r2 => .op s (r1.rename ren) (r2.rename ren)
+    | .binop s r1 r2 => .binop s (r1.rename ren) (r2.rename ren)
+    | .unop s r1 => .unop s (r1.rename ren)
     | .const b => .const b
 
 def prop.rename (p : prop s) (ren : s.renaming s') : prop s' :=
@@ -614,9 +620,10 @@ def tmX.rename (t : tmX s) (ren : s.renaming s') : tmX s' :=
   | .l_lam s0 =>
       .l_lam
         (s0.rename $ ren.bump #L)
-  | .Op s0 s1 s2 =>
-      .Op s0 (s1.rename ren)
-        (s2.rename ren)
+  | .binop s0 s1 s2 =>
+      .binop s0 (s1.rename ren) (s2.rename ren)
+  | .unop s0 s2 =>
+      .unop s0 (s2.rename ren)
   | .zero s0 => .zero (s0.rename ren)
   | .app s0 s1 =>
      .app (s0.rename ren)
@@ -753,10 +760,13 @@ def rexp.subst (r : rexp s) (sub : RexpSubst s s') : rexp s' :=
   match r with
   | .fvar nm => .fvar nm
   | .var j => sub.apply #R j
-  | .op s r1 r2 =>
+  | .binop s r1 r2 =>
       let r1' := r1.subst sub
       let r2' := r2.subst sub
-      .op s r1' r2'
+      .binop s r1' r2'
+  | .unop s r1 =>
+      let r1' := r1.subst sub
+      .unop s r1'
   | .const b => .const b
 
 def prop.subst (p : prop s) (sub : RexpSubst s s') : prop s' :=

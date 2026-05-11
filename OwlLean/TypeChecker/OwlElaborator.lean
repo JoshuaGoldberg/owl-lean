@@ -14,8 +14,8 @@ declare_syntax_cat owl_label
 declare_syntax_cat owl_type
 declare_syntax_cat owl_constr
 declare_syntax_cat owl_cond_sym
-declare_syntax_cat owl_phi
-declare_syntax_cat owl_phi_entry
+-- declare_syntax_cat owl_phi
+-- declare_syntax_cat owl_phi_entry
 declare_syntax_cat owl_delta
 declare_syntax_cat owl_gamma
 declare_syntax_cat owl_delta_entry
@@ -31,17 +31,14 @@ private def natLit? (e : Expr) : Option Nat :=
   | .lit (.natVal n) => some n
   | _ => none
 
-private def tyParamNats (ty : Expr) : MetaM (Nat × Nat × Nat × Nat) := do
+private def tyParamNats (ty : Expr) : MetaM (ScopeMap 3) := do
   let ty ← whnf ty
   unless ty.getAppFn.isConstOf ``Owl.ty do
     throwError s!"expected Owl.ty …, got {ty}"
   let a := ty.getAppArgs
-  unless 4 ≤ a.size do throwError s!"ty application too small: {ty}"
-  let l := (natLit? a[0]!).getD 0
-  let r := (natLit? a[1]!).getD 0
-  let d := (natLit? a[2]!).getD 0
-  let m := (natLit? a[3]!).getD 0
-  return (l, r, d, m)
+  unless 1 ≤ a.size do throwError s!"ty application too small: {ty} got {a.size} argu"
+  let s := a[0]!
+  unsafe evalExpr (ScopeMap 3) (mkApp (mkConst ``ScopeMap) (mkNatLit 3)) s
 
 private def labelParamNat (ty : Expr) : MetaM Nat := do
   let ty ← whnf ty
@@ -80,12 +77,13 @@ def subst_label (l : label (ScopeMap.ofList [x])) (f : Fin x -> label r) : label
 
 def subst_ty (T : ty (ScopeMap.ofList [l, r, t]))
    (f : Fin l -> label (ScopeMap.ofList [l']))
-   (h : Fin t -> ty (ScopeMap.ofList [l', r, t'])) :
-   ty (ScopeMap.ofList [l', r, t']) :=
+   (g : Fin r -> rexp (ScopeMap.ofList [l', r']))
+   (h : Fin t -> ty (ScopeMap.ofList [l', r', t'])) :
+   ty (ScopeMap.ofList [l', r', t']) :=
    T.subst $ ⟨fun j i =>
      match j with
      | 0 => f i
-     | 1 => Owl.rexp.var i
+     | 1 => g i
      | 2 => h i
     ⟩
 
@@ -171,8 +169,8 @@ partial def elabConstr (stx : Syntax) (P : TCtx := []) : TermElabM (constr (Scop
 
 
 syntax ident : owl_rexp
-syntax "val(" ident ")" : owl_rexp
 syntax ident "(" owl_rexp "," owl_rexp ")" : owl_rexp
+syntax ident "(" owl_rexp ")" : owl_rexp
 syntax str : owl_rexp
 
 
@@ -181,7 +179,10 @@ partial def elab_rexp (stx : Syntax) (P : TCtx := []) (Rs : TCtx) : TermElabM (r
   | `(owl_rexp | $op:ident ( $e1, $e2 )) => do
     let r1 ← elab_rexp e1 P Rs
     let r2 ← elab_rexp e2 P Rs
-    return .op op.getId.toString r1 r2
+    return .binop op.getId.toString r1 r2
+  | `(owl_rexp | $op:ident ( $e1 )) => do
+    let r1 ← elab_rexp e1 P Rs
+    return .unop op.getId.toString r1
   | `(owl_rexp | $i:ident ) => do
     let nm := i.getId.toString
     match Rs.lookup nm with
@@ -249,7 +250,7 @@ syntax "∃" ident "." owl_type : owl_type
 syntax "∀" ident "." owl_type : owl_type
 syntax "corr" "(" owl_label ")" "?" owl_type ":" owl_type : owl_type
 syntax "Public" : owl_type
-syntax "$" term:max "[" owl_label,* "]" "[" owl_type,* "]" : owl_type
+syntax "$" term:max "[" owl_label,* "]" "[" owl_rexp,* "]" "[" owl_type,* "]" : owl_type
 syntax owl_type "{" owl_prop "}" : owl_type
 
 partial def elabType (stx : Syntax) (P : TCtx) (Rs : TCtx) (D : TCtx) :
@@ -320,26 +321,32 @@ partial def elabType (stx : Syntax) (P : TCtx) (Rs : TCtx) (D : TCtx) :
     let t2 ← elabType t2 P Rs D
     let c ← elabLabel c P
     return .t_if c t1 t2
-  | `(owl_type| $ $t:term [ $ls:owl_label,* ] [ $ts:owl_type,* ]) => do
+  | `(owl_type| $ $t:term [ $ls:owl_label,* ] [ $rs:owl_rexp,* ] [ $ts:owl_type,* ]) => do
     let lsVals ← ls.getElems.mapM (elabLabel · P)
     let lsList := lsVals.toList
     let tsVals ← ts.getElems.mapM (elabType · P Rs D)
     let tsValsL := tsVals.toList
+    let rsVals ← rs.getElems.mapM (elab_rexp · P Rs)
+    let rsValsL := rsVals.toList
     let tEx ← Term.elabTerm t (mkConst ``Owl.ty)
     let tTy ← instantiateMVars (← inferType tEx)
-    let (llenInf, rlen, d_tyInf, n_tm) ← liftM <| tyParamNats tTy
-    let llen := if llenInf = 0 && !lsList.isEmpty then lsList.length else llenInf
-    let d_ty := if d_tyInf = 0 && !tsValsL.isEmpty then tsValsL.length else d_tyInf
-    unless n_tm = 0 do
-      throwError s!"embedty: embedded type must have no term-level type parameters (n_tm = 0), got {n_tm}"
-    if llen = lsList.length then
-      if d_ty = tsValsL.length then
-        if rlen = Rs.length then
-          let tVal ← liftM <| unsafe Meta.evalExpr (α := ty (ScopeMap.ofList [lsList.length, Rs.length, tsValsL.length])) tTy tEx
-           return subst_ty tVal ((lsList.get))  (tsValsL.get)
-        else throwError s!"embedty: refinement length mismatch: expected {Rs.length}, got {rlen}"
-      else throwError s!"embedty: type arg mismatch: expected {d_ty}, got {tsValsL.length}"
-    else throwError s!"embedty: label arg mismatch: inferred head arity {llenInf}, splice has {lsList.length} label(s) (resolved llen := {llen})"
+    let ty_s <- tyParamNats tTy
+    if ty_s = ScopeMap.ofList [lsList.length, rsValsL.length, tsValsL.length] then
+      let tVal ← liftM <| unsafe Meta.evalExpr (α := ty (ScopeMap.ofList [lsList.length, rsValsL.length, tsValsL.length])) tTy tEx
+       return subst_ty tVal ((lsList.get)) (rsValsL.get) (tsValsL.get)
+    else throwError s!"embedty: scope map mismatch"
+
+--     let (llenInf, rlen, d_tyInf) ← liftM <| tyParamNats tTy
+--     let llen := if llenInf = 0 && !lsList.isEmpty then lsList.length else llenInf
+--     let d_ty := if d_tyInf = 0 && !tsValsL.isEmpty then tsValsL.length else d_tyInf
+--     if llen = lsList.length then
+--       if d_ty = tsValsL.length then
+--         if rlen = Rs.length then
+--           let tVal ← liftM <| unsafe Meta.evalExpr (α := ty (ScopeMap.ofList [lsList.length, Rs.length, tsValsL.length])) tTy tEx
+--            return subst_ty tVal ((lsList.get))  (tsValsL.get)
+--         else throwError s!"embedty: refinement length mismatch: expected {Rs.length}, got {rlen}"
+--       else throwError s!"embedty: type arg mismatch: expected {d_ty}, got {tsValsL.length}"
+--     else throwError s!"embedty: label arg mismatch: inferred head arity {llenInf}, splice has {lsList.length} label(s) (resolved llen := {llen})"
   | `(owl_type| $t:owl_type { $p }) => do
     let t ← elabType t P Rs D
     let p ← elab_prop p P Rs
@@ -450,17 +457,14 @@ mutual
     let s ← unsafe Meta.evalExpr String tTy tEx
     let e1 ← elabTm e1 P Rs D G
     let e2 ← elabTm e2 P Rs D G
-    return .Op s e1 e2
+    return .binop s e1 e2
   | `(owl_tm| ⟨ $t:term ⟩ ( $e1:owl_tm )) => do
     let tEx ← Term.elabTerm t (mkConst ``String)
     let tTy ← instantiateMVars (← inferType tEx)
     let s ← unsafe Meta.evalExpr String tTy tEx
     let e1 ← elabTm e1 P Rs D G
-    let bend : tmX (ScopeMap.ofList [P.length, Rs.length, D.length, G.length]) := .bitstring ""
-    let arbitrary : tm (ScopeMap.ofList [P.length, Rs.length, D.length, G.length]) :=
-      .mk (mkOpaqueSyntax Syntax.missing) bend
-    return .Op s e1 arbitrary
-  -- | `(owl_tm| $ $t:term [ $ls:owl_label,* ] [ $ts:owl_type,* ] [ $es:owl_tm,* ]) => do
+    return .unop s e1
+-- | `(owl_tm| $ $t:term [ $ls:owl_label,* ] [ $ts:owl_type,* ] [ $es:owl_tm,* ]) => do
   --   let ls' <- ls.getElems.mapM elabLabel
   --   let ts' <- ts.getElems.mapM elabType
   --   let es' <- es.getElems.mapM elabTm
