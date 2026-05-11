@@ -6,6 +6,8 @@ import Std.Data.HashMap
 open Owl
 open Lean Elab Meta
 
+/-
+
 elab "label_parse" "(" p:owl_label ")" : term => do
   return toExpr (← elabLabel p)
 
@@ -40,6 +42,9 @@ elab "Ψ:=" p:owl_phi : term => do
   let phiV ← elabPhiLen p lvars.length
   mkAppM ``vec.to_fn #[toExpr (vec.from_fn phiV)]
 
+-/
+
+
 elab "Owl" "[" lvars:ident,* "]" "[" rvars:ident,* "]" "[" tvars:ident,* "]" "[" vars:ident,* "]" "{" p:owl_tm "}" : term => do
   let varNames := vars.getElems.map (fun id => id.getId.toString)
   let lvarNames := lvars.getElems.map (fun id => id.getId.toString)
@@ -61,7 +66,7 @@ elab "OwlTy_with" "[" lvars:ident,* "]" "[" rvars:ident,* "]" "[" tvars:ident,* 
   let tvarList := tvarNames.toList
   let lvarList := lvarNames.toList
   let rvarList := rvarNames.toList
-  let τ ← elabType p lvarList rvarList tvarList []
+  let τ ← elabType p lvarList rvarList tvarList
   Term.synthesizeSyntheticMVarsNoPostponing
   return toExpr τ
 
@@ -78,17 +83,13 @@ structure Sequent where
   r : Nat
   d : Nat
   m : Nat
-  Phi : phi_context l
-  Psi : psi_context l
-  Delta : delta_context l r d
-  Theta : OwlTc.RCtx r
-  Gamma : gamma_context l r d m
-  e : tm l r d m
-  t : ty l r d 0
-
-syntax "#tc" term "by" tacticSeq : command
-
-open OwlTc
+  Phi : lbl_ctx (ScopeMap.ofList [l])
+  Psi : corr_ctx (ScopeMap.ofList [l])
+  Delta : ty_var_ctx (ScopeMap.ofList [l, r, d])
+  Theta : prop_ctx (ScopeMap.ofList [l, r])
+  Gamma : tm_ctx (ScopeMap.ofList [l, r, d, m])
+  e : tm (ScopeMap.ofList [l, r, d, m])
+  t : ty (ScopeMap.ofList [l, r, d])
 
 opaque owl_f_interp' : String -> String -> String -> String
 
@@ -98,14 +99,16 @@ def owl_f_interp (s x y : String) : String :=
   | _ => owl_f_interp' s x y
 
 def doTc (n : TSyntax `ident) (s : Sequent) := do
-  let env : OwlTc.Env s.l s.r s.d s.m := {
-    phi := s.Phi
-    psi := s.Psi
-    delta := s.Delta
-    theta := s.Theta
-    gamma := s.Gamma
+  let env : Env (ScopeMap.ofList [s.l, s.r, s.d, s.m]) := {
+    defName := n.getId,
+    lbl := s.Phi
+    corrs := s.Psi,
+    ty_vars := s.Delta,
+    hyps := s.Theta,
+    tms := s.Gamma
     curSyntax := none }
-  match ← ReaderT.run (OwlTc.infer s.e (some s.t)) env with
+
+  match ← ReaderT.run (infer s.e (some s.t)) env with
   | .ok _ => do
     println! "Successfully checked {n}"
   | .err e =>
@@ -115,6 +118,7 @@ def doTc (n : TSyntax `ident) (s : Sequent) := do
     | .some v =>
       logErrorAt v.inner e.2
 
+/-
 syntax "#tc_with" ident ":=" owl_phi ";" owl_psi ";" owl_delta ";" owl_theta ";" owl_gamma "⊢" owl_tm ":" owl_type : command
 elab_rules : command
   | `(#tc_with $n := $p ; $ps; $d; $th; $g ⊢ $e : $t ) => do
@@ -133,8 +137,16 @@ elab_rules : command
       return Sequent.mk lvars.length rvars.length tvars.length vars.length
         phi psi delta theta gamma tmE tyE
     Command.liftTermElabM $ doTc n seq
+-/
 
-syntax "#tc" ident ":=" "⊢" "{" owl_tm "}" ":" owl_type : command
-elab_rules : command
-  | `(#tc $n := ⊢ { $e } : $t ) => do
-    Command.elabCommand (← `(#tc_with $n := · ; · ; · ; · ; ·  ⊢ $e : $t))
+elab "#tc" n:ident ":=" "⊢" "{" e:owl_tm "}" ":" t:owl_type : command => do
+  let seq ← Command.liftTermElabM $ withEnableInfoTree false do
+    let tmE ← elabTm e [] [] [] []
+    let tyE ← elabType t [] [] []
+    return Sequent.mk 0 0 0 0 .nil [] .nil [] .nil tmE tyE
+  Command.liftTermElabM $ doTc n seq
+--    Command.elabCommand (← `(#tc_with $n := · ; · ; · ; · ; ·  ⊢ $e : $t))
+
+
+-- Example (must live in a downstream module so `command_elab` from `elab` above is active):
+-- #tc foo := ⊢ { 32 } : Public

@@ -16,13 +16,19 @@ def cond_sym.pretty (c : cond_sym) : String :=
 instance : ToString cond_sym where
   toString := cond_sym.pretty
 
+def LabelTm.pretty (l : LabelTm) : String :=
+  match l with
+  | .atom x => x
+  | .and l1 l2 => "(" ++ l1.pretty ++ " ∧ " ++ l2.pretty ++ ")"
+  | .or l1 l2 => "(" ++ l1.pretty ++ " ∨ " ++ l2.pretty ++ ")"
+  | .bot => "⊥"
+
 def label.pretty (l : label n) : String :=
   match l with
   | .var_label n _ => n
-  | .latl _ => "<lconst>"
+  | .latl l => l.pretty
   | .ljoin l1 l2 => "(" ++ l1.pretty ++ " ⊔ " ++ l2.pretty ++ ")"
   | .lmeet l1 l2 => "(" ++ l1.pretty ++ " ⊓ " ++ l2.pretty ++ ")"
-  | .default => "Ldefault"
 
 instance : ToString (label n) where
   toString := label.pretty
@@ -30,11 +36,10 @@ instance : ToString (label n) where
 
 def rexp.pretty (re : rexp s) : String :=
   match re with
+  | .fvar nm => nm.toString
   | .var i => "r" ++ toString i.toNat
   | .op s r1 r2 => s ++ "(" ++ r1.pretty ++ "," ++ r2.pretty ++ ")"
   | .const b => b
-  | .fvar n => "<guid " ++ Lean.Name.toString n ++ ">"
-  | .tmvar j => "val(" ++ toString j.toNat ++ ")"
 
 def prop.pretty (p : prop s) : String :=
   match p with

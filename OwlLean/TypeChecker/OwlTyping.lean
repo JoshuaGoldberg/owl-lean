@@ -1,44 +1,32 @@
 import OwlLean.OwlLang.Owl
+import OwlLean.OwlLang.ScopeMap
 import Lean
 
 open Owl
+open Vec
 
+abbrev tm_ctx (s : ScopeMap 4) := vec (ty (s.restrict 3)) (s.get Tm)
+abbrev ty_var_ctx (s : ScopeMap 3) := vec (ty s) (s.get Ty)
+abbrev lbl_ctx (s : ScopeMap 1) := vec (cond_sym × label s) (s.get L)
 
-/--
-Type for an n-length array of type `α` as an inductive type.
--/
-inductive vec (α : Type u) : Nat → Type u
-| nil  : vec α 0
-| cons : α → vec α n → vec α (n + 1)
-  deriving Lean.ToExpr
-
-def vec.map (xs : vec a n) (f : a -> b) : vec b n :=
-  match xs with
-  | nil => nil
-  | cons x ys => cons (f x) (ys.map f)
-
-def vec.get (v : vec a n) (i : Fin n) : a :=
-  match v with
-  | nil => nomatch i
-  | cons x xs => if h : i = 0 then x else xs.get (Fin.pred i h)
-
-def vec.toList (v : vec a n) : List a :=
-  match v with
-  | nil => []
-  | cons x xs => x :: xs.toList
-
-abbrev tm_ctx (s : Scope) := vec (ty s) s.nTm
-abbrev ty_var_ctx (s : Scope) := vec (ty s) s.nTy
-abbrev lbl_ctx (s : Scope) := vec (cond_sym × label s) s.nLbl
-
-def tm_ctx.bumpTy {s : Scope} (ctx : tm_ctx s) : tm_ctx s.bumpTy :=
-  ctx.map fun t => t.rename Scope.liftTy
+def tm_ctx.bumpTy  (ctx : tm_ctx s) : tm_ctx (s.bump Ty) :=
+  let ctx' := ctx.map fun _ t => t.rename ((s.lift Ty).restrict (by simp))
+  ctx'.castLength (by simp)
 
 @[simp]
-def vec.All (v : vec a n) (p : Fin n -> a -> Prop) : Prop :=
-  match v with
-  | nil => True
-  | cons x xs => p 0 x /\ xs.All (fun i x => p (Fin.succ i) x)
+abbrev corr_ctx s := (List (corruption s))
+
+def tm_ctx.cast (ctx : tm_ctx s) (h : s = s' := by simp) : tm_ctx s' :=
+  h ▸ ctx
+
+def ty_var_ctx.cast (ctx : ty_var_ctx s) (h : s = s' := by simp) : ty_var_ctx s' :=
+  h ▸ ctx
+
+def lbl_ctx.cast (ctx : lbl_ctx s) (h : s = s' := by simp) : lbl_ctx s' :=
+  h ▸ ctx
+
+def corr_ctx.cast (ctx : corr_ctx s) (h : s = s' := by simp) : corr_ctx s' :=
+  h ▸ ctx
 
 -- The rest here ...
 
@@ -117,13 +105,12 @@ def lift_gamma_r (Gamma : gamma_context l r d m )
 
 -- Convert from labels down to lattice elements
 @[simp]
-def interp_lattice (l : label Scope.empty) : L.labels :=
+def interp_lattice (l : label (ScopeMap.empty _)) : LabelTm :=
   match l with
   | .latl x => x
-  | .ljoin x y => (L.join (interp_lattice x) (interp_lattice y))
-  | .lmeet x y => (L.meet (interp_lattice x) (interp_lattice y))
+  | .ljoin x y => (LabelTm.and (interp_lattice x) (interp_lattice y))
+  | .lmeet x y => (LabelTm.or (interp_lattice x) (interp_lattice y))
   | .var_label _fail n => nomatch n
-  | .default => L.bot
 
 @[simp]
 def negate_cond (co : constr s) : constr s :=
@@ -139,19 +126,20 @@ def negate_cond (co : constr s) : constr s :=
 
 -- Check if a constraint is valid, under the assumption it is closed *)
 @[simp]
-def valid_constraint (co : constr Scope.empty) : Prop :=
+def valid_constraint (co : constr (ScopeMap.empty _)) : Prop :=
   match co with
-  | (.condition .leq x y) => L.leq (interp_lattice x) (interp_lattice y) = true
-  | (.condition .geq x y) => L.leq (interp_lattice y) (interp_lattice x) = true
-  | (.condition .gt x y) => L.leq (interp_lattice y) (interp_lattice x) = true /\ L.leq (interp_lattice x) (interp_lattice y) = false
-  | (.condition .lt x y) => L.leq (interp_lattice x) (interp_lattice y) = true /\ L.leq (interp_lattice y) (interp_lattice x) = false
-  | (.condition .nleq x y) => L.leq (interp_lattice y) (interp_lattice x) = false
-  | (.condition .ngeq x y) => L.leq (interp_lattice y) (interp_lattice x) = false
-  | (.condition .ngt x y) => L.leq (interp_lattice y) (interp_lattice x) = false \/ L.leq (interp_lattice x) (interp_lattice y) = true
-  | (.condition .nlt x y) => L.leq (interp_lattice x) (interp_lattice y) = false \/ L.leq (interp_lattice y) (interp_lattice x) = false
+  | (.condition .leq x y) => LabelTm.leq (interp_lattice x) (interp_lattice y) = true
+  | (.condition .geq x y) => LabelTm.leq (interp_lattice y) (interp_lattice x) = true
+  | (.condition .gt x y) => LabelTm.leq (interp_lattice y) (interp_lattice x) = true /\ LabelTm.leq (interp_lattice x) (interp_lattice y) = false
+  | (.condition .lt x y) => LabelTm.leq (interp_lattice x) (interp_lattice y) = true /\ LabelTm.leq (interp_lattice y) (interp_lattice x) = false
+  | (.condition .nleq x y) => LabelTm.leq (interp_lattice y) (interp_lattice x) = false
+  | (.condition .ngeq x y) => LabelTm.leq (interp_lattice y) (interp_lattice x) = false
+  | (.condition .ngt x y) => LabelTm.leq (interp_lattice y) (interp_lattice x) = false \/ LabelTm.leq (interp_lattice x) (interp_lattice y) = true
+  | (.condition .nlt x y) => LabelTm.leq (interp_lattice x) (interp_lattice y) = false \/ LabelTm.leq (interp_lattice y) (interp_lattice x) = false
 
 
-abbrev lbl_interp s := Scope.subst s Scope.empty
+@[simp]
+abbrev lbl_interp s := LabelSubst s (ScopeMap.empty _)
 
 
 abbrev lbl_interp.holds (i : lbl_interp s) (co : constr s) : Prop :=
@@ -160,9 +148,11 @@ abbrev lbl_interp.holds (i : lbl_interp s) (co : constr s) : Prop :=
 
 
 
+@[simp]
 abbrev lbl_interp.valid (i : lbl_interp s) (c : lbl_ctx s) :=
   c.All fun v (s, l) => i.holds (.condition s (label.var_label "_" v) l)
 
+@[simp]
 abbrev lbl_ctx.entails (c : lbl_ctx s) (co : constr s) : Prop :=
   (forall (interp : lbl_interp s),
     interp.valid c ->
@@ -170,77 +160,65 @@ abbrev lbl_ctx.entails (c : lbl_ctx s) (co : constr s) : Prop :=
   )
 
 structure CorruptionSet where
-  is_corrupt : label Scope.empty -> Prop
-  has_bot : is_corrupt (label.latl L.bot)
+  is_corrupt : LabelTm -> Prop
+  has_bot : is_corrupt LabelTm.bot
   downward_closed : forall l l',
                     is_corrupt l' ->
-                    L.leq (interp_lattice l) (interp_lattice l') = true ->
+                    LabelTm.leq l l' ->
                     is_corrupt l
   join_corrupt : forall l1 l2,
                     is_corrupt l1 ->
                     is_corrupt l2 ->
-                    is_corrupt (l1.ljoin l2)
+                    is_corrupt (LabelTm.and l1 l2)
 
 
 @[grind .]
 theorem CorruptionSet.by_downwards_closed (C : CorruptionSet) :
   C.is_corrupt l ->
-  Owl.L.leq (interp_lattice l') (interp_lattice l) = true ->
+  LabelTm.leq l' l ->
   C.is_corrupt l' := by
     intros h1 h2
     apply C.downward_closed
     apply h1
     assumption
 
-@[simp, grind .]
+@[grind .]
 theorem CorruptionSet.has_bot_pf (C : CorruptionSet) :
-  C.is_corrupt (label.latl Owl.LabelTm.bot) := by {
+  C.is_corrupt LabelTm.bot := by {
       apply C.has_bot
   }
-
-@[grind .]
-theorem CorruptionSet.is_corrupt_bot (C : CorruptionSet) :
-  C.is_corrupt (label.latl Owl.LabelTm.bot) := by
-    apply C.has_bot
 
 @[grind .]
 theorem CorruptionSet.is_corrupt_join (C : CorruptionSet) :
   C.is_corrupt l1 ->
   C.is_corrupt l2 ->
-  C.is_corrupt (l1.ljoin l2) := by
+  C.is_corrupt (LabelTm.and l1 l2) := by
     apply C.join_corrupt
 
-@[simp]
-theorem CorruptionSet.is_corrupt_join_bot (C : CorruptionSet) :
-  C.is_corrupt ((label.latl Owl.LabelTm.bot).ljoin
-                (label.latl Owl.LabelTm.bot)) := by
-    grind
-
-
 
 
 
 @[simp]
-abbrev corr_ctx s := (List (corruption s))
+abbrev Owl.label.interp (l : label (ScopeMap.empty _)) : LabelTm :=
+  match l with
+  | .ljoin l1 l2 => LabelTm.and l1.interp l2.interp
+  | .latl l => l
+  | .var_label _ i => nomatch i
+  | .lmeet l1 l2 => LabelTm.or l1.interp l2.interp
 
-abbrev corr_ctx.bumpTy (c : corr_ctx s) :=
-  c.map fun corr => corr.rename Scope.liftTy
-
-abbrev corr_ctx.bumpRef (c : corr_ctx s) :=
-  c.map fun corr => corr.rename Scope.liftRef
 
 abbrev corr_ctx.bumpLbl (c : corr_ctx s) :=
-  c.map fun corr => corr.rename Scope.liftLbl
+  c.map fun corr => corr.rename (s.lift L)
 
-abbrev corr_ctx.subst (c : corr_ctx s) (i : lbl_interp s) : corr_ctx Scope.empty :=
+abbrev corr_ctx.subst (c : corr_ctx s) (i : lbl_interp s) : corr_ctx (ScopeMap.empty _) :=
   c.map fun corr => corr.subst i
 
 @[simp]
-abbrev CorruptionSet.satifies (C : CorruptionSet) (psi : corr_ctx Scope.empty) : Prop :=
+abbrev CorruptionSet.satifies (C : CorruptionSet) (psi : corr_ctx (ScopeMap.empty _)) : Prop :=
   List.foldr (fun i acc =>
     acc ∧ match i with
-    | corruption.corr x => C.is_corrupt x
-    | .not_corr x => ¬ (C.is_corrupt x)
+    | corruption.corr x => C.is_corrupt x.interp
+    | .not_corr x => ¬ (C.is_corrupt x.interp)
   ) True psi
 
 @[simp]

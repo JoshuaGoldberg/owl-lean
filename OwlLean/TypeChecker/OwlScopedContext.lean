@@ -25,10 +25,3 @@ def list_to_finmap : (xs : List t) → Fin xs.length → t
   | x :: xs => cons x (list_to_finmap xs)
 
 def Fin.from_zero {α : Sort _} (i : Fin 0) : α := nomatch i
-
-namespace Owl
-
-def ty.lift_g {l r d g : Nat} (t : ty l r d 0) : ty l r d g :=
-  ren_ty id id id (fun i => _root_.Fin.from_zero i) t
-
-end Owl
