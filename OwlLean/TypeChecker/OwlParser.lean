@@ -6,6 +6,7 @@ import Std.Data.HashMap
 open Owl
 open Lean Elab Meta
 
+
 /-
 
 elab "label_parse" "(" p:owl_label ")" : term => do
@@ -99,6 +100,10 @@ def owl_f_interp (s x y : String) : String :=
   | "concat" => x ++ y
   | _ => owl_f_interp' s x y
 
+def reportSuccess : TermElabM Unit := do
+  let msgData := .tagged `goalsAccomplished m!"Goals accomplished!"
+  log msgData (severity := .information) (isSilent := true)
+
 def doTc (n : TSyntax `ident) (s : Sequent) := do
   let env : Env (ScopeMap.ofList [s.l, s.r, s.d, s.m]) := {
     defName := n.getId,
@@ -113,6 +118,7 @@ def doTc (n : TSyntax `ident) (s : Sequent) := do
   match ← ReaderT.run (infer s.e (some s.t)) env with
   | .ok _ => do
     println! "Successfully checked {n}"
+    reportSuccess
     let eTy <- mkAppM ``tm #[
       <- mkAppM ``ScopeMap.ofList #[toExpr [s.l, s.r, s.d, s.m]]
     ]
@@ -158,8 +164,14 @@ declare_syntax_cat label_entry
 
 syntax ident owl_cond_sym owl_label : label_entry
 
+syntax ident : label_entry
+
 def elabLabelEntry (stx : TSyntax `label_entry) (L : TCtx) : TermElabM (String × cond_sym × label (ScopeMap.ofList [L.length])) :=
   match stx with
+  | `(label_entry | $n:ident) => do
+       let cs := cond_sym.geq
+       let l := label.latl Owl.LabelTm.bot
+       return (n.getId.toString, cs, l)
   | `(label_entry | $n:ident $cs:owl_cond_sym $lbl:owl_label ) => do
       let cs <- elabCondSym cs
       let l <- elabLabel lbl L
@@ -271,6 +283,11 @@ elab "#ty" n:ident "[" lvars:ident,* "]" "[" rvars:ident,* "]" "[" tvars:ident,*
           <- mkAppM ``ScopeMap.ofList #[ toExpr [lvars.length, rvars.length, tvars.length] ]
        ])
        (toExpr t)
+    reportSuccess
+
+
+elab "#ty" n:ident ":=" t:owl_type : command => do
+  Command.elabCommand (← `(#ty $n [] [] [] := $t))
 
 
 -- Example (must live in a downstream module so `command_elab` from `elab` above is active):
