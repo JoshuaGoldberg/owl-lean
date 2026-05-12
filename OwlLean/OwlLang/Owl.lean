@@ -217,12 +217,12 @@ inductive tmX : ScopeMap 4 -> Type where
 | skip : tmX s
 | bitstring : String -> tmX s
 | loc : Nat -> tmX s
-| fixlam : String -> tm ((s.bump #Tm).bump #Tm) -> tmX s
-| tlet : tm s -> tm (s.bump #Tm) -> tmX s
-| union_elim : tm s -> tm (s.bump #Tm) -> tmX s
-| tlam : tm (s.bump #Ty) -> tmX s
-| rlam : tm (s.bump #R) -> tmX s
-| l_lam : tm (s.bump #L) -> tmX s
+| fixlam : String -> String -> tm ((s.bump #Tm).bump #Tm) -> tmX s
+| tlet : String -> tm s -> tm (s.bump #Tm) -> tmX s
+| union_elim : String -> tm s -> tm (s.bump #Tm) -> tmX s
+| tlam : String -> tm (s.bump #Ty) -> tmX s
+| rlam : String -> tm (s.bump #R) -> tmX s
+| l_lam : String -> tm (s.bump #L) -> tmX s
 | binop : String -> tm s -> tm s -> tmX s
 | unop : String -> tm s -> tmX s
 | zero : tm s -> tmX s
@@ -237,13 +237,16 @@ inductive tmX : ScopeMap 4 -> Type where
 | inr  : tm s -> tmX s
 | case :
     tm s ->
-    tm (s.bump #Tm) -> tm (s.bump #Tm) -> tmX s
+    String ->
+    tm (s.bump #Tm) ->
+    String ->
+    tm (s.bump #Tm) -> tmX s
 | tapp : tm s -> ty (s.restrict 3) -> tmX s
 | lapp : tm s -> label (s.restrict 1) -> tmX s
 | rapp : tm s -> rexp (s.restrict 2) -> tmX s
 | pack : ty (s.restrict 3) -> tm s -> tmX s
 | rpack : rexp (s.restrict 2) -> tm s -> tmX s
-| unpack : tm s -> tm ((s.bump #Ty).bump #Tm) -> tmX s
+| unpack : tm s -> String -> String -> tm ((s.bump #Ty).bump #Tm) -> tmX s
 | if_tm :
     tm s ->
     tm s -> tm s -> tmX s
@@ -603,23 +606,23 @@ def tmX.rename (t : tmX s) (ren : s.renaming s') : tmX s' :=
   | .skip => .skip
   | .bitstring s0 => .bitstring s0
   | .loc s0 => .loc s0
-  | .fixlam nm s0 =>
-      .fixlam nm
+  | .fixlam nm1 nm2 s0 =>
+      .fixlam nm1 nm2
         (s0.rename $ (ren.bump #Tm).bump #Tm)
-  | .tlam s0 =>
-      .tlam (s0.rename $ ren.bump #Ty)
-  | .rlam s0 =>
+  | .tlam nm s0 =>
+      .tlam nm (s0.rename $ ren.bump #Ty)
+  | .rlam nm s0 =>
     .rlam
-        (s0.rename $ ren.bump #R)
-  | .tlet e1 e2 =>
-    .tlet (e1.rename ren)
+        nm (s0.rename $ ren.bump #R)
+  | .tlet nm e1 e2 =>
+    .tlet nm (e1.rename ren)
           (e2.rename $ ren.bump #Tm)
-  | .union_elim e1 e2 =>
-    .union_elim (e1.rename ren)
+  | .union_elim nm e1 e2 =>
+    .union_elim nm (e1.rename ren)
                 (e2.rename $ ren.bump #Tm)
-  | .l_lam s0 =>
+  | .l_lam nm s0 =>
       .l_lam
-        (s0.rename $ ren.bump #L)
+        nm (s0.rename $ ren.bump #L)
   | .binop s0 s1 s2 =>
       .binop s0 (s1.rename ren) (s2.rename ren)
   | .unop s0 s2 =>
@@ -644,9 +647,11 @@ def tmX.rename (t : tmX s) (ren : s.renaming s') : tmX s' :=
       .right_tm (s0.rename ren)
   | .inl s0 => .inl (s0.rename ren)
   | .inr s0 => .inr (s0.rename ren)
-  | .case s0 s1 s2 =>
+  | .case s0 nm1 s1 nm2 s2 =>
       .case (s0.rename ren)
+            nm1
             (s1.rename $ ren.bump #Tm)
+            nm2
             (s2.rename $ ren.bump #Tm)
   | .tapp s0 s1 =>
       .tapp (s0.rename ren)
@@ -661,8 +666,10 @@ def tmX.rename (t : tmX s) (ren : s.renaming s') : tmX s' :=
     (s.rename $ ren.restrict)
     (s0.rename ren)
   | .rpack re t0 => .rpack (re.rename $ ren.restrict) (t0.rename ren)
-  | .unpack s0 s1 =>
+  | .unpack s0 nm1 nm2 s1 =>
       .unpack (s0.rename ren)
+              nm1
+              nm2
               (s1.rename $ (ren.bump #Ty).bump #Tm)
   | .if_tm s0 s1 s2 =>
       .if_tm (s0.rename ren)

@@ -1,13 +1,16 @@
 import OwlLean.TypeChecker.OwlComplete
 
+#ty ENC_inner [lK, lM] [] [tau, alphaK] :=
+       (alphaK *
+        ((corr (lK) ? (Public * Public) -> Public : (alphaK * tau) -> Public) *
+        (corr (lK) ? (Public * Public) -> Public : (alphaK * Public) -> (tau + unit))))
+
 #ty ENC [lK, lM] [] [tau] :=
-    (∃ alphaK <: (Data lK) . (alphaK *
-                                 ((corr (lK) ? (Public * Public) -> Public : (alphaK * tau) -> Public) *
-                                  (corr (lK) ? (Public * Public) -> Public : (alphaK * Public) -> (tau + unit)))))
+    (∃ alphaK <: (Data lK) .
+       ($ ENC_inner [lK, lM] [] [tau, alphaK]))
 
 
-
-#tc ENC_IDEAL [lK ⊒ ⊥, lM ⊏ lK] [] [tau <: Data lM]:=  ⊢ {
+#tc ENC_IDEAL [lK ⊒ ⊥, lM ⊏ lK] [] [tau <: Data lM] [] :=  ⊢ {
     let k = (⟨"genKey"⟩ ("0")) in
     let L = alloc (λ (null : Public) : (tau + unit) => ı2 ()) in
     let enc' = (corr_case lK in
@@ -39,7 +42,7 @@ import OwlLean.TypeChecker.OwlComplete
                                   (corr (lK) ? (Public * Public) -> Public : (RData lK [v] * Public) -> (tau + unit)))))
 
 
-#tc ENC_IDEAL' [lK ⊒ ⊥, lM ⊏ lK] [] [tau <: Data lM]:=  ⊢ {
+#tc ENC_IDEAL' [lK ⊒ ⊥, lM ⊏ lK] [] [tau <: Data lM] [] :=  ⊢ {
     let k = (⟨"genKey"⟩ ("0")) in
     let L = alloc (λ (null : Public) : (tau + unit) => ı2 ()) in
     let enc' = (corr_case lK in

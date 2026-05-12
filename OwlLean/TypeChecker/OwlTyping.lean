@@ -5,12 +5,16 @@ import Lean
 open Owl
 open Vec
 
-abbrev tm_ctx (s : ScopeMap 4) := vec (ty (s.restrict 3)) (s.get #Tm)
-abbrev ty_var_ctx (s : ScopeMap 3) := vec (ty s) (s.get #Ty)
-abbrev lbl_ctx (s : ScopeMap 1) := vec (cond_sym × label s) (s.get #L)
+#check vec.cons
+def vec.castCons (v : a) (xs : vec a n) (h : n + 1 = m) : vec a m :=
+   (xs.cons v).castLength h
+
+abbrev tm_ctx (s : ScopeMap 4) := vec (String × ty (s.restrict 3)) (s.get #Tm)
+abbrev ty_var_ctx (s : ScopeMap 3) := vec (String × ty s) (s.get #Ty)
+abbrev lbl_ctx (s : ScopeMap 1) := vec (String × cond_sym × label s) (s.get #L)
 
 def tm_ctx.bumpTy  (ctx : tm_ctx s) : tm_ctx (s.bump #Ty) :=
-  let ctx' := ctx.map fun _ t => t.rename ((s.lift #Ty).restrict (by simp))
+  let ctx' := ctx.map fun _ (n, t) => (n, t.rename ((s.lift #Ty).restrict (by simp)))
   ctx'.castLength (by simp)
 
 @[simp]
@@ -150,7 +154,7 @@ abbrev lbl_interp.holds (i : lbl_interp s) (co : constr s) : Prop :=
 
 @[simp]
 abbrev lbl_interp.valid (i : lbl_interp s) (c : lbl_ctx s) :=
-  c.All fun v (s, l) => i.holds (.condition s (label.var_label "_" v) l)
+  c.All fun v (_, (s, l)) => i.holds (.condition s (label.var_label "_" v) l)
 
 @[simp]
 abbrev lbl_ctx.entails (c : lbl_ctx s) (co : constr s) : Prop :=

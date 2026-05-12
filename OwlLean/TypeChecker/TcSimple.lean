@@ -125,6 +125,7 @@ instance (ε : Type) : Monad (Result ε) where
 structure Env (s : ScopeMap 4) where
   defName : Name
   lbl : lbl_ctx (s.restrict _)
+  ref_vars : Vec.vec String (s.get #R)
   corrs : corr_ctx (s.restrict _)
   ty_vars : ty_var_ctx (s.restrict _)
   hyps : prop_ctx (s.restrict _)
@@ -159,7 +160,7 @@ instance : MonadReaderOf (Env s) (CheckT' s) where
 
 def printTyCtx : CheckT' s String := do
   let env ← read
-  let pretties := env.tms.toList.map fun t => s!"    {t.pretty}"
+  let pretties := env.tms.toList.map fun (n, t) => s!"    {n}: {t.pretty}"
   pure (String.intercalate "\n" pretties)
 
 def throw' (s : String) : CheckT' sc α := do
@@ -175,13 +176,14 @@ def ScopeMap.renaming.castR (r : ScopeMap.renaming s t) (h : t = t') : ScopeMap.
   h ▸ r
 
 /-- Extend `gamma` with one term variable (its typing is at type index `0`). -/
-def withTmVar {s : ScopeMap 4} (t : ty (s.restrict 3)) (body : CheckT' (s.bump #Tm) α) : CheckT' s α :=
+def withTmVar {s : ScopeMap 4} (n : String) (t : ty (s.restrict 3)) (body : CheckT' (s.bump #Tm) α) : CheckT' s α :=
   fun env => body { env with
     lbl := (ScopeMap.bump_restrict _ _ _ _ ▸ env.lbl)
     corrs := (ScopeMap.bump_restrict _ _ _ _ ▸ env.corrs)
+    ref_vars := env.ref_vars.castLength (by simp)
     ty_vars := env.ty_vars.cast (by rw [ScopeMap.bump_restrict]; grind)
     hyps := env.hyps.cast (by rw [ScopeMap.bump_restrict]; grind)
-    tms := (Vec.vec.cons (t) (env.tms)).cast (by simp) (by rw [ScopeMap.bump_restrict]; grind)
+    tms := (Vec.vec.cons (n, t) (env.tms)).cast (by simp) (by rw [ScopeMap.bump_restrict]; grind)
    }
 
 def withHypsAppend {s} (hyps : List (prop (s.restrict _))) (body : CheckT' s α) : CheckT' s α :=
@@ -194,58 +196,56 @@ def withCorruption {s} (c : corruption (s.restrict _)) (body : CheckT' s α) : C
 
 
 
-def withTyVar {s : ScopeMap 4} (t0 : ty (s.restrict 3)) (body : CheckT' (s.bump #Ty) α) : CheckT' s α :=
+def withTyVar {s : ScopeMap 4} (n : String) (t0 : ty (s.restrict 3)) (body : CheckT' (s.bump #Ty) α) : CheckT' s α :=
   fun env =>
     body { env with
       lbl := (env.lbl.castLength (by simp)).castTy (by simp [ScopeMap.bump_restrict])
       corrs := cast (by simp [ScopeMap.bump_restrict]) env.corrs,
-      ty_vars := (vec.cons (t0.rename ((s.lift #Ty).restrict (by simp))) (env.ty_vars.map fun _ t => t.rename ((s.lift #Ty).restrict (by simp)))).castLength (by simp)
+      ty_vars := (vec.castCons (n, t0.rename ((s.lift #Ty).restrict (by simp)))
+                            (env.ty_vars.map fun _ (n, t) => (n, t.rename ((s.lift #Ty).restrict (by simp)))) (by simp))
       hyps := cast (by congr 1; rw [ScopeMap.bump_restrict]; grind ) env.hyps
-      tms := (env.tms.map fun _ t => t.rename ((s.lift #Ty).restrict _)).cast (by simp) (by congr 1)
+      ref_vars := env.ref_vars.castLength (by simp)
+      tms := (env.tms.map fun _ (n', t) => (n', t.rename ((s.lift #Ty).restrict _))).cast (by simp) (by congr 1)
     }
 
-def withRefVar {s} (body : CheckT' (s.bump #R) α) : CheckT' s α :=
+def withRefVar {s} (nm : String) (body : CheckT' (s.bump #R) α) : CheckT' s α :=
   fun env =>
     body {
       env with
       lbl := (env.lbl.castLength (by simp)).castTy (by simp [ScopeMap.bump_restrict])
       corrs := cast (by simp [ScopeMap.bump_restrict]) env.corrs,
-      ty_vars := (env.ty_vars.map fun _ t => t.rename ((s.lift #R).restrict _)).castLength (by simp),
+      ty_vars := (env.ty_vars.map fun _ (n, t) => (n, t.rename ((s.lift #R).restrict _))).castLength (by simp),
       hyps := env.hyps.map fun p => p.rename ((s.lift #R).restrict (by simp)),
-      tms := (env.tms.map fun _ t => t.rename ((s.lift #R).restrict _)).cast (by simp) (by congr 1)
+      tms := (env.tms.map fun _ (n, t) => (n, t.rename ((s.lift #R).restrict _))).cast (by simp) (by congr 1)
+      ref_vars := (vec.castCons nm env.ref_vars (by simp))
     }
 
-def Env.addRef {s : ScopeMap 4} (env : Env s) : Env (s.bump #R) :=
+def Env.addRef {s : ScopeMap 4} (nm : String) (env : Env s) : Env (s.bump #R) :=
     {
       env with
       lbl := (env.lbl.castLength (by simp)).castTy (by simp [ScopeMap.bump_restrict])
       corrs := cast (by simp [ScopeMap.bump_restrict]) env.corrs,
-      ty_vars := (env.ty_vars.map fun _ t => t.rename ((s.lift #R).restrict _)).castLength (by simp),
+      ty_vars := (env.ty_vars.map fun _ (n, t) => (n, t.rename ((s.lift #R).restrict _))).castLength (by simp),
       hyps := env.hyps.map fun p => p.rename ((s.lift #R).restrict (by simp)),
-      tms := (env.tms.map fun _ t => t.rename ((s.lift #R).restrict _)).cast (by simp) (by congr 1)
+      tms := (env.tms.map fun _ (n, t) => (n, t.rename ((s.lift #R).restrict _))).cast (by simp) (by congr 1)
+      ref_vars := (vec.castCons nm env.ref_vars (by simp))
     }
 
 
-def Env.addLabel (cs : cond_sym) (lab : label (s.restrict _)) (env : Env s) : Env (s.bump #L) :=
-  { env with
-      lbl := (vec.cons (cs, lab.rename ((s.lift #L).restrict _)) $ env.lbl.map fun _ (c, l) => (c, l.rename ((s.lift #L).restrict (by simp)))).castLength (by simp)
-      corrs := env.corrs.map fun c => c.rename ((s.lift #L).restrict (by simp))
-      ty_vars := (env.ty_vars.map fun _ t => t.rename ((s.lift #L).restrict _)).castLength (by simp),
-      hyps := env.hyps.map fun p => p.rename ((s.lift #L).restrict (by simp))
-      tms := (env.tms.map fun _ t => t.rename ((s.lift #L).restrict _)).cast (by simp) (by congr 1)
-  }
-
-def withLabelVar {s} [Monad m] (cs : cond_sym) (lab : label (s.restrict _)) (body : ReaderT (Env (s.bump #L)) m α) :
-    ReaderT (Env s) m α :=
+def withLabelVar [Monad m] (cs : cond_sym) (n : String) (lab : label (s.restrict _)) (body : ReaderT (Env (s.bump #L)) m α) : ReaderT (Env s) m α :=
   fun env =>
     body {
-      env with
-      lbl := (vec.cons (cs, lab.rename ((s.lift #L).restrict _)) $ env.lbl.map fun _ (c, l) => (c, l.rename ((s.lift #L).restrict (by simp)))).castLength (by simp)
+   env with
+      lbl := (vec.castCons (n, (cs, lab.rename ((s.lift #L).restrict _)))
+                           (env.lbl.map fun _ (n, (c, l)) => (n, (c, l.rename ((s.lift #L).restrict (by simp)))))
+                           (by simp))
       corrs := env.corrs.map fun c => c.rename ((s.lift #L).restrict (by simp))
-      ty_vars := (env.ty_vars.map fun _ t => t.rename ((s.lift #L).restrict _)).castLength (by simp),
+      ty_vars := (env.ty_vars.map fun _ (n, t) => (n, t.rename ((s.lift #L).restrict _))).castLength (by simp),
       hyps := env.hyps.map fun p => p.rename ((s.lift #L).restrict (by simp))
-      tms := (env.tms.map fun _ t => t.rename ((s.lift #L).restrict _)).cast (by simp) (by congr 1)
-    }
+      tms := (env.tms.map fun _ (n, t) => (n, t.rename ((s.lift #L).restrict _))).cast (by simp) (by congr 1)
+      ref_vars := env.ref_vars.castLength (by simp)
+  }
+
 
 -- def withUnpackBinders {l r d m α} (t0 : ty l r d 0) (t : ty l r (d + 1) 0)
 --     (body : CheckT' l r (d + 1) (m + 1) α) : CheckT' l r d m α :=
@@ -581,10 +581,10 @@ partial def check_subtype'  {s : Scope} (t1 t2 : ty (s.restrict _)) : CheckT' s 
     | .Public, .Public => pure .ScTrue
     | .var_ty x, t' => do
       let env ← read
-      check_subtype' (env.ty_vars.get x) t'
+      check_subtype' ( env.ty_vars.get x).2 t'
     | t, .var_ty x => do
       let env ← read
-      check_subtype' t (env.ty_vars.get x)
+      check_subtype' t (env.ty_vars.get x).2
     | (.arr ta1 ta2), (.arr ta1' ta2') => do
       let r1 ← check_subtype' ta1' ta1
       let r2 ← check_subtype' ta2 ta2'
@@ -601,18 +601,19 @@ partial def check_subtype'  {s : Scope} (t1 t2 : ty (s.restrict _)) : CheckT' s 
       if u == v then pure .ScTrue else pure .ScFalse
     | .all t0 t, .all t0' t' => do
       let r1 ← check_subtype' t0 t0'
-      let r2 ← withTyVar t0' (check_subtype' (t.cast (by simp [ScopeMap.bump_restrict])) (t'.cast (by simp [ScopeMap.bump_restrict])))
+      let r2 ← withTyVar "_" t0' (check_subtype' (t.cast (by simp [ScopeMap.bump_restrict])) (t'.cast (by simp [ScopeMap.bump_restrict])))
       pure (r1.ScAnd (r2.cast (by simp [ScopeMap.bump_restrict])))
     | .ex t0 t, .ex t0' t' => do
       let r1 ← check_subtype' t0 t0'
-      let r2 ← withTyVar t0 (check_subtype' (t.cast (by simp [ScopeMap.bump_restrict])) (t'.cast (by simp [ScopeMap.bump_restrict])))
+      let r2 ← withTyVar "_" t0 (check_subtype' (t.cast (by simp [ScopeMap.bump_restrict])) (t'.cast (by simp [ScopeMap.bump_restrict])))
       pure (r1.ScAnd (r2.cast (by simp [ScopeMap.bump_restrict])))
     | .all_l cs lab t, .all_l _cs' lab' t' => do
       unless cs = _cs' do throw' s!"check_subtype': cs and cs' are not equal"
       let env ← read
       let extPhi : lbl_ctx ((s.bump #L).restrict 1) :=
-          (vec.cons (cs, lab.rename (((s.lift #L).restrict _).restrict _))
-                    (env.lbl.map fun _ (sc, l) => (sc, l.rename (by rw [ScopeMap.restrict_restrict]; exact ((s.lift #L).restrict _))))).cast
+          (vec.cons ("_", cs, lab.rename (((s.lift #L).restrict _).restrict _))
+                    (env.lbl.map fun _ (n, (sc, l)) =>
+                           (n, (sc, l.rename (by rw [ScopeMap.restrict_restrict]; exact ((s.lift #L).restrict _)))))).cast
              (by simp)
              (by simp)
       let constraint : constr ((s.bump #L).restrict 1) := (.condition cs (.var_label "_" (by simp [ScopeMap.get]; exact 0))
@@ -620,7 +621,7 @@ partial def check_subtype'  {s : Scope} (t1 t2 : ty (s.restrict _)) : CheckT' s 
       let r1 : SideCondition ((s.bump #L).restrict 2) :=
         SideCondition.LblEntails (extPhi.cast)
                                (constraint.cast (by simp [ScopeMap.bump_restrict]))
-      let r2 ← withLabelVar cs (lab.cast) (check_subtype' (t.cast (by simp [ScopeMap.bump_restrict])) (t'.cast (by simp [ScopeMap.bump_restrict])))
+      let r2 ← withLabelVar cs "_" (lab.cast) (check_subtype' (t.cast (by simp [ScopeMap.bump_restrict])) (t'.cast (by simp [ScopeMap.bump_restrict])))
       pure (.WithLabel cs (lab.cast) ((r1.ScAnd r2).cast (by simp [ScopeMap.bump_restrict])))
     | .t_if lab ta1 ta2, t' => do
       let env ← read
@@ -723,7 +724,7 @@ def inferX (e : tmX s) (exp : Option (ty (s.restrict _))) : CheckT' s (ty (s.res
   match e with
   | .admit => from_synth .admit exp
   | .var_tm x => do
-    from_synth ((<- read).tms.get x) exp
+    from_synth ((<- read).tms.get x).2 exp
   | .skip => from_synth .Unit exp
   | .bitstring b => from_synth (.RData (.latl LabelTm.bot) (.const b)) exp
   | .binop op e1 e2 => do
@@ -746,21 +747,21 @@ def inferX (e : tmX s) (exp : Option (ty (s.restrict _))) : CheckT' s (ty (s.res
     let t2 ← infer e2 exp
     check_subtype t2 t1
     from_synth t1 exp
-  | .tlet e1 e2 => do
+  | .tlet x e1 e2 => do
     let t1 ← infer e1 .none
     let (theta', t1') ← extract_refinements t1
-    let res <- withTmVar t1' $ withHypsAppend (theta'.cast (by simp [ScopeMap.bump_restrict]; grind)) (infer e2 (exp.map fun t => t.cast (by simp [ScopeMap.bump_restrict]; grind)))
+    let res <- withTmVar x t1' $ withHypsAppend (theta'.cast (by simp [ScopeMap.bump_restrict]; grind)) (infer e2 (exp.map fun t => t.cast (by simp [ScopeMap.bump_restrict]; grind)))
     pure $ res.cast (by simp [ScopeMap.bump_restrict]; grind)
-  | .union_elim e1 e2 => do
+  | .union_elim x e1 e2 => do
     let t1 ← infer e1 .none
     match t1 with
     | .union t11 t12 => do
-      let res1 ← withTmVar t11 (infer e2 (exp.map fun t => t.cast (by simp [ScopeMap.bump_restrict]; grind)))
-      let res2 ← withTmVar t12 (infer e2 (exp.map fun t => t.cast (by simp [ScopeMap.bump_restrict]; grind)))
+      let res1 ← withTmVar x t11 (infer e2 (exp.map fun t => t.cast (by simp [ScopeMap.bump_restrict]; grind)))
+      let res2 ← withTmVar x t12 (infer e2 (exp.map fun t => t.cast (by simp [ScopeMap.bump_restrict]; grind)))
       if res1 == res2 then pure (res1.cast (by simp [ScopeMap.bump_restrict]; grind))
       else throw' "union_elim: must get same type on both sides"
     | _ => do
-        let res <- withTmVar t1 (infer e2 (exp.map fun t => t.cast (by simp [ScopeMap.bump_restrict]; grind)))
+        let res <- withTmVar x t1 (infer e2 (exp.map fun t => t.cast (by simp [ScopeMap.bump_restrict]; grind)))
         pure $ res.cast (by simp [ScopeMap.bump_restrict]; grind)
   | .alloc e => do
     let t ← infer e .none
@@ -789,11 +790,11 @@ def inferX (e : tmX s) (exp : Option (ty (s.restrict _))) : CheckT' s (ty (s.res
       let _ ← infer e (.some t2)
       pure (.sum t1 t2)
     | _ => throw' "inr: need annotation for full type"
-  | .fixlam _ e =>
+  | .fixlam nm1 nm2 e =>
     match exp with
     | .some (.arr t t') => do
       let expected := (t'.cast (by simp [ScopeMap.bump_restrict]; grind))
-      let _ ← withTmVar t (withTmVar ((ty.arr t t').cast (by simp [ScopeMap.bump_restrict]; grind)) (infer e (.some expected)))
+      let _ ← withTmVar nm2 t (withTmVar nm1 ((ty.arr t t').cast (by simp [ScopeMap.bump_restrict]; grind)) (infer e (.some expected)))
       pure (.arr t t')
     | _ => throw' "fixlam"
   | .app e1 e2 =>
@@ -820,27 +821,27 @@ def inferX (e : tmX s) (exp : Option (ty (s.restrict _))) : CheckT' s (ty (s.res
     match ← infer e .none with
     | .prod _ t2 => from_synth t2 exp
     | t => throw' s!"π2: got unexpected type: {ty.pretty t}"
-  | .case e e1 e2 => do
+  | .case e x e1 y e2 => do
     match ← infer e .none with
     | .sum t1 t2 => do
-      let r1 ← withTmVar t1 (infer e1 (exp.map fun t => t.cast (by simp [ScopeMap.bump_restrict]; grind)))
-      let r2 ← withTmVar t2 (infer e2 (exp.map fun t => t.cast (by simp [ScopeMap.bump_restrict]; grind)))
+      let r1 ← withTmVar x t1 (infer e1 (exp.map fun t => t.cast (by simp [ScopeMap.bump_restrict]; grind)))
+      let r2 ← withTmVar y t2 (infer e2 (exp.map fun t => t.cast (by simp [ScopeMap.bump_restrict]; grind)))
       match exp with
       | .some res => return res
       | none => do
         check_subtype (r2.cast (by simp [ScopeMap.bump_restrict]; grind)) (r1.cast (by simp [ScopeMap.bump_restrict]; grind))
         pure (r1.cast (by simp [ScopeMap.bump_restrict]; grind))
     | _ => throw' "case"
-  | .rlam e =>
+  | .rlam nm e =>
     match exp with
     | .some (.all_r t0) => do
-      let _ ← withRefVar (infer e (.some (t0.cast (by simp [ScopeMap.bump_restrict]))))
+      let _ ← withRefVar nm (infer e (.some (t0.cast (by simp [ScopeMap.bump_restrict]))))
       pure (.all_r t0)
     | _ => throw' "Error when type checking Λr: expected type must be of the form ∀ x. τ"
-  | .tlam e =>
+  | .tlam x e =>
     match exp with
     | .some (.all t0 t) => do
-      let _ ← withTyVar t0 (infer e (.some (t.cast (by simp [ScopeMap.bump_restrict]))))
+      let _ ← withTyVar x t0 (infer e (.some (t.cast (by simp [ScopeMap.bump_restrict]))))
       pure (.all t0 t)
     | _ => throw' s!"Error when type checking Λ: expected type must be a ∀. Instead, got {exp} "
   | .rapp e re => do
@@ -877,24 +878,24 @@ def inferX (e : tmX s) (exp : Option (ty (s.restrict _))) : CheckT' s (ty (s.res
       let _ ← infer e (.some substituted_type)
       pure (.ex t0 t)
     | _ => throw' "pack"
-  | .unpack e e' =>
+  | .unpack e tx x e' =>
     match exp with
     | .none => throw' "unpack: empty expected"
     | .some exp_ty => do
       match ← infer e .none with
       | .ex t0 t => do
         let renamed_t' := (exp_ty.rename ((s.lift #Ty).restrict _))
-        let _ ← withTyVar t0 (withTmVar (t.cast (by simp [ScopeMap.bump_restrict]))
+        let _ ← withTyVar tx t0 (withTmVar x (t.cast (by simp [ScopeMap.bump_restrict]))
                              (infer e' (.some (renamed_t'.cast (by simp [ScopeMap.bump_restrict]; grind)))))
         pure exp_ty
       | _ => throw' "unpack"
-  | .l_lam e =>
+  | .l_lam nm e =>
     match exp with
     | .none => throw' "l_lam: empty expected"
     | .some exp_ty =>
       match exp_ty with
       | .all_l cs lab t_body => do
-        let _ ← withLabelVar cs lab.cast (infer e (.some $ t_body.cast (by simp [ScopeMap.bump_restrict])))
+        let _ ← withLabelVar cs nm lab.cast (infer e (.some $ t_body.cast (by simp [ScopeMap.bump_restrict])))
         pure exp_ty
       | _ => throw' "l_lam"
   | .lapp e lab' =>

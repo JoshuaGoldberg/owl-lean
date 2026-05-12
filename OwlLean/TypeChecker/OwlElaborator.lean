@@ -437,16 +437,16 @@ mutual
     return .bitstring b.getString
   | `(owl_tm| fix $f:owl_var ( $v:owl_var ) $e:owl_tm) => do
     let e' ← elabTm e P Rs D (elabVar f :: elabVar v :: G)
-    return .fixlam (elabVar v) e'
+    return .fixlam (elabVar f) (elabVar v) e'
   | `(owl_tm| Λ $v:owl_var . $e:owl_tm) => do
     let e' ← elabTm e P Rs (elabVar v :: D) G
-    return .tlam e'
+    return .tlam (elabVar v) e'
   | `(owl_tm| Λβ $v:owl_var . $e:owl_tm) => do
     let e' ← elabTm e (elabVar v :: P) Rs D G
-    return .l_lam e'
+    return .l_lam (elabVar v) e'
   | `(owl_tm| Λr $id:ident . $e:owl_tm) => do
     let e' ← elabTm e P (id.getId.toString :: Rs) D G
-    return .rlam e'
+    return .rlam (id.getId.toString) e'
   | `(owl_tm|⟨ $e1:owl_tm , $e2:owl_tm ⟩) => do
     let e1 ← elabTm e1 P Rs D G
     let e2 ← elabTm e2 P Rs D G
@@ -506,7 +506,7 @@ mutual
     let e1 ← elabTm e1 P Rs D G
     let e2 ← elabTm e2 P Rs D (elabVar v1 :: G)
     let e3 ← elabTm e3 P Rs D (elabVar v2 :: G)
-    return .case e1 e2 e3
+    return .case e1 (elabVar v1) e2 (elabVar v2) e3
   | `(owl_tm| $e:owl_tm [ $t:owl_type ]) => do
     let e ← elabTm e P Rs D G
     let t ← elabType t P Rs D
@@ -522,7 +522,7 @@ mutual
   | `(owl_tm| unpack $e1:owl_tm as ($v1:owl_var, $v2:owl_var) in $e2:owl_tm) => do
     let e1 ← elabTm e1 P Rs D G
     let e2 ← elabTm e2 P Rs (elabVar v1 :: D) (elabVar v2 :: G)
-    return .unpack e1 e2
+    return .unpack e1 (elabVar v1) (elabVar v2) e2
   | `(owl_tm| pack ($t:owl_type, $e:owl_tm)) => do
     let t ← elabType t P Rs D
     let e ← elabTm e P Rs D G
@@ -547,11 +547,11 @@ mutual
   | `(owl_tm| union_elim $id1:ident = $e:owl_tm  in $b:owl_tm) => do
     let e ← elabTm e P Rs D G
     let b ← elabTm b P Rs D (id1.getId.toString :: G)
-    return .union_elim e b
+    return .union_elim (id1.getId.toString) e b
   | `(owl_tm| let $v1:owl_var = $e:owl_tm  in $b:owl_tm) => do
     let e ← elabTm e P Rs D G
     let b ← elabTm b P Rs D (elabVar v1 :: G)
-    return .tlet e b
+    return .tlet (elabVar v1) e b
   | `(owl_tm| let $v1:owl_var : $t:owl_type = $e:owl_tm  in $b:owl_tm) => do
     elabTmX (← `(owl_tm| let $v1 = ($e : $t) in $b)) P Rs D G
   | `(owl_tm| let admit $v1:owl_var : $t:owl_type = $_:owl_tm  in $b:owl_tm) => do
@@ -567,7 +567,7 @@ mutual
   | `(owl_tm| λ $v:owl_var => $e:owl_tm) => do
     let e ← elabTm e P Rs D ("_" :: elabVar v :: G)
     let unused := "unused variable"
-    return .fixlam unused e
+    return .fixlam unused (elabVar v) e
   | `(owl_tm| corr_case $l1:owl_label in $e:owl_tm ) => do
     let l ← elabLabel l1 P
     let e ← elabTm e P Rs D G
