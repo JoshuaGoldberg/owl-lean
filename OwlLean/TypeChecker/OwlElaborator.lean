@@ -261,7 +261,7 @@ partial def elabType (stx : Syntax) (P : TCtx) (Rs : TCtx) (D : TCtx) :
       let nm := id.getId.toString
       match D.lookup nm with
       | .none => throwError s!"Unknown type variable: {nm}"
-      | .some j => return .var_ty j
+      | .some j => return .var_ty id.getId.toString j
   | `(owl_type| Any) => return .Any
   | `(owl_type| unit) => return .Unit
   | `(owl_type| Public) => return .Public

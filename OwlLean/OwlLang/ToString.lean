@@ -53,7 +53,7 @@ def prop.pretty (p : prop s) : String :=
 
 def ty.pretty (t : ty s) : String :=
   match t with
-  | .var_ty i => "X" ++ toString i.toNat
+  | .var_ty s i => if s = "_" then "X" ++ toString i.toNat else s
   | .Any => "Any"
   | .Unit => "Unit"
   | .refined t p => t.pretty ++ "{" ++ p.pretty ++ "}"
@@ -72,10 +72,19 @@ def ty.pretty (t : ty s) : String :=
   | .all_l cs l t =>
       "forall(" ++ cs.pretty ++ " " ++ l.pretty ++ "). " ++ t.pretty
   | .t_if l t1 t2 =>
-      "if[" ++ l.pretty ++ "] { " ++ t1.pretty ++ " } else { " ++ t2.pretty ++ " }"
+      "if corr(" ++ l.pretty ++ ") then " ++ t1.pretty ++ " else " ++ t2.pretty ++ " }"
   | .Public => "Public"
   | .admit => "admit"
   | .default => "default"
 
 instance : ToString (ty s) where
   toString := ty.pretty
+
+
+def corruption.pretty (c : corruption s) : String :=
+  match c with
+  | .corr l => "corr(" ++ l.pretty ++ ")"
+  | .not_corr l => "not_corr(" ++ l.pretty ++ ")"
+
+instance : ToString (corruption s) where
+  toString := corruption.pretty

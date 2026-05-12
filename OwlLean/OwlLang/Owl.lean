@@ -179,7 +179,7 @@ inductive prop : ScopeMap 2 -> Type where
 
 
 inductive ty : ScopeMap 3 -> Type where
-| var_ty : Fin (s.get #Ty) -> ty s
+| var_ty : String -> Fin (s.get #Ty) -> ty s
 | Any : ty s
 | Unit : ty s
 | RData : label (s.restrict 1) -> rexp (s.restrict 2) -> ty s
@@ -433,7 +433,7 @@ def prop.rfree  (p : prop s) (i : Fin (s.get #R)) : Bool :=
 def ty.r_free (t : ty s) (i : Fin (s.get #R)) : Bool :=
   match t with
 | .admit => true
-| .var_ty _ => true
+| .var_ty _ _ => true
 | .Any => true
 | .refined t0 p => t0.r_free i && p.rfree (i.cast (by simp))
 | .Unit => true
@@ -552,7 +552,7 @@ def prop.rename (p : prop s) (ren : s.renaming s') : prop s' :=
 def ty.rename (t : ty s) (ren : s.renaming s') : ty s' :=
   match t with
   | .admit => .admit
-  | .var_ty s0 => .var_ty (ren.apply #Ty s0)
+  | .var_ty s s0 => .var_ty s (ren.apply #Ty s0)
   | .Any => .Any
   | .Unit => .Unit
   | .RData s0 re => .RData (s0.rename $ ren.restrict) (re.rename $ ren.restrict)
@@ -688,7 +688,7 @@ abbrev OwlFunctors (x : Fin 3) : ScopeFunctor 3 x :=
   match x with
   | ⟨#L, _⟩ => ⟨fun m => label (m.restrict 1), fun m m' r x => x.rename (r.restrict) , fun i => .var_label "_" (by simpa using i)⟩
   | ⟨#R, _⟩  => ⟨fun m => rexp (m.restrict _), fun m m' r x => x.rename (r.restrict) , fun i => .var (by simpa using i)⟩
-  | ⟨#Ty, _⟩ => ⟨fun m => ty m, fun m m' r x => x.rename r, fun i => .var_ty (by simpa using i)⟩
+  | ⟨#Ty, _⟩ => ⟨fun m => ty m, fun m m' r x => x.rename r, fun i => .var_ty "_" (by simpa using i)⟩
 --  | ⟨#Tm, _⟩ => ⟨fun m => Fin (m.get _), fun m m' r i => r.apply _ i, fun i => i⟩
 
 
@@ -790,7 +790,7 @@ def prop.subst (p : prop s) (sub : RexpSubst s s') : prop s' :=
 def ty.subst (t : ty s) (sub : Subst s s') : ty s' :=
   match t with
   | .admit => .admit
-  | .var_ty s0 => sub.apply #Ty s0
+  | .var_ty _ s0 => sub.apply #Ty s0
   | .Any => .Any
   | .Unit => .Unit
   | .RData s0 re => .RData (s0.subst sub.toLabelSubst) (re.subst sub.toRexpSubst)

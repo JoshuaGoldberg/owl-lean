@@ -13,7 +13,7 @@ open Vec
 def Owl.ty.simplify (t : ty s) (corrs : corr_ctx (s.restrict _)) : ty s :=
   match t with
   | .admit => t
-  | .var_ty _ => t
+  | .var_ty _ _ => t
   | .Any => t
   | .Unit => t
   | .RData _ _ => t
@@ -160,8 +160,10 @@ instance : MonadReaderOf (Env s) (CheckT' s) where
 
 def printTyCtx : CheckT' s String := do
   let env ← read
-  let pretties := env.tms.toList.map fun (n, t) => s!"    {n}: {t.pretty}"
-  pure (String.intercalate "\n" pretties)
+  let prettyTys := env.tms.toList.map fun (n, t) => s!"    {n}: {t.pretty}"
+  let prettyHyps := env.hyps.map fun p => s!"    {p.pretty}"
+  let prettyCorrs := env.corrs.map fun c => s!"    {c.pretty}"
+  pure (String.intercalate "\n" (prettyTys ++ ["Path condition: "] ++ prettyHyps ++ ["Corruption: "] ++ prettyCorrs))
 
 def throw' (s : String) : CheckT' sc α := do
   let tyErr := s!"Type error: {s}\nType context: \n {<- printTyCtx}"
@@ -576,15 +578,17 @@ partial def check_subtype'  {s : Scope} (t1 t2 : ty (s.restrict _)) : CheckT' s 
       pure (.LblEntails (env.lbl.cast)
                         (.condition .leq (l1.cast)
                         (l2.cast (by simp [ScopeMap.bump_restrict]))))
-    | .var_ty x1, .var_ty x2 =>
+    | .var_ty _ x1, .var_ty _ x2 =>
       pure (if x1 = x2 then .ScTrue else .ScFalse)
     | .Public, .Public => pure .ScTrue
-    | .var_ty x, t' => do
-      let env ← read
-      check_subtype' ( env.ty_vars.get x).2 t'
-    | t, .var_ty x => do
-      let env ← read
-      check_subtype' t (env.ty_vars.get x).2
+    | .var_ty _ x, t => do
+      let tx := ((<- read).ty_vars.get x).2
+      -- x <: tx
+      -- tx <: t
+      ----------
+      -- x <: t
+      check_subtype' tx t
+    -- TODO: I deleted the case of (t <: .var_ty _ x).
     | (.arr ta1 ta2), (.arr ta1' ta2') => do
       let r1 ← check_subtype' ta1' ta1
       let r2 ← check_subtype' ta2 ta2'
@@ -831,7 +835,7 @@ def inferX (e : tmX s) (exp : Option (ty (s.restrict _))) : CheckT' s (ty (s.res
       | none => do
         check_subtype (r2.cast (by simp [ScopeMap.bump_restrict]; grind)) (r1.cast (by simp [ScopeMap.bump_restrict]; grind))
         pure (r1.cast (by simp [ScopeMap.bump_restrict]; grind))
-    | _ => throw' "case"
+    | t => throw' s!"Case: need sum type, but got {t.pretty}"
   | .rlam nm e =>
     match exp with
     | .some (.all_r t0) => do
@@ -937,7 +941,7 @@ def inferX (e : tmX s) (exp : Option (ty (s.restrict _))) : CheckT' s (ty (s.res
       match exp with
       | .none => pure (.t_if lab.cast t1 t2)
       | .some exp_ty => pure exp_ty
-    | .some _ => infer e exp
+    | .some b => withCorruption (if b then (.corr lab) else (.not_corr lab)) (infer e exp)
   | .sync e => do
     let _ ← infer e (.some .Public)
     from_synth .Public exp

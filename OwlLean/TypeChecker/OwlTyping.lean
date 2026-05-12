@@ -107,14 +107,15 @@ def lift_gamma_r (Gamma : gamma_context l r d m )
 
 -/
 
--- Convert from labels down to lattice elements
+
 @[simp]
-def interp_lattice (l : label (ScopeMap.empty _)) : LabelTm :=
+abbrev Owl.label.interp (l : label (ScopeMap.empty _)) : LabelTm :=
   match l with
-  | .latl x => x
-  | .ljoin x y => (LabelTm.and (interp_lattice x) (interp_lattice y))
-  | .lmeet x y => (LabelTm.or (interp_lattice x) (interp_lattice y))
-  | .var_label _fail n => nomatch n
+  | .ljoin l1 l2 => LabelTm.and l1.interp l2.interp
+  | .latl l => l
+  | .var_label _ i => nomatch i
+  | .lmeet l1 l2 => LabelTm.or l1.interp l2.interp
+
 
 @[simp]
 def negate_cond (co : constr s) : constr s :=
@@ -132,14 +133,14 @@ def negate_cond (co : constr s) : constr s :=
 @[simp]
 def valid_constraint (co : constr (ScopeMap.empty _)) : Prop :=
   match co with
-  | (.condition .leq x y) => LabelTm.leq (interp_lattice x) (interp_lattice y) = true
-  | (.condition .geq x y) => LabelTm.leq (interp_lattice y) (interp_lattice x) = true
-  | (.condition .gt x y) => LabelTm.leq (interp_lattice y) (interp_lattice x) = true /\ LabelTm.leq (interp_lattice x) (interp_lattice y) = false
-  | (.condition .lt x y) => LabelTm.leq (interp_lattice x) (interp_lattice y) = true /\ LabelTm.leq (interp_lattice y) (interp_lattice x) = false
-  | (.condition .nleq x y) => LabelTm.leq (interp_lattice y) (interp_lattice x) = false
-  | (.condition .ngeq x y) => LabelTm.leq (interp_lattice y) (interp_lattice x) = false
-  | (.condition .ngt x y) => LabelTm.leq (interp_lattice y) (interp_lattice x) = false \/ LabelTm.leq (interp_lattice x) (interp_lattice y) = true
-  | (.condition .nlt x y) => LabelTm.leq (interp_lattice x) (interp_lattice y) = false \/ LabelTm.leq (interp_lattice y) (interp_lattice x) = false
+  | (.condition .leq x y) => LabelTm.leq (x.interp) (y.interp) = true
+  | (.condition .geq x y) => LabelTm.leq (y.interp) (x.interp) = true
+  | (.condition .gt x y) => LabelTm.leq (y.interp) (x.interp) = true /\ LabelTm.leq (x.interp) (y.interp) = false
+  | (.condition .lt x y) => LabelTm.leq (x.interp) (y.interp) = true /\ LabelTm.leq (y.interp) (x.interp) = false
+  | (.condition .nleq x y) => LabelTm.leq (y.interp) (x.interp) = false
+  | (.condition .ngeq x y) => LabelTm.leq (y.interp) (x.interp) = false
+  | (.condition .ngt x y) => LabelTm.leq (y.interp) (x.interp) = false \/ LabelTm.leq (x.interp) (y.interp) = true
+  | (.condition .nlt x y) => LabelTm.leq (x.interp) (y.interp) = false \/ LabelTm.leq (y.interp) (x.interp) = false
 
 
 @[simp]
@@ -198,18 +199,6 @@ theorem CorruptionSet.is_corrupt_join (C : CorruptionSet) :
   C.is_corrupt l2 ->
   C.is_corrupt (LabelTm.and l1 l2) := by
     apply C.join_corrupt
-
-
-
-
-@[simp]
-abbrev Owl.label.interp (l : label (ScopeMap.empty _)) : LabelTm :=
-  match l with
-  | .ljoin l1 l2 => LabelTm.and l1.interp l2.interp
-  | .latl l => l
-  | .var_label _ i => nomatch i
-  | .lmeet l1 l2 => LabelTm.or l1.interp l2.interp
-
 
 abbrev corr_ctx.bumpLbl (c : corr_ctx s) :=
   c.map fun corr => corr.rename (s.lift #L)
