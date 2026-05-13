@@ -1,56 +1,40 @@
 import OwlLean.OwlLang.Owl
+import OwlLean.OwlLang.ScopeMap
 import Lean
 
 open Owl
+open Vec
 
+#check vec.cons
+def vec.castCons (v : a) (xs : vec a n) (h : n + 1 = m) : vec a m :=
+   (xs.cons v).castLength h
 
-/--
-Type for an n-length array of type `α` as an inductive type.
--/
-inductive vec (α : Type u) : Nat → Type u
-| nil  : vec α 0
-| cons : α → vec α n → vec α (n + 1)
-  deriving Lean.ToExpr
+abbrev tm_ctx (s : ScopeMap 4) := vec (String × ty (s.restrict 3)) (s.get #Tm)
+abbrev ty_var_ctx (s : ScopeMap 3) := vec (String × ty s) (s.get #Ty)
+abbrev lbl_ctx (s : ScopeMap 1) := vec (String × cond_sym × label s) (s.get #L)
 
-
-@[simp]
-def vec.to_fn (v : vec α n) : Fin n → α :=
-  match v with
-  | vec.nil => fun i => nomatch i
-  | vec.cons x xs => Fin.cases x xs.to_fn
+def tm_ctx.bumpTy  (ctx : tm_ctx s) : tm_ctx (s.bump #Ty) :=
+  let ctx' := ctx.map fun _ (n, t) => (n, t.rename ((s.lift #Ty).restrict (by simp)))
+  ctx'.castLength (by simp)
 
 @[simp]
-def vec.from_fn (f : Fin n → α) : vec α n :=
-  match n with
-  | 0 => .nil
-  | _ + 1 => .cons (f 0) (vec.from_fn (fun i => f i.succ))
+abbrev corr_ctx s := (List (corruption s))
 
-@[simp]
-theorem vec.from_fn_to (f : Fin n → α) :
-  vec.to_fn (vec.from_fn f) = f := by
-    revert f
-    induction n
-    intros f
-    simp
-    ext i
-    nomatch i
-    intros f
-    simp
-    ext i
-    cases i using Fin.cases
-    simp
-    simp
-    rename_i ih _
-    rw [ih]
+def tm_ctx.cast (ctx : tm_ctx s) (h : s = s' := by simp) : tm_ctx s' :=
+  h ▸ ctx
 
-@[simp]
-theorem vec.to_fn_from (v : vec n α) :
-  vec.from_fn (vec.to_fn v) = v := by
-    induction v
-    simp
-    simp
-    grind
+def ty_var_ctx.cast (ctx : ty_var_ctx s) (h : s = s' := by simp) : ty_var_ctx s' :=
+  h ▸ ctx
 
+def lbl_ctx.cast (ctx : lbl_ctx s) (h : s = s' := by simp) : lbl_ctx s' :=
+  h ▸ ctx
+
+def corr_ctx.cast (ctx : corr_ctx s) (h : s = s' := by simp) : corr_ctx s' :=
+  h ▸ ctx
+
+-- The rest here ...
+
+/-
 
 @[simp]
 def gamma_context (l : Nat) r (d : Nat) (m : Nat)  := Fin m -> ty l r d 0
@@ -70,6 +54,11 @@ instance : Lean.ToExpr (delta_context_repr l r d) := by
   infer_instance
 
 abbrev phi_context_repr l := vec (cond_sym × label l) l
+
+deriving instance Repr for cond_sym
+deriving instance Repr for label
+deriving instance Repr for vec
+deriving instance Repr for phi_context_repr
 
 instance : Lean.ToExpr (phi_context_repr l) := by
   infer_instance
@@ -116,18 +105,20 @@ def lift_gamma_r (Gamma : gamma_context l r d m )
   : gamma_context l (r + 1) d m
   := fun i => ren_ty id shift id id (Gamma i)
 
--- Convert from labels down to lattice elements
-@[simp]
-def interp_lattice (l : label 0) : L.labels :=
-  match l with
-  | .latl x => x
-  | .ljoin x y => (L.join (interp_lattice x) (interp_lattice y))
-  | .lmeet x y => (L.meet (interp_lattice x) (interp_lattice y))
-  | .var_label _fail n => nomatch n
-  | .default => L.bot
+-/
+
 
 @[simp]
-def negate_cond (co : constr l) : constr l :=
+abbrev Owl.label.interp (l : label (ScopeMap.empty _)) : LabelTm :=
+  match l with
+  | .ljoin l1 l2 => LabelTm.and l1.interp l2.interp
+  | .latl l => l
+  | .var_label _ i => nomatch i
+  | .lmeet l1 l2 => LabelTm.or l1.interp l2.interp
+
+
+@[simp]
+def negate_cond (co : constr s) : constr s :=
   match co with
   | (.condition .leq x y) => (.condition .nleq x y)
   | (.condition .geq x y) => (.condition .ngeq x y)
@@ -140,398 +131,100 @@ def negate_cond (co : constr l) : constr l :=
 
 -- Check if a constraint is valid, under the assumption it is closed *)
 @[simp]
-def valid_constraint (co : constr 0) : Prop :=
+def valid_constraint (co : constr (ScopeMap.empty _)) : Prop :=
   match co with
-  | (.condition .leq x y) => L.leq (interp_lattice x) (interp_lattice y) = true
-  | (.condition .geq x y) => L.leq (interp_lattice y) (interp_lattice x) = true
-  | (.condition .gt x y) => L.leq (interp_lattice y) (interp_lattice x) = true /\ L.leq (interp_lattice x) (interp_lattice y) = false
-  | (.condition .lt x y) => L.leq (interp_lattice x) (interp_lattice y) = true /\ L.leq (interp_lattice y) (interp_lattice x) = false
-  | (.condition .nleq x y) => L.leq (interp_lattice y) (interp_lattice x) = false
-  | (.condition .ngeq x y) => L.leq (interp_lattice y) (interp_lattice x) = false
-  | (.condition .ngt x y) => L.leq (interp_lattice y) (interp_lattice x) = false \/ L.leq (interp_lattice x) (interp_lattice y) = true
-  | (.condition .nlt x y) => L.leq (interp_lattice x) (interp_lattice y) = false \/ L.leq (interp_lattice y) (interp_lattice x) = false
+  | (.condition .leq x y) => LabelTm.leq (x.interp) (y.interp) = true
+  | (.condition .geq x y) => LabelTm.leq (y.interp) (x.interp) = true
+  | (.condition .gt x y) => LabelTm.leq (y.interp) (x.interp) = true /\ LabelTm.leq (x.interp) (y.interp) = false
+  | (.condition .lt x y) => LabelTm.leq (x.interp) (y.interp) = true /\ LabelTm.leq (y.interp) (x.interp) = false
+  | (.condition .nleq x y) => LabelTm.leq (y.interp) (x.interp) = false
+  | (.condition .ngeq x y) => LabelTm.leq (y.interp) (x.interp) = false
+  | (.condition .ngt x y) => LabelTm.leq (y.interp) (x.interp) = false \/ LabelTm.leq (x.interp) (y.interp) = true
+  | (.condition .nlt x y) => LabelTm.leq (x.interp) (y.interp) = false \/ LabelTm.leq (y.interp) (x.interp) = false
 
 
 @[simp]
-def phi_map (l : Nat) : Type := (Fin l) -> (label 0)
-@[simp]
-def empty_phi_map : phi_map 0 := fun (i : Fin 0) => nomatch i
-
-@[simp]
-def phi_map_holds (l : Nat) (pm : phi_map l) (co : constr l) : Prop :=
-  match co with
-  | (.condition c l1 l2) => (valid_constraint (.condition c (subst_label pm l1) (subst_label pm l2)))
-
-@[simp]
-def lift_phi (pm : Fin (l + 1) -> (cond_sym × label l)) : phi_context (l + 1) :=
-  fun i =>
-    let ⟨sym, lab⟩ := (pm i)
-    ⟨sym, ren_label shift lab⟩
-
-@[simp]
-def pcons (x : cond_sym × label l) (phi : phi_context l) : phi_context (l + 1) :=
-  (lift_phi (cons x phi))
-
-@[simp]
-def dcons (x : ty l r d 0) (delta : delta_context l r d ) : delta_context l r (d+1) :=
-  (lift_delta (cons x delta))
+abbrev lbl_interp s := LabelSubst s (ScopeMap.empty _)
 
 
-attribute [simp] Fin.foldr_succ
+abbrev lbl_interp.holds (i : lbl_interp s) (co : constr s) : Prop :=
+ match co with
+ | .condition c l1 l2 => valid_constraint (.condition c (l1.subst i) (l2.subst i))
 
-@[simp]
-def phi_map.valid (p : phi_map l) (c : phi_context l) :=
-  Fin.foldr l (fun i acc =>
-    acc ∧ (let (s, l) := c i; valid_constraint (.condition s (p i) (subst_label p l)))
-  ) True
-
-def Fin.forall_fold {l} (f : Fin l -> Prop) :
-  (forall i, f i) =
-  Fin.foldr l (fun i acc =>
-    acc ∧ f i
-  ) True := by
-    ext
-    constructor
-    {
-      intros h
-      induction l
-      simp
-      simp [Fin.foldr_succ]
-      simp [h 0]
-      rename_i ih
-      apply ih
-      grind
-    }
-    {
-      intros h
-      intros i
-      induction l
-      cases i; omega
-      apply Fin.cases
-      rename_i ih
-      simp [Fin.foldr_succ] at h
-      grind
-      intros j
-      rename_i ih
-      specialize (ih (fun x => f x.succ))
-      apply ih
-      simp [Fin.foldr_succ] at h
-      grind
-    }
 
 
 @[simp]
-def phi_entails_c (pctx : phi_context l) (co : constr l) : Prop :=
-  (forall pm,
-    pm.valid pctx ->
-    phi_map_holds l pm co)
+abbrev lbl_interp.valid (i : lbl_interp s) (c : lbl_ctx s) :=
+  c.All fun v (_, (s, l)) => i.holds (.condition s (label.var_label "_" v) l)
+
+@[simp]
+abbrev lbl_ctx.entails (c : lbl_ctx s) (co : constr s) : Prop :=
+  (forall (interp : lbl_interp s),
+    interp.valid c ->
+    interp.holds co
+  )
 
 structure CorruptionSet where
-  is_corrupt : label 0 -> Prop
-  has_bot : is_corrupt (label.latl L.bot)
+  is_corrupt : LabelTm -> Prop
+  has_bot : is_corrupt LabelTm.bot
   downward_closed : forall l l',
                     is_corrupt l' ->
-                    L.leq (interp_lattice l) (interp_lattice l') = true ->
+                    LabelTm.leq l l' ->
                     is_corrupt l
   join_corrupt : forall l1 l2,
                     is_corrupt l1 ->
                     is_corrupt l2 ->
-                    is_corrupt (l1.ljoin l2)
+                    is_corrupt (LabelTm.and l1 l2)
 
 
 @[grind .]
 theorem CorruptionSet.by_downwards_closed (C : CorruptionSet) :
   C.is_corrupt l ->
-  Owl.L.leq (interp_lattice l') (interp_lattice l) = true ->
+  LabelTm.leq l' l ->
   C.is_corrupt l' := by
     intros h1 h2
     apply C.downward_closed
     apply h1
     assumption
 
-@[simp, grind .]
+@[grind .]
 theorem CorruptionSet.has_bot_pf (C : CorruptionSet) :
-  C.is_corrupt (label.latl Owl.LabelTm.bot) := by {
+  C.is_corrupt LabelTm.bot := by {
       apply C.has_bot
   }
-
-@[grind .]
-theorem CorruptionSet.is_corrupt_bot (C : CorruptionSet) :
-  C.is_corrupt (label.latl Owl.LabelTm.bot) := by
-    apply C.has_bot
 
 @[grind .]
 theorem CorruptionSet.is_corrupt_join (C : CorruptionSet) :
   C.is_corrupt l1 ->
   C.is_corrupt l2 ->
-  C.is_corrupt (l1.ljoin l2) := by
+  C.is_corrupt (LabelTm.and l1 l2) := by
     apply C.join_corrupt
 
-@[simp]
-theorem CorruptionSet.is_corrupt_join_bot (C : CorruptionSet) :
-  C.is_corrupt ((label.latl Owl.LabelTm.bot).ljoin
-                (label.latl Owl.LabelTm.bot)) := by
-    grind
+abbrev corr_ctx.bumpLbl (c : corr_ctx s) :=
+  c.map fun corr => corr.rename (s.lift #L)
 
-
-
+abbrev corr_ctx.subst (c : corr_ctx s) (i : lbl_interp s) : corr_ctx (ScopeMap.empty _) :=
+  c.map fun corr => corr.subst i
 
 @[simp]
-def psi_context (l : Nat) := (List (corruption l))
-
-instance : Lean.ToExpr (psi_context l) := by
-  unfold psi_context
-  infer_instance
-
-@[simp]
-def empty_psi (l : Nat) : psi_context l := []
-
-@[simp]
-def lift_psi (pm : psi_context l) : psi_context (l + 1) :=
-  pm.map (ren_corruption shift)
-
-@[simp]
-def subst_psi_context (sigma_label : Fin m_label -> label n_label)
-  (psi : psi_context m_label) : psi_context n_label :=
-  psi.map (subst_corruption sigma_label)
-
-@[simp]
-def C_satisfies_psi (C : CorruptionSet) (psi : psi_context 0) : Prop :=
+abbrev CorruptionSet.satifies (C : CorruptionSet) (psi : corr_ctx (ScopeMap.empty _)) : Prop :=
   List.foldr (fun i acc =>
     acc ∧ match i with
-    | corruption.corr x => C.is_corrupt x
-    | .not_corr x => ¬ (C.is_corrupt x)
+    | corruption.corr x => C.is_corrupt x.interp
+    | .not_corr x => ¬ (C.is_corrupt x.interp)
   ) True psi
 
 @[simp]
-def psi_context_inconsistent (phi : phi_context l) (psi : psi_context l) : Prop :=
-  forall (pm : phi_map l) C,
-    pm.valid phi ->
-    C_satisfies_psi C (subst_psi_context pm psi) ->
+def lbl_ctx.inconsistent_with (lc : lbl_ctx s) (psi : corr_ctx s) : Prop :=
+  forall (pm : lbl_interp s) (C : CorruptionSet),
+    pm.valid lc ->
+    C.satifies (psi.subst pm) ->
     False
 
 
 @[simp]
-def  phi_psi_entail_corr (phictx : phi_context l) (psictx : psi_context l) (co : corruption l) : Prop :=
-  (forall (pm : phi_map l) C,
+def  entail_corr (phictx : lbl_ctx s) (psictx : corr_ctx s) (co : corruption s) : Prop :=
+  (forall (pm : lbl_interp s) (C : CorruptionSet),
     (pm.valid phictx) ->
-    (C_satisfies_psi C (subst_psi_context pm psictx)) ->
-    (C_satisfies_psi C (subst_psi_context pm [co])))
-
-notation:100 pctx " |= " co => phi_entails_c pctx co
-
-notation:100 "! " e => tm.dealloc e
-
-/-
-
--- Checks for proper values within terms
-/-
-inductive is_value : tm l d m -> Prop where
-| error_value : is_value .error
-| skip_value : is_value .skip
-| loc_value : forall n,
-  is_value (.loc n)
-| bitstring_value : forall b,
-  is_value (.bitstring b)
-| fixlam_value : forall nm e,
-  is_value (.fixlam nm e)
-| pair_value : forall v1 v2,
-  is_value v1 ->
-  is_value v2 ->
-  is_value (.tm_pair v1 v2)
-| inl_value : forall v,
-  is_value v ->
-  is_value (.inl v)
-| inr_value : forall v,
-  is_value v ->
-  is_value (.inr v)
-| tlam_value : forall e,
-  is_value (.tlam e)
-| l_lam_value : forall e,
-  is_value (.l_lam e)
-| pack_value : forall t v,
-  is_value v ->
-  is_value (.pack t v)
--/
-
-  -- subtyping rules for Owl
-  inductive subtype : (phi_context l) -> (psi_context l) -> (delta_context l d) ->
-      ty l d -> ty l d -> Prop where
-  | ST_Var : forall x t',
-    subtype Phi Psi Delta (Delta x) t' ->
-    subtype Phi Psi Delta (.var_ty x) t'
-  | ST_Any : forall t,
-    subtype Phi Psi Delta t .Any
-  | ST_Unit : subtype Phi Psi Delta .Unit .Unit
-  | ST_Data : forall lab lab',
-    (Phi |= (.condition .leq lab lab')) ->
-    subtype Phi Psi Delta (.Data lab) (.Data lab')
-  | ST_RPublic : forall lab,
-    subtype Phi Psi Delta .Public (.Data lab)
-  | ST_LPublic {Phi Psi Delta} : forall lab,
-     phi_psi_entail_corr Phi Psi (.corr lab) ->
-    subtype Phi Psi Delta (.Data lab) .Public
-  | ST_Func : forall t1' t1 t2 t2',
-    subtype Phi Psi Delta t1' t1 ->
-    subtype Phi Psi Delta t2 t2' ->
-    subtype Phi Psi Delta (.arr t1 t2) (.arr t1' t2')
-  | ST_Prod : forall t1 t1' t2 t2',
-    subtype Phi Psi Delta t1 t1' ->
-    subtype Phi Psi Delta t2 t2' ->
-    subtype Phi Psi Delta (.prod t1 t2) (.prod t1' t2')
-  | ST_Sum : forall t1 t1' t2 t2',
-    subtype Phi Psi Delta t1 t1' ->
-    subtype Phi Psi Delta t2 t2' ->
-    subtype Phi Psi Delta (.sum t1 t2) (.sum t1' t2')
-  | ST_Ref : forall t,
-    subtype Phi Psi Delta (.Ref t) (.Ref t)
-  | ST_Univ : forall t0 t0' t t',
-    subtype Phi Psi Delta t0 t0' ->
-    subtype Phi Psi (lift_delta (cons t0' Delta)) t t' ->
-    subtype Phi Psi Delta (.all t0 t) (.all t0' t')
-  | ST_Exist : forall t0 t0' t t',
-    subtype Phi Psi Delta t0 t0' ->
-    subtype Phi Psi (lift_delta (cons t0 Delta)) t t' ->
-    subtype Phi Psi Delta (.ex t0 t) (.ex t0' t')
-  | ST_LatUniv : forall cs lab lab' t t',
-    ((lift_phi (cons (cs, lab) Phi))
-    |= (.condition cs (.var_label var_zero) (ren_label shift lab'))) ->
-    subtype (lift_phi (cons (cs, lab) Phi)) (lift_psi Psi) (lift_delta_l Delta) t t' ->
-    subtype Phi Psi Delta (.all_l cs lab t) (.all_l cs lab' t')
-  | ST_LIf1 : forall lab t1 t2 t1',
-    phi_psi_entail_corr Phi Psi (.corr lab) ->
-    subtype Phi Psi Delta t1 t1' ->
-    subtype Phi Psi Delta (.t_if lab t1 t2) t1'
-  | ST_LIf2 : forall lab t1 t2 t2',
-    phi_psi_entail_corr Phi Psi (.not_corr lab) ->
-    subtype Phi Psi Delta t2 t2' ->
-    subtype Phi Psi Delta (.t_if lab t1 t2) t2'
-  | ST_RIf1 : forall lab t1 t1' t2',
-    phi_psi_entail_corr Phi Psi (.corr lab) ->
-    subtype Phi Psi Delta t1 t1' ->
-    subtype Phi Psi Delta t1 (.t_if lab t1' t2')
-  | ST_RIf2 : forall lab t2 t1' t2',
-    phi_psi_entail_corr Phi Psi (.not_corr lab) ->
-    subtype Phi Psi Delta t2 t2' ->
-    subtype Phi Psi Delta t2 (.t_if lab t1' t2')
-  | ST_Corr : forall lab t1 t2,
-    subtype Phi ((.corr lab) :: Psi) Delta t1 t2 ->
-    subtype Phi ((.not_corr lab) :: Psi) Delta t1 t2 ->
-    subtype Phi Psi Delta t1 t2
-  | ST_Refl : forall x,
-    subtype Phi Psi Delta x x
-
-mutual
-  inductive has_type : (Phi : phi_context l) -> (Psi : psi_context l) -> (Delta : delta_context l d) -> (Gamma : gamma_context l d m) ->
-    tm l d m -> ty l d -> Prop where
-  | has_type_mk : has_typeX Phi Psi Delta Gamma v t -> has_type Phi Psi Delta Gamma (.mk stx v) t
--- Typing rules for Owl
-inductive has_typeX : (Phi : phi_context l) -> (Psi : psi_context l) -> (Delta : delta_context l d) -> (Gamma : gamma_context l d m) ->
-  tmX l d m -> ty l d -> Prop where
-| T_Var : forall x,
-  has_typeX Phi Psi Delta Gamma (.var_tm x) (Gamma x)
-| T_IUnit : has_typeX Phi Psi Delta Gamma .skip .Unit
-| T_Const : forall b,
-  has_typeX Phi Psi Delta Gamma (.bitstring b) .Public
-| T_Op : forall op e1 e2 l,
-  has_type Phi Psi Delta Gamma e1 (.Data l) ->
-  has_type Phi Psi Delta Gamma e2 (.Data l) ->
-  has_typeX Phi Psi Delta Gamma (.Op op e1 e2) (.Data l)
-| T_Zero : forall e l,
-  has_type Phi Psi Delta Gamma e (.Data l) ->
-  has_typeX Phi Psi Delta Gamma (.zero e) .Public
-| T_If {Phi Psi Delta Gamma} : forall e e1 e2 t,
-  has_type Phi Psi Delta Gamma e .Public ->
-  has_type Phi Psi Delta Gamma e1 t ->
-  has_type Phi Psi Delta Gamma e2 t ->
-  has_typeX Phi Psi Delta Gamma (.if_tm e e1 e2) t
-| T_IRef : forall e t,
-  has_type Phi Psi Delta Gamma e t ->
-  has_typeX Phi Psi Delta Gamma (.alloc e) (.Ref t)
-| T_ERef : forall e t,
-  has_type Phi Psi Delta Gamma e (.Ref t) ->
-  has_typeX Phi Psi Delta Gamma (.dealloc e) t
-| T_Assign : forall e1 e2 t,
-  has_type Phi Psi Delta Gamma e1 (.Ref t) ->
-  has_type Phi Psi Delta Gamma e2 t ->
-  has_typeX Phi Psi Delta Gamma (.assign e1 e2) .Unit
-| T_IFun : forall e t t',
-  has_type Phi Psi Delta (cons (.arr t t') (cons t Gamma)) e t' ->
-  has_typeX Phi Psi Delta Gamma (.fixlam nm e) (.arr t t')
-| T_EFun : forall e1 e2 t t',
-  has_type Phi Psi Delta Gamma e1 (.arr t t') ->
-  has_type Phi Psi Delta Gamma e2 t ->
-  has_typeX Phi Psi Delta Gamma (.app e1 e2) t'
-| T_IProd : forall e1 e2 t1 t2,
-  has_type Phi Psi Delta Gamma e1 t1 ->
-  has_type Phi Psi Delta Gamma e2 t2 ->
-  has_typeX Phi Psi Delta Gamma (.tm_pair e1 e2) (.prod t1 t2)
-| T_EProdL : forall e t1 t2,
-  has_type Phi Psi Delta Gamma e (.prod t1 t2) ->
-  has_typeX Phi Psi Delta Gamma (.left_tm e) t1
-| T_EProdR : forall e t1 t2,
-  has_type Phi Psi Delta Gamma e (.prod t1 t2) ->
-  has_typeX Phi Psi Delta Gamma (.right_tm e) t2
-| T_ISumL : forall e t1 t2,
-  has_type Phi Psi Delta Gamma e t1 ->
-  has_typeX Phi Psi Delta Gamma (.inl e) (.sum t1 t2)
-| T_ISumR : forall e t1 t2,
-  has_type Phi Psi Delta Gamma e t2 ->
-  has_typeX Phi Psi Delta Gamma (.inr e) (.sum t1 t2)
-| T_ESum : forall e t1 t2 t e1 e2,
-  has_type Phi Psi Delta Gamma e (.sum t1 t2) ->
-  has_type Phi Psi Delta (cons t1 Gamma) e1 t ->
-  has_type Phi Psi Delta (cons t2 Gamma) e2 t ->
-  has_typeX Phi Psi Delta Gamma (.case e e1 e2) t
-| T_IUniv : forall t0 t e,
-  has_type Phi Psi (lift_delta (cons t0 Delta)) (lift_gamma_d Gamma) e t ->
-  has_typeX Phi Psi Delta Gamma (.tlam e) (.all t0 t)
-| T_EUniv : forall t t' t0 e,
-  subtype Phi Psi Delta t' t0 ->
-  has_type Phi Psi Delta Gamma e (.all t0 t) ->
-  has_typeX Phi Psi Delta Gamma (.tapp e t') (subst_ty .var_label (cons t' .var_ty) t)
-| T_IExist : forall e t t' t0,
-  has_type Phi Psi Delta Gamma e (subst_ty .var_label (cons t' .var_ty) t) ->
-  subtype Phi Psi Delta t' t0 ->
-  has_typeX Phi Psi Delta Gamma (.pack t' e) (.ex t0 t)
-| T_EExist : forall e e' t0 t t',
-  has_type Phi Psi Delta Gamma e (.ex t0 t) ->
-  has_type Phi Psi (lift_delta (cons t0 Delta)) (cons t (lift_gamma_d Gamma)) e' (ren_ty id shift t') ->
-  has_typeX Phi Psi Delta Gamma (.unpack e e') t'
-| T_ILUniv : forall cs lab e t,
-  has_type (lift_phi ((cons (cs, lab)) Phi))
-           (lift_psi Psi) (lift_delta_l Delta) (lift_gamma_l Gamma) e t ->
-  has_typeX Phi Psi Delta Gamma (.l_lam e) (.all_l cs lab t)
-| T_ELUniv : forall cs lab lab' e t,
-  (Phi |= (.condition cs lab lab')) ->
-  has_type Phi Psi Delta Gamma e (.all_l cs lab t) ->
-  has_typeX Phi Psi Delta Gamma (.lapp e lab') (subst_ty (cons lab' .var_label) .var_ty t)
-| T_Sync : forall e,
-  has_type Phi Psi Delta Gamma e .Public ->
-  has_typeX Phi Psi Delta Gamma (.sync e) .Public
-| T_IfCorr1 : forall lab t e1 e2,
-  (phi_psi_entail_corr Phi Psi (.not_corr lab)) ->
-  has_type Phi Psi Delta Gamma e2 t ->
-  has_typeX Phi Psi Delta Gamma (.if_c lab e1 e2) t
-| T_IfCorr2 : forall lab t e1 e2,
-  (phi_psi_entail_corr Phi Psi (.corr lab)) ->
-  has_type Phi Psi Delta Gamma e1 t ->
-  has_typeX Phi Psi Delta Gamma (.if_c lab e1 e2) t
-| T_Sub : forall e t t',
-  subtype Phi Psi Delta t t' ->
-  has_typeX Phi Psi Delta Gamma e t ->
-  has_typeX Phi Psi Delta Gamma e t'
-| T_CorrCase : forall lab e t,
-  has_type Phi ((.corr lab) :: Psi) Delta Gamma e t ->
-  has_type Phi ((.not_corr lab) :: Psi) Delta Gamma e t ->
-  has_typeX Phi Psi Delta Gamma (.corr_case lab e) t
-| T_CorrCase2 : forall lab e t,
-  has_typeX Phi ((.corr lab) :: Psi) Delta Gamma e t ->
-  has_typeX Phi ((.not_corr lab) :: Psi) Delta Gamma e t ->
-  has_typeX Phi Psi Delta Gamma e t
-| T_Annot : forall e t,
-  has_type Phi Psi Delta Gamma e t ->
-  has_typeX Phi Psi Delta Gamma (.annot e t) t
-end
-
--/
+    C.satifies (psictx.subst pm) ->
+    C.satifies (corr_ctx.subst [co] pm))

@@ -1,17 +1,19 @@
 import OwlLean.TypeChecker.OwlTyping
 import OwlLean.OwlLang.ToString
+import OwlLean.OwlLang.ScopeMap
 
 import Lean
 import Std.Data.HashMap
 open Lean Elab Meta
 open Owl
 open Lean Meta Elab Tactic
+open Vec
 
 @[simp]
-def Owl.ty.simplify (t : ty l r d m ) (corrs : List (corruption l)): ty l r d m :=
+def Owl.ty.simplify (t : ty s) (corrs : corr_ctx (s.restrict _)) : ty s :=
   match t with
   | .admit => t
-  | .var_ty _ => t
+  | .var_ty _ _ => t
   | .Any => t
   | .Unit => t
   | .RData _ _ => t
@@ -22,10 +24,10 @@ def Owl.ty.simplify (t : ty l r d m ) (corrs : List (corruption l)): ty l r d m 
   | .arr t0 t1 => .arr (t0.simplify corrs) (t1.simplify corrs)
   | .union t0 t1 => .union (t0.simplify corrs) (t1.simplify corrs)
   | .inter t0 t1 => .inter (t0.simplify corrs) (t1.simplify corrs)
-  | .ex t0 t1 => .ex (t0.simplify corrs) (t1.simplify corrs)
-  | .ex_r t0 => .ex_r (t0.simplify corrs)
-  | .all_r t0 => .all_r (t0.simplify corrs)
-  | .all t0 t1 => .all (t0.simplify corrs) (t1.simplify corrs)
+  | .ex t0 t1 => .ex (t0.simplify corrs) (t1.simplify (corrs.cast (by simp [ScopeMap.bump_restrict_ge])))
+  | .ex_r t0 => .ex_r (t0.simplify (corrs.cast (by simp [ScopeMap.bump_restrict_ge])))
+  | .all_r t0 => .all_r (t0.simplify (corrs.cast (by simp [ScopeMap.bump_restrict_ge])))
+  | .all t0 t1 => .all (t0.simplify corrs) (t1.simplify (corrs.cast (by simp [ScopeMap.bump_restrict_ge])))
   | .t_if l t0 t1 =>
     match List.find? (fun corr =>
       match corr with
@@ -38,340 +40,635 @@ def Owl.ty.simplify (t : ty l r d m ) (corrs : List (corruption l)): ty l r d m 
   | .sum t0 t1 => .sum (t0.simplify corrs) (t1.simplify corrs)
   | .prod t0 t1 => .prod (t0.simplify corrs) (t1.simplify corrs)
   | .default => .default
-  | .all_l cs l t => .all_l cs l (t.simplify $ lift_psi corrs)
+  | .all_l cs l t => .all_l cs l (t.simplify (ScopeMap.bump_restrict _ _ _ _ ▸  corrs.bumpLbl))
 
 
-/-
--- Useful TODO
-theorem Owl.ty.simplify_rec_sound (phi : phi_context l) (psi : psi_context l) delta (t : ty l d) :
-  subtype phi psi delta t (t.simplify psi) ∧ subtype phi psi delta (t.simplify psi) t := by
-    revert psi
-    induction t <;> intros psi <;> simp  <;> try apply subtype.ST_Refl
-    constructor <;> apply subtype.ST_Func <;> grind only
-    constructor <;> apply subtype.ST_Prod <;> grind only
-    constructor <;> apply subtype.ST_Sum <;> grind only
-    constructor <;> apply subtype.ST_Univ <;> grind only
-    constructor <;> apply subtype.ST_Exist <;> grind only
-    constructor
-    apply subtype.ST_LatUniv
-    {
-      intros pm Hpm
-      sorry
-    }
-    sorry
-    apply subtype.ST_LatUniv
-    sorry
-    sorry
+namespace Owl
 
-    sorry
-
-  -/
+-- abbrev RCtx n := List (prop n 0)
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-namespace OwlTc
-
-
-abbrev RCtx n := List (prop n 0)
-
-
-inductive SideCondition r where
-  | PhiEntails : phi_context_repr l -> Owl.constr l -> SideCondition r
-  | PhiPsiEntailCorr : String -> phi_context_repr l -> psi_context l -> label l -> SideCondition r
-  | TyVarEq : Fin d -> Fin d -> SideCondition r
-  | TyEq : ty l r d m -> ty l r d m -> SideCondition r
-  | CondSymEq : cond_sym -> cond_sym -> SideCondition r
-  | PsiContextInconsistent : String -> phi_context_repr l -> psi_context l -> SideCondition r
-  | RexpEq : rexp r 0 -> rexp r 0 -> SideCondition r
-  | PropHolds : prop r 0 -> SideCondition r
+inductive SideCondition : ScopeMap 2 -> Type where
+  | PropHolds : prop s -> SideCondition s
+  | LblEntails : lbl_ctx (s.restrict 1) -> Owl.constr (s.restrict _) -> SideCondition s
+  | PhiPsiEntailCorr : String -> lbl_ctx (s.restrict _) -> corr_ctx (s.restrict _) -> corruption (s.restrict _) -> SideCondition s
+  | LblContextInconsistent : String -> lbl_ctx (s.restrict _) -> corr_ctx (s.restrict _) -> SideCondition s
+  | RexpEq : rexp s -> rexp s -> SideCondition s
+  | WithLabel : cond_sym -> label (s.restrict _) -> SideCondition (s.bump #L) -> SideCondition s
+  | ScOr : SideCondition s -> SideCondition s -> SideCondition s
+  | ScAnd : SideCondition s -> SideCondition s -> SideCondition s
+  | ScTrue : SideCondition s
+  | ScFalse : SideCondition s
 deriving ToExpr
 
+abbrev SideCondition.cast {s t : ScopeMap 2} (h : s = t := by simp) (sc : SideCondition s) : SideCondition t := h ▸ sc
+
+abbrev constr.cast {s t : ScopeMap 1} (h : s = t) (c : constr s) : constr t := h ▸ c
+
+
+def SideCondition.pretty (p : SideCondition s) : String :=
+  match p with
+  | .PropHolds p => p.pretty
+  | .LblEntails phi c => s!"({repr phi} |= {repr c})"
+  | .PhiPsiEntailCorr msg phi psi co => s!"(phi, psi |= {repr co})"
+  | .LblContextInconsistent msg phi psi => s!"(psi_context_inconsistent {msg})"
+  | .RexpEq re1 re2 => s!"({repr re1} == {repr re2})"
+  | .WithLabel cs lab sc => s!"({cs}, {lab} -> {sc.pretty})"
+  | .ScOr e1 e2 => s!"({pretty e1} ∨ {pretty e2})"
+  | .ScFalse => "false"
+  | .ScTrue => "true"
+  | .ScAnd e1 e2 => s!"{pretty e1} ∧ {pretty e2}"
+
+/-
+
+def SideCondition.pretty (p : SideCondition r) : String :=
+  match p with
+  | SideCondition.PhiEntails phi c => s!"({repr phi} |= {repr c})"
+  | SideCondition.PhiPsiEntailCorr msg phi psi co => s!"(phi, psi |= {repr co})"
+  | SideCondition.TyVarEq x y => s!"(TyVarEq {toString x} == {toString y})"
+  | SideCondition.TyEq t1 t2 => s!"(TyEq {toString t1} == {toString t2})"
+  | SideCondition.CondSymEq c1 c2 => s!"(CondSymEq {toString c1} == {toString c2})"
+  | SideCondition.PsiContextInconsistent msg phi psi => s!"(psi_context_inconsistent {msg})"
+  | SideCondition.RexpEq re1 re2 => s!"({repr re1} == {repr re2})"
+  | SideCondition.PropHolds p1 => s!"(PropHolds {repr p1})"
+  | SideCondition.ScOr e1 e2 => s!"({pretty e1} ∨ {pretty e2})"
+  | SideCondition.ScAnd e1 e2 => s!"({pretty e1} ∧ {pretty e2})"
+  | SideCondition.ScTrue => "True"
+  | SideCondition.ScFalse => "False"
+
+-/
+
 instance : ToString (SideCondition r) where
-  toString := fun _ => "<sc>"
+  toString := SideCondition.pretty
 
 
-@[simp]
-def rexp_interp (re : rexp r 0) (bvar_interp : Fin r -> String) (fvar_interp : Lean.Name -> String) (f_interp : String -> String -> String -> String )  :=
-  match re with
-  | .var i => bvar_interp i
-  | .op s r1 r2 => f_interp s (rexp_interp r1 bvar_interp fvar_interp f_interp) (rexp_interp r2 bvar_interp fvar_interp f_interp)
-  | .const b => b
-  | .fvar i => fvar_interp i
-
-@[simp]
-def interp_prop (p : prop r 0) (bvar_interp : Fin r -> String) (fvar_interp : Lean.Name -> String) (f_interp : String -> String -> String -> String) :=
-  match p with
-  | .peq re1 re2 => (rexp_interp re1 bvar_interp fvar_interp f_interp) = (rexp_interp re2 bvar_interp fvar_interp f_interp)
-  | .pand p1 p2 => interp_prop p1 bvar_interp fvar_interp f_interp ∧ interp_prop p2 bvar_interp fvar_interp f_interp
-  | .por p1 p2 => interp_prop p1 bvar_interp fvar_interp f_interp ∨  interp_prop p2 bvar_interp fvar_interp f_interp
-  | .pimpl p1 p2 => interp_prop p1 bvar_interp fvar_interp f_interp → interp_prop p2 bvar_interp fvar_interp f_interp
-  | .pnot p1 => ¬ interp_prop p1 bvar_interp fvar_interp f_interp
-  | .pall p1 =>
-    forall v,
-    interp_prop p1 (cons v bvar_interp) fvar_interp f_interp
-
-
-
--- TODO: ToString for SideCondition.
-
--- TODO next: We want fvar_interp and f_interp to be global and implicitly universally quantified.
--- we can just make them opaque.
--- But
-@[simp]
-def SideCondition.eval (p : SideCondition r) (bvar_interp : Fin r -> String) (fvar_interp : Lean.Name -> String) (f_interp : String -> String -> String -> String) : Prop :=
-  match p with
-  | PhiEntails phi c => vec.to_fn phi |= c
-  | PhiPsiEntailCorr _ phi psi l => phi_psi_entail_corr (vec.to_fn phi) psi (.corr l)
-  | TyVarEq x y => x = y
-  | TyEq t1 t2 => t1 = t2
-  | CondSymEq c1 c2 => c1 = c2
-  | PsiContextInconsistent _ phi psi => psi_context_inconsistent (vec.to_fn phi) psi
-  | RexpEq re1 re2 => (rexp_interp re1 bvar_interp fvar_interp f_interp) = (rexp_interp re2 bvar_interp fvar_interp f_interp)
-  | PropHolds p1 => interp_prop p1 bvar_interp fvar_interp f_interp
-
-@[simp]
-def RCtx.interp (theta : RCtx r) (bvar_interp : Fin r -> String) (fvar_interp : Lean.Name -> String) (f_interp : String -> String -> String -> String) : Prop :=
-  List.foldr (fun i acc => interp_prop i bvar_interp fvar_interp f_interp ∧ acc) True theta
 
 
 inductive Result ε α where
   | ok : α -> Result ε α
   | err : ε -> Result ε α
 
-structure SideConditionWithContext where
-  r : Nat
-  theta : RCtx r
-  sc : SideCondition r
-  deriving ToExpr
+abbrev prop_ctx s := List (prop s)
 
-structure CheckContext M [Monad M] where
-  visitTm : forall l r d m, Owl.opaqueSyntax -> ty l r d m -> M Unit
-  log : String -> M Unit
-  fresh : M Lean.Name
+def prop_ctx.cast {s t : ScopeMap 2} (h : s = t) (p : prop_ctx s) : prop_ctx t :=
+  h ▸ p
+
+instance (ε : Type) : Monad (Result ε) where
+  pure x := .ok x
+  bind c k :=
+    match c with
+    | .ok x => k x
+    | .err e => .err e
+
+
+
+structure Env (s : ScopeMap 4) where
+  defName : Name
+  lbl : lbl_ctx (s.restrict _)
+  ref_vars : Vec.vec String (s.get #R)
+  corrs : corr_ctx (s.restrict _)
+  ty_vars : ty_var_ctx (s.restrict _)
+  hyps : prop_ctx (s.restrict _)
+  tms :  tm_ctx s
   curSyntax : Option Owl.opaqueSyntax
-
-inductive CheckOutput where
-  | true : CheckOutput
-  | sc : SideConditionWithContext -> CheckOutput
-  | and : CheckOutput -> CheckOutput -> CheckOutput
-  | or : CheckOutput -> CheckOutput -> CheckOutput
   deriving ToExpr
 
-infixr:60 " ∧sc " => CheckOutput.and
-infixr:60 " ∨sc " => CheckOutput.or
-notation " ⊤ " => CheckOutput.true
+
+structure SideConditionWithContext where
+  s : ScopeMap 2
+  hyps : prop_ctx s
+  sc : SideCondition s
+  deriving ToExpr
+
+
+abbrev CheckT' s (α : Type) :=
+  ReaderT (Env s) TermElabM (Result (Option Owl.opaqueSyntax × String) α)
+
+@[always_inline, simp]
+instance {s} : Monad (CheckT' s) where
+  pure x := fun _ => pure (.ok x)
+  bind c k := fun env => do
+    match ← c env with
+    | .err e => pure (.err e)
+    | .ok x => do
+      match ← k x env with
+      | .err e2 => pure (.err e2)
+      | .ok res => pure (.ok res)
+
+instance : MonadReaderOf (Env s) (CheckT' s) where
+  read := fun env => pure (.ok env)
+
+def printTyCtx : CheckT' s String := do
+  let env ← read
+  let prettyTys := env.tms.toList.map fun (n, t) => s!"    {n}: {t.pretty}"
+  let prettyHyps := env.hyps.map fun p => s!"    {p.pretty}"
+  let prettyCorrs := env.corrs.map fun c => s!"    {c.pretty}"
+  pure (String.intercalate "\n" (prettyTys ++ ["Path condition: "] ++ prettyHyps ++ ["Corruption: "] ++ prettyCorrs))
+
+def throw' (s : String) : CheckT' sc α := do
+  let tyErr := s!"Type error: {s}\nType context: \n {<- printTyCtx}"
+  fun env => pure (.err (env.curSyntax, tyErr))
+
+
+-- def lift_RCtx_r (θ : RCtx n) : RCtx (n + 1) :=
+--   θ.map (ren_prop shift id)
+
+
+def ScopeMap.renaming.castR (r : ScopeMap.renaming s t) (h : t = t') : ScopeMap.renaming s t' :=
+  h ▸ r
+
+/-- Extend `gamma` with one term variable (its typing is at type index `0`). -/
+def withTmVar {s : ScopeMap 4} (n : String) (t : ty (s.restrict 3)) (body : CheckT' (s.bump #Tm) α) : CheckT' s α :=
+  fun env => body { env with
+    lbl := (ScopeMap.bump_restrict _ _ _ _ ▸ env.lbl)
+    corrs := (ScopeMap.bump_restrict _ _ _ _ ▸ env.corrs)
+    ref_vars := env.ref_vars.castLength (by simp)
+    ty_vars := env.ty_vars.cast (by rw [ScopeMap.bump_restrict]; grind)
+    hyps := env.hyps.cast (by rw [ScopeMap.bump_restrict]; grind)
+    tms := (Vec.vec.cons (n, t) (env.tms)).cast (by simp) (by rw [ScopeMap.bump_restrict]; grind)
+   }
+
+def withHypsAppend {s} (hyps : List (prop (s.restrict _))) (body : CheckT' s α) : CheckT' s α :=
+  fun env => body { env with hyps := env.hyps ++ hyps }
+
+def withCorruption {s} (c : corruption (s.restrict _)) (body : CheckT' s α) : CheckT' s α :=
+  fun env => body { env with corrs := c :: env.corrs }
+
+
+
+
+
+def withTyVar {s : ScopeMap 4} (n : String) (t0 : ty (s.restrict 3)) (body : CheckT' (s.bump #Ty) α) : CheckT' s α :=
+  fun env =>
+    body { env with
+      lbl := (env.lbl.castLength (by simp)).castTy (by simp [ScopeMap.bump_restrict])
+      corrs := cast (by simp [ScopeMap.bump_restrict]) env.corrs,
+      ty_vars := (vec.castCons (n, t0.rename ((s.lift #Ty).restrict (by simp)))
+                            (env.ty_vars.map fun _ (n, t) => (n, t.rename ((s.lift #Ty).restrict (by simp)))) (by simp))
+      hyps := cast (by congr 1; rw [ScopeMap.bump_restrict]; grind ) env.hyps
+      ref_vars := env.ref_vars.castLength (by simp)
+      tms := (env.tms.map fun _ (n', t) => (n', t.rename ((s.lift #Ty).restrict _))).cast (by simp) (by congr 1)
+    }
+
+def withRefVar {s} (nm : String) (body : CheckT' (s.bump #R) α) : CheckT' s α :=
+  fun env =>
+    body {
+      env with
+      lbl := (env.lbl.castLength (by simp)).castTy (by simp [ScopeMap.bump_restrict])
+      corrs := cast (by simp [ScopeMap.bump_restrict]) env.corrs,
+      ty_vars := (env.ty_vars.map fun _ (n, t) => (n, t.rename ((s.lift #R).restrict _))).castLength (by simp),
+      hyps := env.hyps.map fun p => p.rename ((s.lift #R).restrict (by simp)),
+      tms := (env.tms.map fun _ (n, t) => (n, t.rename ((s.lift #R).restrict _))).cast (by simp) (by congr 1)
+      ref_vars := (vec.castCons nm env.ref_vars (by simp))
+    }
+
+def Env.addRef {s : ScopeMap 4} (nm : String) (env : Env s) : Env (s.bump #R) :=
+    {
+      env with
+      lbl := (env.lbl.castLength (by simp)).castTy (by simp [ScopeMap.bump_restrict])
+      corrs := cast (by simp [ScopeMap.bump_restrict]) env.corrs,
+      ty_vars := (env.ty_vars.map fun _ (n, t) => (n, t.rename ((s.lift #R).restrict _))).castLength (by simp),
+      hyps := env.hyps.map fun p => p.rename ((s.lift #R).restrict (by simp)),
+      tms := (env.tms.map fun _ (n, t) => (n, t.rename ((s.lift #R).restrict _))).cast (by simp) (by congr 1)
+      ref_vars := (vec.castCons nm env.ref_vars (by simp))
+    }
+
+
+def withLabelVar [Monad m] (cs : cond_sym) (n : String) (lab : label (s.restrict _)) (body : ReaderT (Env (s.bump #L)) m α) : ReaderT (Env s) m α :=
+  fun env =>
+    body {
+   env with
+      lbl := (vec.castCons (n, (cs, lab.rename ((s.lift #L).restrict _)))
+                           (env.lbl.map fun _ (n, (c, l)) => (n, (c, l.rename ((s.lift #L).restrict (by simp)))))
+                           (by simp))
+      corrs := env.corrs.map fun c => c.rename ((s.lift #L).restrict (by simp))
+      ty_vars := (env.ty_vars.map fun _ (n, t) => (n, t.rename ((s.lift #L).restrict _))).castLength (by simp),
+      hyps := env.hyps.map fun p => p.rename ((s.lift #L).restrict (by simp))
+      tms := (env.tms.map fun _ (n, t) => (n, t.rename ((s.lift #L).restrict _))).cast (by simp) (by congr 1)
+      ref_vars := env.ref_vars.castLength (by simp)
+  }
+
+
+-- def withUnpackBinders {l r d m α} (t0 : ty l r d 0) (t : ty l r (d + 1) 0)
+--     (body : CheckT' l r (d + 1) (m + 1) α) : CheckT' l r d m α :=
+--   fun env =>
+--     body { env with delta := lift_delta (cons t0 env.delta), gamma := cons t (lift_gamma_d env.gamma) }
+
+
+attribute [simp] Fin.foldr_succ
+
+partial def rexp.interp {s : ScopeMap 2}
+  (re : rexp s)
+  (f_interp : String -> String -> String -> String )
+  (fv : Lean.Name -> String)
+  (bv : vec String (s.get #R))
+  : String :=
+  match re with
+  | .fvar nm => fv nm
+  | .var i => bv.get (i.cast $ by simp)
+  | .binop s r1 r2 =>
+    let r1_interp := r1.interp f_interp fv bv
+    let r2_interp := r2.interp f_interp fv bv
+    f_interp s r1_interp r2_interp
+  | .unop s r1 =>
+    let r1_interp := r1.interp f_interp fv bv
+    f_interp ("<UNOP>" ++ s) r1_interp ""
+  | .const b => b
+
+
+abbrev prop.cast {s t : ScopeMap 2} (h : s = t := by simp) (l : prop s) : prop t := h ▸ l
+
+abbrev label.cast {s t : ScopeMap 1} (h : s = t := by simp) (l : label s) : label t := h ▸ l
+
+abbrev corruption.cast {s t : ScopeMap 1} (h : s = t := by simp)  (c : corruption s) : corruption t := h ▸ c
+
+abbrev ty.cast {s t : ScopeMap 3} (h : s = t := by simp) (T : ty s) : ty t := h ▸ T
+
+abbrev rexp.cast {s t : ScopeMap 2} (h : s = t := by simp) (T : rexp s) : rexp t := h ▸ T
+
+
+@[grind =]
+theorem SideCondition.cast_sizeOf {s t : ScopeMap 2} (h : s = t) (sc : SideCondition s) : sizeOf (SideCondition.cast h sc) = sizeOf sc := by
+  cases h
+  simp
+
+@[grind =]
+theorem corruption.cast_sizeOf {s t : ScopeMap 1} (h : s = t) (c : corruption s) : sizeOf (corruption.cast h c) = sizeOf c := by
+  cases h
+  simp
+
+@[grind =]
+theorem prop.cast_sizeOf {s t : ScopeMap 2} (h : s = t ) (l : prop s) : sizeOf (prop.cast h l) = sizeOf l := by
+  cases h
+  simp
+
+@[grind =]
+theorem label.cast_sizeOf {s t : ScopeMap 1} (h : s = t) (l : label s) : sizeOf (label.cast h l) = sizeOf l := by
+  cases h
+  simp
+
+
 
 
 
 @[simp]
-def CheckOutput.simpl (c : CheckOutput) : CheckOutput :=
-  match c with
-  | .true => .true
-  | .and e1 e2 =>
-      let e1' := e1.simpl
-      let e2' := e2.simpl
-      match e1', e2' with
-      | .true, _ => e2'
-      | _, .true => e1'
-      | _, _ => e1' ∧sc e2'
-  | .or e1 e2 =>
-      let e1' := e1.simpl
-      let e2' := e2.simpl
-      match e1', e2' with
-      | .true, _ => .true
-      | _, .true => .true
-      | _, _ => e1' ∨sc e2'
-  | .sc s => .sc s
+def prop.interp {s : ScopeMap 2}
+(p : prop s)
+(f_interp : String -> String -> String -> String)
+(fv : Lean.Name -> String)
+(bv : vec String (s.get #R))
+: Prop :=
+  match p with
+  | .peq re1 re2 =>
+     let r1_interp : String := re1.interp f_interp fv bv
+     let r2_interp : String := re2.interp f_interp fv bv
+     r1_interp = r2_interp
+  | .pand p1 p2 =>
+     let p1_interp : Prop := p1.interp f_interp fv bv
+     let p2_interp : Prop := p2.interp f_interp fv bv
+     p1_interp ∧ p2_interp
+  | .por p1 p2 =>
+     let p1_interp : Prop := p1.interp f_interp fv bv
+     let p2_interp : Prop := p2.interp f_interp fv bv
+     p1_interp ∨ p2_interp
+  | .pimpl p1 p2 =>
+     let p1_interp : Prop := p1.interp f_interp fv bv
+     let p2_interp : Prop := p2.interp f_interp fv bv
+     p1_interp → p2_interp
+  | .pnot p1 =>
+     let p1_interp : Prop := p1.interp f_interp fv bv
+     ¬ p1_interp
+  | .pall p1 =>
+    let p1_interp := p1.interp f_interp
+    forall fv v, p1_interp fv ((vec.cons v bv).castLength (by simp))
 
 
 
-abbrev CheckContext.init [Monad M] (visit : forall l d r m, Owl.opaqueSyntax -> ty l d r m -> M Unit) (log : String -> M Unit) (fresh : M Lean.Name) : CheckContext M :=
-  { visitTm := visit, curSyntax := .none, log := log, fresh := fresh }
-
-abbrev CheckT m [Monad m] α :=
-  ReaderT (CheckContext m) m (Result (Option opaqueSyntax × String) (α × CheckOutput))
-
--- CheckState m -> m (Result (Option opaqueSyntax × String) (α × CheckState m))
-
-@[always_inline, simp]
-instance [Monad m] : Monad (CheckT m) where
-  pure := fun x => fun _ => pure (.ok (x, .true))
-  bind := fun c k => fun ctx => do
-    match <- (c ctx) with
-    | .err e => pure (.err e)
-    | .ok (x, o1) => do
-        match <- (k x ctx) with
-        | .err e2 => pure (.err e2)
-        | .ok (res, o2) => pure $ .ok (res, o1.and o2)
+@[simp]
+def prop_ctx.interp {s : ScopeMap 2}
+  (hyps : prop_ctx s)
+  (f_interp : String -> String -> String -> String)
+  (fv : Lean.Name -> String)
+  (bv : vec String (s.get #R))
+  : Prop :=
+  hyps.foldr (fun p acc => p.interp f_interp fv bv ∧ acc) True
 
 
-def emit [Monad m] r (theta : RCtx r) (p : SideCondition r) : CheckT m Unit := fun _ =>
-  pure $ .ok ((), .sc $ ⟨r, theta, p⟩)
+@[simp]
+def SideCondition.eval {s : ScopeMap 2} (p : SideCondition s)
+(f_interp : String -> String -> String -> String)
+(fv : Lean.Name -> String)
+(bv : vec String (s.get #R))
+: Prop :=
+  match p with
+  | LblEntails phi c => phi.entails c
+  | PhiPsiEntailCorr _ phi psi l => entail_corr phi psi l
+  | LblContextInconsistent _ phi psi => lbl_ctx.inconsistent_with phi psi
+  | RexpEq r1 r2 => r1.interp f_interp fv bv = r2.interp f_interp fv bv
+  | PropHolds p1 => p1.interp f_interp fv bv
+  | ScOr e1 e2 =>
+    let e1_interp := e1.eval f_interp fv bv
+    let e2_interp := e2.eval f_interp fv bv
+    e1_interp ∨ e2_interp
+  | WithLabel cs lab e =>
+    e.eval f_interp fv (bv.castLength (by simp))
+  | ScAnd e1 e2 =>
+    let e1_interp := e1.eval f_interp fv bv
+    let e2_interp := e2.eval f_interp fv bv
+    e1_interp ∧ e2_interp
+  | ScTrue => True
+  | ScFalse => False
 
-def withSyntax [Monad m] (s : Owl.opaqueSyntax) (k : CheckT m α) : CheckT m α :=
-  fun st => k {st with curSyntax := .some s}
+attribute [simp] SideCondition.eval.eq_def
+
+def CheckT'.liftPure (k : ReaderT (Env s) (Result String) α) : CheckT' s α :=
+  fun env => do
+    match ReaderT.run k env with
+    | .ok x => pure (.ok x)
+    | .err e => pure (.err (.none, e))
+
+def CheckT'.liftTermElab (k : TermElabM α) : CheckT' s α :=
+  fun _ => do
+    let r <- k
+    pure (.ok r)
+
+namespace Proof
+
+opaque owl_f_interp' : String -> String -> String -> String
+
+def owl_f_interp (s x y : String) : String :=
+  match s with
+  | "concat" => x ++ y
+  | _ => owl_f_interp' s x y
+
+@[simp]
+def SideConditionWithContext.eval (sc : SideConditionWithContext) : Prop :=
+  let p1 := sc.hyps.interp owl_f_interp
+  let p2 := sc.sc.eval owl_f_interp
+  forall fv bv, p1 fv bv -> p2 fv bv
 
 
-def throw [Monad m] (s : String) : CheckT m α := fun st => pure $ .err (st.curSyntax, s)
+def runGrind (g : Expr) : TermElabM Bool := do
+  let g <- mkFreshExprMVar g
+  let res <- Grind.main g.mvarId! (<- Grind.mkDefaultParams {})
+  return res.failure?.isNone
 
-def visit [Monad m] (s : Owl.opaqueSyntax) (t : ty l d r n) : CheckT m Unit := fun st => do
-  st.visitTm _ _ _ _ s t
-  pure (.ok ((), .true))
 
-def log [Monad m] (s : String) : CheckT m Unit := fun st => do
-  st.log s
-  pure (.ok ((), .true))
+def doSimp (e : Expr) : TermElabM Expr := do
+  let ctx <- Simp.Context.mkDefault
+  let res <- Lean.Meta.simp e ctx
+  return res.fst.expr
 
-def freshName [Monad m] : CheckT m Lean.Name := fun st => do
-  let i <- st.fresh
-  pure (.ok (i, .true))
 
-def CheckT.or [Monad m] (c1 : CheckT m Unit) (c2 : CheckT m Unit) : CheckT m Unit :=
-  fun ctx => do
-    match <- c1 ctx with
-    | .err s => return .err s
-    | .ok (_, o1) => do
-      match <- c2 ctx with
-      | .err s => return .err s
-      | .ok (_, o2) => return .ok ((), o1.or o2)
 
+end Proof
+
+
+def emitDefinition (name : Name) (type : Expr) (value : Expr) : TermElabM Unit := do
+  let decl := Declaration.defnDecl {
+    name        := name
+    levelParams := []
+    type        := type
+    value       := value
+    hints       := ReducibilityHints.abbrev
+    safety      := DefinitionSafety.safe
+  }
+  addDecl decl
+  compileDecl decl
+
+ def decideProp {s : ScopeMap 4} (sc : SideCondition (s.restrict _)) : CheckT' s Bool := do
+  let scc : SideConditionWithContext := {s := (s.restrict _), hyps := (<- read).hyps, sc := sc}
+  let e  <- CheckT'.liftTermElab $ mkAppM ``Proof.SideConditionWithContext.eval #[toExpr scc]
+  let e <- CheckT'.liftTermElab $ Proof.doSimp e
+  CheckT'.liftTermElab $ do
+  Proof.runGrind e
+
+
+ def prove {s : ScopeMap 4} (sc : SideCondition (s.restrict _)) (errmsg : String) : CheckT' s Unit := do
+  let defName := (<- read).defName
+  let scName := Name.append defName `side_condition
+  let scc : SideConditionWithContext := {s := (s.restrict _), hyps := (<- read).hyps, sc := sc}
+  let e  <- CheckT'.liftTermElab $ mkAppM ``Proof.SideConditionWithContext.eval #[toExpr scc]
+  let e <- CheckT'.liftTermElab $ Proof.doSimp e
+  let b <- CheckT'.liftTermElab $ Proof.runGrind e
+  if not b then
+     CheckT'.liftTermElab $ emitDefinition scName (mkSort 0) e
+     throw' s!"{errmsg}! Emitting side condition to {scName}"
+
+
+
+def withSyntax'  (stx : Owl.opaqueSyntax) (k : CheckT' s α) : CheckT' s α :=
+  fun env => k { env with curSyntax := .some stx }
+
+
+
+def addTypeInfo (stx : Syntax) (s : String) := do
+    let n : Name := Name.mkSimple s
+
+    withEnableInfoTree true do withLocalDeclD n (mkSort levelOne) fun dslType => do
+      let forgedExpr ← mkFreshExprMVar dslType
+      pushInfoLeaf <| .ofTermInfo {
+        elaborator := `Sequent
+        stx := stx
+        lctx := (← getLCtx)
+        expectedType? := some dslType
+        expr := forgedExpr
+        isBinder := false
+      }
+    pure ()
+
+def visit {s : ScopeMap 4} (stx : Owl.opaqueSyntax) (t : ty (s.restrict _)) : CheckT' s Unit := fun _ => do
+  addTypeInfo stx.inner (toString t)
+  pure (.ok ())
+
+def log  (st : String) : CheckT' s Unit := fun _ => do
+  println! st
+  pure (.ok ())
+
+def freshName  : CheckT' s Lean.Name := fun _ => do
+  let i <- mkFreshId
+  pure (.ok i)
 
 abbrev subtype_fuel := 10
 
+
+
 -- TODO : Finish up various cases that have not yet been completed (for check_subtype and infer)!
 
-
-def lift_RCtx_r (r : RCtx n) : RCtx (n + 1) :=
-  r.map (ren_prop shift id)
+abbrev Scope := ScopeMap 4
 
 
-partial def extract_refinements [Monad m] (t : ty l r d 0) : CheckT m (RCtx r × ty l r d 0) :=
+partial def extract_refinements {s : Scope} (t : ty (s.restrict _)) : CheckT' s (prop_ctx (s.restrict _) × ty (s.restrict _)) :=
   match t with
   | .ex_r t0 => do -- ∃ x. t
     let i <- freshName
-    let t1 := t0.subst_rexp i
+    let t1 := t0.subst (ScopeMap.Subst.down (rexp.fvar i))
     extract_refinements t1
   | .refined t p => do -- t { φ }
     let (x, y) <- extract_refinements t
-    return (p :: x, y)
+    return ((p.cast) :: x, y)
   | .prod t1 t2 => do -- t1 * t2
     let (x, y) <- extract_refinements t1
     let (x', y') <- extract_refinements t2
     return (x ++ x', .prod y y')
   | _ => return ([], t)
 
+-- instance [h : EqScopeMap s t] : CoeDep (lbl_ctx s) m (lbl_ctx t) where
+--   coe := h.heq ▸ m
+--
+-- instance [h : EqScopeMap s t] : CoeDep (corr_ctx s) m (corr_ctx t) where
+--   coe := h.heq ▸ m
+--
+-- instance [h : EqScopeMap s t] : CoeDep (SideCondition s) m (SideCondition t) where
+--   coe := h.heq ▸ m
+--
+--
+-- instance [h : EqScopeMap s t] : EqScopeMap t s where
+--   heq := h.heq.symm
+--
+-- instance : IsTrue ((3 : Fin 4) >= 3) where
+--   pf := by simp
+--
+-- instance : NeqFin (0 : Fin 4) (3 : Fin 4) where
+--   h := by grind
 
 
+def check_corrupt {s : Scope} (lab : label (s.restrict _)) :
+    CheckT' s (Option Bool) := do
+  if (<- read).corrs.contains (.corr lab) then pure (.some True)
+  else if ← decideProp (.PhiPsiEntailCorr s!"check_corrupt" ((<- read).lbl.cast (by simp)) ((<- read).corrs.cast (by simp)) (.corr (lab.cast (by simp))))
+  then pure (.some True)
+  else if (<- read).corrs.contains (.not_corr lab) then pure (.some False)
+  else if ← decideProp (.PhiPsiEntailCorr s!"check_corrupt" ((<- read).lbl.cast (by simp)) ((<- read).corrs.cast (by simp)) (.not_corr (lab.cast (by simp))))
+  then pure (.some False)
+  else pure (.none)
 
-def check_subtype  [Monad m] (fuel : Nat) (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_context l r d )
-                           (Theta : RCtx r)
-                           (t1 : ty l r d 0) (t2 : ty l r d 0) : CheckT m Unit := do
-    -- log s!"check subtype: {t1} <= {t2}"
-    if t1 == t2 then pure () else
-    match fuel with
-    | 0 => throw "check_subtype: out of fuel"
-    | (n + 1) =>
-      match t1, t2 with
-      | .admit, _ => pure ()
-      | _, .Any => pure ()
-      | .Unit, .Unit => pure ()
-      | _, .refined t p => do
-        check_subtype n Phi Psi Delta Theta t1 t
-        emit r Theta (.PropHolds p)
-      | _, .inter t21 t22 => do
-        check_subtype n Phi Psi Delta Theta t1 t21
-        check_subtype n Phi Psi Delta Theta t1 t22
-      | _, .union t21 t22 => do
-        CheckT.or (check_subtype n Phi Psi Delta Theta t1 t21)
-                  (check_subtype n Phi Psi Delta Theta t1 t22)
-      | .inter t11 t12, _ =>
-        CheckT.or (check_subtype n Phi Psi Delta Theta t11 t2)
-                  (check_subtype n Phi Psi Delta Theta t12 t2)
-      | .RData l1 _, .Data l2 =>
-        emit r Theta (.PhiEntails (vec.from_fn Phi) (.condition .leq l1 l2))
-      | .RData l1 re1, .RData l2 re2 => do
-        emit r Theta (.PhiEntails (vec.from_fn Phi) (.condition .leq l1 l2))
-        emit r Theta (.RexpEq re1 re2)
-        pure ()
-      | .Data l1, .Public => do
-        emit r Theta (.PhiPsiEntailCorr s!"Data {l1}, Public" (vec.from_fn Phi) Psi l1)
-      | .RData l1 _, .Public => do
-        emit r Theta (.PhiPsiEntailCorr s!"RData {l1}, Public" (vec.from_fn Phi) Psi l1)
-        pure ()
-      | .Data l1, ty.ex_r (.RData l2 (.var 0)) =>
-        emit r Theta (.PhiEntails (vec.from_fn Phi) (.condition .leq l1 l2))
-      | .var_ty x1, .var_ty x2 =>
-        emit r Theta (.TyVarEq x1 x2)
-      | .Public, .Public => pure ()
-      | .var_ty x, t' => check_subtype n Phi Psi Delta Theta (Delta x) t'
-      | t, .var_ty x => check_subtype n Phi Psi Delta Theta t (Delta x)
-      -- | .Public, .Data _ => pure ()
-      | (.arr t1 t2), (.arr t1' t2') => do
-        check_subtype n Phi Psi Delta Theta t1' t1
-        check_subtype n Phi Psi Delta Theta t2 t2'
-      | (.prod t1 t2), (.prod t1' t2') => do
-        check_subtype n Phi Psi Delta Theta t1 t1'
-        check_subtype n Phi Psi Delta Theta t2 t2'
-      | (.sum t1 t2), (.sum t1' t2') => do
-        check_subtype n Phi Psi Delta Theta t1 t1'
-        check_subtype n Phi Psi Delta Theta t2 t2'
-      | .Ref u, .Ref v =>
-        emit r Theta (.TyEq u v)
-      | .all t0 t, .all t0' t' => do
-        check_subtype n Phi Psi Delta Theta t0 t0'
-        let extended_delta := lift_delta (cons t0' Delta)
-        check_subtype n Phi Psi extended_delta Theta t t'
-      | .ex t0 t, .ex t0' t' => do
-        check_subtype n Phi Psi Delta Theta t0 t0'
-        let extended_delta := lift_delta (cons t0 Delta)
-        check_subtype n Phi Psi extended_delta Theta t t'
-      | .all_l cs lab t, .all_l cs' lab' t' => do
-        let extended_phi := lift_phi (cons (cs, lab) Phi)
-        let constraint := (.condition cs (.var_label "_" var_zero) (ren_label shift lab'))
-        -- let constraint_holds := extended_phi |= constraint
-        emit r Theta (.PhiEntails (vec.from_fn extended_phi) constraint)
-        let extended_psi := lift_psi Psi
-        let extended_delta := lift_delta_l Delta
-        check_subtype n extended_phi extended_psi extended_delta Theta t t'
-        emit r Theta (.CondSymEq cs cs')
-      | .t_if lab t1 t2, t' => do
-        check_subtype n Phi ((.corr lab) :: Psi) Delta Theta t1 t'
-        check_subtype n Phi ((.not_corr lab) :: Psi) Delta Theta t2 t'
-      | t, .t_if lab t1' t2' => do
-        check_subtype n Phi ((.corr lab) :: Psi) Delta Theta t t1'
-        check_subtype n Phi ((.not_corr lab) :: Psi) Delta Theta t t2'
-      | _, _ =>
-        let s := s!"Could not prove {repr t1} <: {repr t2}"
-        emit r Theta (.PsiContextInconsistent s (vec.from_fn Phi) Psi)
-        -- throw s!"check_subtype: cannot prove {t1.pretty} <= {t2.pretty}}"
 
+-- Computes the side condition necessary for t1 <: t2
+partial def check_subtype'  {s : Scope} (t1 t2 : ty (s.restrict _)) : CheckT' s (SideCondition (s.restrict _)) := do
+  log s!"check_subtype': {t1.pretty} <: {t2.pretty}"
+  if t1 == t2 then pure .ScTrue else
+    match t1, t2 with
+    | .admit, _ => pure .ScTrue
+    | _, .Any => pure .ScTrue
+    | .Unit, .Unit => pure .ScTrue
+    | .t_if lab ta1 ta2, t' => do
+      match <- check_corrupt lab.cast with
+      | some b => check_subtype' (if b then ta1 else ta2) t'
+      | none => do
+        let env ← read
+        let r1 ← withCorruption (.corr (lab.cast)) (check_subtype' ta1 t')
+        let r2 ← withCorruption (.not_corr (lab.cast)) (check_subtype' ta2 t')
+        pure (r1.ScAnd r2)
+    | t, .t_if lab ta1' ta2' => do
+      match <- check_corrupt lab.cast with
+      | some b => check_subtype' t (if b then ta1' else ta2')
+      | none => do
+        let env ← read
+        let r1 ← withCorruption ((.corr (lab.cast))) (check_subtype' t ta1')
+        let r2 ← withCorruption ((.not_corr (lab.cast))) (check_subtype' t ta2')
+        pure (r1.ScAnd r2)
+    | _, .refined t p => do
+      let r1 ← check_subtype' t1 t
+      pure (r1.ScAnd (.PropHolds (p.cast)))
+    | _, .inter t21 t22 => do
+      let r1 ← check_subtype' t1 t21
+      let r2 ← check_subtype' t1 t22
+      pure (r1.ScAnd r2)
+    | _, .union t21 t22 => do
+      let r1 ← check_subtype' t1 t21
+      let r2 ← check_subtype' t1 t22
+      pure (r1.ScOr r2)
+    | .inter t11 t12, _ => do
+      let r1 ← check_subtype' t11 t2
+      let r2 ← check_subtype' t12 t2
+      pure (r1.ScOr r2)
+    | .RData l1 _, .Data l2 => do
+      let env ← read
+      pure (.LblEntails (env.lbl.cast) (.condition .leq (l1.cast) (l2.cast)))
+    | .RData l1 re1, .RData l2 re2 => do
+      let env ← read
+      let r1 := SideCondition.LblEntails (env.lbl.cast) (.condition .leq (l1.cast) (l2.cast))
+      let r2 := SideCondition.RexpEq re1 re2
+      pure (r1.ScAnd (r2.cast))
+    | .Data l1, .Public => do
+      let env ← read
+      pure (.PhiPsiEntailCorr s!"Data {l1}, Public" (env.lbl.cast) (env.corrs.cast) (.corr (l1.cast)))
+    | .Data l1, .Data l2 =>
+      let env ← read
+      pure (.LblEntails (env.lbl.cast) (.condition .leq (l1.cast) (l2.cast)))
+    | .RData l1 _, .Public => do
+      let env ← read
+      pure (.PhiPsiEntailCorr s!"RData {l1}, Public" (env.lbl.cast) (env.corrs.cast) (.corr (l1.cast)))
+    | .Data l1, ty.ex_r (.RData l2 (.var ⟨0, _⟩)) => do
+      let env ← read
+      pure (.LblEntails (env.lbl.cast)
+                        (.condition .leq (l1.cast)
+                        (l2.cast (by simp [ScopeMap.bump_restrict]))))
+    | .var_ty _ x1, .var_ty _ x2 =>
+      pure (if x1 = x2 then .ScTrue else .ScFalse)
+    | .Public, .Public => pure .ScTrue
+    | .var_ty _ x, t => do
+      let tx := ((<- read).ty_vars.get x).2
+      -- x <: tx
+      -- tx <: t
+      ----------
+      -- x <: t
+      check_subtype' tx t
+    -- TODO: I deleted the case of (t <: .var_ty _ x).
+    | (.arr ta1 ta2), (.arr ta1' ta2') => do
+      let r1 ← check_subtype' ta1' ta1
+      let r2 ← check_subtype' ta2 ta2'
+      pure (r1.ScAnd r2)
+    | (.prod ta1 ta2), (.prod ta1' ta2') => do
+      let r1 ← check_subtype' ta1 ta1'
+      let r2 ← check_subtype' ta2 ta2'
+      pure (r1.ScAnd r2)
+    | (.sum ta1 ta2), (.sum ta1' ta2') => do
+      let r1 ← check_subtype' ta1 ta1'
+      let r2 ← check_subtype' ta2 ta2'
+      pure (r1.ScAnd r2)
+    | .Ref u, .Ref v =>
+      if u == v then pure .ScTrue else pure .ScFalse
+    | .all t0 t, .all t0' t' => do
+      let r1 ← check_subtype' t0 t0'
+      let r2 ← withTyVar "_" t0' (check_subtype' (t.cast (by simp [ScopeMap.bump_restrict])) (t'.cast (by simp [ScopeMap.bump_restrict])))
+      pure (r1.ScAnd (r2.cast (by simp [ScopeMap.bump_restrict])))
+    | .ex t0 t, .ex t0' t' => do
+      let r1 ← check_subtype' t0 t0'
+      let r2 ← withTyVar "_" t0 (check_subtype' (t.cast (by simp [ScopeMap.bump_restrict])) (t'.cast (by simp [ScopeMap.bump_restrict])))
+      pure (r1.ScAnd (r2.cast (by simp [ScopeMap.bump_restrict])))
+    | .all_l cs lab t, .all_l _cs' lab' t' => do
+      unless cs = _cs' do throw' s!"check_subtype': cs and cs' are not equal"
+      let env ← read
+      let extPhi : lbl_ctx ((s.bump #L).restrict 1) :=
+          (vec.cons ("_", cs, lab.rename (((s.lift #L).restrict _).restrict _))
+                    (env.lbl.map fun _ (n, (sc, l)) =>
+                           (n, (sc, l.rename (by rw [ScopeMap.restrict_restrict]; exact ((s.lift #L).restrict _)))))).cast
+             (by simp)
+             (by simp)
+      let constraint : constr ((s.bump #L).restrict 1) := (.condition cs (.var_label "_" (by simp [ScopeMap.get]; exact 0))
+                              (lab'.rename (by rw [ScopeMap.restrict_restrict]; exact ((s.lift #L).restrict _))))
+      let r1 : SideCondition ((s.bump #L).restrict 2) :=
+        SideCondition.LblEntails (extPhi.cast)
+                               (constraint.cast (by simp [ScopeMap.bump_restrict]))
+      let r2 ← withLabelVar cs "_" (lab.cast) (check_subtype' (t.cast (by simp [ScopeMap.bump_restrict])) (t'.cast (by simp [ScopeMap.bump_restrict])))
+      pure (.WithLabel cs (lab.cast) ((r1.ScAnd r2).cast (by simp [ScopeMap.bump_restrict])))
+    | _, _ => do
+      let env ← read
+      pure (.LblContextInconsistent s!"check_subtype': {t1} and {t2} are not comparable" (env.lbl.cast) (env.corrs.cast))
+
+def check_subtype {s : Scope} (t1 t2 : ty (s.restrict _)) : CheckT' s Unit := do
+  let sc ← check_subtype' t1 t2
+  prove sc s!"Could not prove {t1.pretty} <: {t2.pretty}"
 
 @[simp]
-def from_synth [Monad m] (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_context l r d)
-          (Theta : RCtx r)
-          (t : ty l r d 0) (exp : Option (ty l r d 0)) :
-          CheckT m (ty l r d 0) :=
-    match exp with
-    | .none => pure t
-    | .some t' => do
-      check_subtype subtype_fuel Phi Psi Delta Theta t t'
-      pure t'
-
+def from_synth {s : Scope} (t : ty (s.restrict _)) (exp : Option (ty (s.restrict _))) : CheckT' s (ty (s.restrict _)) :=
+  match exp with
+  | .none => pure t
+  | .some t' => do
+    check_subtype t t'
+    pure t'
 
 /-
 
@@ -392,300 +689,274 @@ def from_synth [Monad m] (Phi : phi_context l) (Psi : psi_context l) (Delta : de
 -- If no type is provided, infer will attempt to synthesize the type of the input term
 -- If successful, it will return the synthesized type, and a proof that the input term has that type
 
-def infer_op [Monad M] (Theta : RCtx r) (Phi : phi_context l) (op : String) (t1 : ty l r d 0) (t2 : ty l r d 0) : CheckT M (ty l r d 0) :=
+/-- Labels inside `ty (s.restrict 3)` use `label ((s.restrict 3).restrict 1)`. -/
+private def ty.getLabel {s : Scope} (t : ty (s.restrict 3)) :
+    CheckT' s (label ((s.restrict 3).restrict 1)) :=
+  match t with
+  | .Public => pure (.latl LabelTm.bot)
+  | .RData l _ => pure l
+  | .Data l => pure l
+  | _ => throw' "infer_op: argument must be of type Data / RData / Public"
+
+def infer_binop {s : Scope} (op : String) (t1 t2 : ty (s.restrict _)) : CheckT' s (ty (s.restrict _)) := do
+  let env ← read
   match t1, t2 with
   | .RData l1 r1, .RData l2 r2 => do
-      emit r Theta (.PhiEntails (vec.from_fn Phi) (.condition .leq l2 l1))
-      return (.RData l1 (.op op r1 r2))
+    prove (.LblEntails env.lbl.cast (.condition .leq l2.cast l1.cast))
+      s!"infer_op: could not prove |= {l2} <= {l1}"
+    pure (.RData l1 (.binop op r1 r2))
   | .Public, .Public => return .Public
   | _, _ => do
-    let getLabel (t : ty l r d 0) : CheckT M (label l) :=
-      match t with
-      | .Public => return .latl L.bot
-      | .RData l _ => return l
-      | .Data l => return l
-      | _ => throw "infer_op: argument must be of type Data / RData / Public"
-    let l1 <- getLabel t1
-    let l2 <- getLabel t2
-    return (.Data (label.ljoin l1 l2))
+    let l1 ← t1.getLabel
+    let l2 ← t2.getLabel
+    pure (.Data (label.ljoin l1 l2))
 
-def resolve_ty [Monad M] (Gamma : gamma_context l r d n) (t : ty l r d n) : CheckT M (ty l r d 0) :=
-  t.resolve_tm fun i =>
-    match (Gamma i) with
-    | ty.RData _ a => return a
-    | _ => throw s!"Refinement expression or prop cannot make reference to non-refinfed variable"
-
-def resolve_re [Monad M] (Gamma : gamma_context l r d n) (t : rexp r n) : CheckT M (rexp r 0) :=
-  t.resolve_tm fun i =>
-    match (Gamma i) with
-    | ty.RData _ a => return a
-    | _ => throw s!"Refinement expression or prop cannot make reference to non-refinfed variable"
-
+-- TODO: the logic here could be simplified between infer_ops and getLabel
+def infer_unop {s : Scope} (op : String) (t : ty (s.restrict _)) : CheckT' s (ty (s.restrict _)) :=
+  match t with
+  | .RData l r =>
+    pure (.RData l (.unop op r))
+  | .Public => pure .Public
+  | _ => do
+  let l <- t.getLabel
+  pure (.Data l)
 
 mutual
-def infer [Monad M] (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_context l r d)
-          (Theta : RCtx r)
-          (Gamma : gamma_context l r d m) (e : tm l r d m) (exp : Option (ty l r  d 0)) :
-          CheckT M (ty l r  d 0) :=
-      match e with
-      | .mk stx v => do
-        let t <- withSyntax stx $ inferX Phi Psi Delta Theta Gamma v exp
-        let t := t.simplify Psi
-        visit stx t
-        return t
-
-def inferX [Monad M] (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_context l r d)
-          (Theta : RCtx r)
-          (Gamma : gamma_context l r d m) (e : tmX l r d m) (exp : Option (ty l r  d 0)) :
-          CheckT M (ty l r  d 0) :=
+def infer (e : tm s) (exp : Option (ty (s.restrict _))) : CheckT' s (ty (s.restrict _)) :=
   match e with
-  | .admit => from_synth Phi Psi Delta Theta .admit exp
-  | .var_tm x =>
-      -- TODO: flatten
-      from_synth Phi Psi Delta Theta (Gamma x) exp
-  | .skip =>
-      from_synth Phi Psi Delta Theta .Unit exp
-  | .bitstring b =>
-      from_synth Phi Psi Delta Theta (.RData (.latl L.bot) (.const b)) exp
-  | .Op op e1 e2 => do-- This case is long! Might need a step by step.
-      let t1 <- infer Phi Psi Delta Theta Gamma e1 .none
-      let t2 <- infer Phi Psi Delta Theta Gamma e2 .none
-      let tres <- infer_op Theta Phi op t1 t2
-      from_synth Phi Psi Delta Theta tres exp
+  | .mk stx v => do
+    let t ← withSyntax' stx (inferX v exp)
+    let corrs := (← read).corrs
+    let t := t.simplify (corrs.cast)
+    visit stx t
+    return t
+
+def inferX (e : tmX s) (exp : Option (ty (s.restrict _))) : CheckT' s (ty (s.restrict _))  :=
+  match e with
+  | .admit => from_synth .admit exp
+  | .var_tm x => do
+    from_synth ((<- read).tms.get x).2 exp
+  | .skip => from_synth .Unit exp
+  | .bitstring b => from_synth (.RData (.latl LabelTm.bot) (.const b)) exp
+  | .binop op e1 e2 => do
+    let t1 ← infer e1 .none
+    let t2 ← infer e2 .none
+    let tres ← infer_binop op t1 t2
+    from_synth tres exp
+  | .unop op e1 => do
+    let t1 ← infer e1 .none
+    let tres ← infer_unop op t1
+    from_synth tres exp
   | .zero e => do
-      let t <- infer Phi Psi Delta Theta Gamma e none
-      match t with
-      | .Public | .Data _ | .RData _ _ =>
-        from_synth Phi Psi Delta Theta .Public exp
-      | _ => throw "zero: not bitstring"
+    let t ← infer e none
+    match t with
+    | .Public | .Data _ | .RData _ _ => from_synth .Public exp
+    | _ => throw' s!"Error when checking zero: did not get a bitstring; got {t}"
   | .if_tm e e1 e2 => do
-    let _ <- infer Phi Psi Delta Theta Gamma e (.some .Public)
-    let t1 <- infer Phi Psi Delta Theta Gamma e1 exp
-    let t2 <- infer Phi Psi Delta Theta Gamma e2 exp
-    check_subtype subtype_fuel Phi Psi Delta Theta t2 t1
-    from_synth Phi Psi Delta Theta t1 exp
-  | .tlet e1 e2 => do
-    let t1 <- infer Phi Psi Delta Theta Gamma e1 .none
-    let (theta', t1') <- extract_refinements t1
-    infer Phi Psi Delta (Theta ++ theta') (cons t1' Gamma) e2 exp
-  | .union_elim e1 e2 => do
-    let t1 <- infer Phi Psi Delta Theta Gamma e1 .none
+    let _ ← infer e (.some .Public)
+    let t1 ← infer e1 exp
+    let t2 ← infer e2 exp
+    check_subtype t2 t1
+    from_synth t1 exp
+  | .tlet x e1 e2 => do
+    let t1 ← infer e1 .none
+    let (theta', t1') ← extract_refinements t1
+    let res <- withTmVar x t1' $ withHypsAppend (theta'.cast (by simp [ScopeMap.bump_restrict]; grind)) (infer e2 (exp.map fun t => t.cast (by simp [ScopeMap.bump_restrict]; grind)))
+    pure $ res.cast (by simp [ScopeMap.bump_restrict]; grind)
+  | .union_elim x e1 e2 => do
+    let t1 ← infer e1 .none
     match t1 with
     | .union t11 t12 => do
-        let res1 <- infer Phi Psi Delta Theta (cons t11 Gamma) e2 exp
-        let res2 <- infer Phi Psi Delta Theta (cons t12 Gamma) e2 exp
-        if res1 == res2 then return res1
-                        else throw "union_elim: must get same type on both sides"
-    | _ => infer Phi Psi Delta Theta (cons t1 Gamma) e2 exp
+      let res1 ← withTmVar x t11 (infer e2 (exp.map fun t => t.cast (by simp [ScopeMap.bump_restrict]; grind)))
+      let res2 ← withTmVar x t12 (infer e2 (exp.map fun t => t.cast (by simp [ScopeMap.bump_restrict]; grind)))
+      if res1 == res2 then pure (res1.cast (by simp [ScopeMap.bump_restrict]; grind))
+      else throw' "union_elim: must get same type on both sides"
+    | _ => do
+        let res <- withTmVar x t1 (infer e2 (exp.map fun t => t.cast (by simp [ScopeMap.bump_restrict]; grind)))
+        pure $ res.cast (by simp [ScopeMap.bump_restrict]; grind)
   | .alloc e => do
-    let t <- infer Phi Psi Delta Theta Gamma e .none
-    from_synth Phi Psi Delta Theta (.Ref t) exp
+    let t ← infer e .none
+    from_synth (.Ref t) exp
   | .dealloc e => do
-    let t <- infer Phi Psi Delta Theta Gamma e .none
+    let t ← infer e .none
     match t with
-    | .Ref t0 => from_synth Phi Psi Delta Theta t0 exp
-    | _ => throw "dealloc"
+    | .Ref t0 => from_synth t0 exp
+    | _ => throw' "dealloc"
   | .assign e1 e2 => do
-    let t0 <- infer Phi Psi Delta Theta Gamma e1 .none
+    let t0 ← infer e1 .none
     match t0 with
     | .Ref t1 => do
-      let _ <- infer Phi Psi Delta Theta Gamma e2 (.some t1)
-      from_synth Phi Psi Delta Theta .Unit exp
-    | _ => throw "assign"
+      let _ ← infer e2 (.some t1)
+      from_synth .Unit exp
+    | _ => throw' "assign"
   | .inl e =>
     match exp with
     | .some (.sum t1 t2) => do
-       let _ <- infer Phi Psi Delta Theta Gamma e (.some t1)
-       pure (.sum t1 t2)
-    | _ => throw "inl: need annotation for full type"
+      let _ ← infer e (.some t1)
+      pure (.sum t1 t2)
+    | _ => throw' "inl: need annotation for full type"
   | .inr e =>
     match exp with
     | .some (.sum t1 t2) => do
-       let _ <- infer Phi Psi Delta Theta Gamma e (.some t2)
-       pure (.sum t1 t2)
-    | _ => throw "inr: need annotation for full type"
-  | .fixlam _ e =>
+      let _ ← infer e (.some t2)
+      pure (.sum t1 t2)
+    | _ => throw' "inr: need annotation for full type"
+  | .fixlam nm1 nm2 e =>
     match exp with
     | .some (.arr t t') => do
-       let extended_gamma := cons (.arr t t') (cons t Gamma)
-       let _ <- infer Phi Psi Delta Theta extended_gamma e (.some t')
-       pure (.arr t t')
-    | _ => throw "fixlam"
+      let expected := (t'.cast (by simp [ScopeMap.bump_restrict]; grind))
+      let _ ← withTmVar nm2 t (withTmVar nm1 ((ty.arr t t').cast (by simp [ScopeMap.bump_restrict]; grind)) (infer e (.some expected)))
+      pure (.arr t t')
+    | _ => throw' "fixlam"
   | .app e1 e2 =>
     match exp with
     | .none => do
-      match <- infer Phi Psi Delta Theta Gamma e1 .none with
+      match ← infer e1 .none with
       | .arr t t' => do
-        let _ <- infer Phi Psi Delta Theta Gamma e2 (.some t)
+        let _ ← infer e2 (.some t)
         pure t'
-      | t => throw s!"app: got unexpected type for function: {t} "
+      | t => throw' s!"app: got unexpected type for function: {t} "
     | .some expected => do
-      let t1 <- infer Phi Psi Delta Theta Gamma e2 .none
-      let _ <- infer Phi Psi Delta Theta Gamma e1 (.some (.arr t1 expected))
+      let t1 ← infer e2 .none
+      let _ ← infer e1 (.some (.arr t1 expected))
       pure expected
   | .tm_pair e1 e2 => do
-    let t1 <- infer Phi Psi Delta Theta Gamma e1 .none
-    let t2 <- infer Phi Psi Delta Theta Gamma e2 .none
-    from_synth Phi Psi Delta Theta (.prod t1 t2) exp
+    let t1 ← infer e1 .none
+    let t2 ← infer e2 .none
+    from_synth (.prod t1 t2) exp
   | .left_tm e => do
-    match <- infer Phi Psi Delta Theta Gamma e .none with
-    | .prod t1 _ => from_synth Phi Psi Delta Theta t1 exp
-    | _ => throw "left_tm"
+    match ← infer e .none with
+    | .prod t1 _ => from_synth t1 exp
+    | t => throw' s!"π1: got unexpected type: {ty.pretty t}"
   | .right_tm e => do
-    match <- infer Phi Psi Delta Theta Gamma e .none with
-    | .prod _ t2 => from_synth Phi Psi Delta Theta t2 exp
-    | _ => throw "right_tm"
-  | .case e e1 e2 => do
-    match <- infer Phi Psi Delta Theta Gamma e .none with
+    match ← infer e .none with
+    | .prod _ t2 => from_synth t2 exp
+    | t => throw' s!"π2: got unexpected type: {ty.pretty t}"
+  | .case e x e1 y e2 => do
+    match ← infer e .none with
     | .sum t1 t2 => do
-      let r1 <- infer Phi Psi Delta Theta (cons t1 Gamma) e1 exp
-      let r2 <- infer Phi Psi Delta Theta (cons t2 Gamma) e2 exp
+      let r1 ← withTmVar x t1 (infer e1 (exp.map fun t => t.cast (by simp [ScopeMap.bump_restrict]; grind)))
+      let r2 ← withTmVar y t2 (infer e2 (exp.map fun t => t.cast (by simp [ScopeMap.bump_restrict]; grind)))
       match exp with
       | .some res => return res
       | none => do
-        check_subtype subtype_fuel Phi Psi Delta Theta r2 r1
-        pure r1
-    | _ => throw "case"
-  | .rlam e =>
+        check_subtype (r2.cast (by simp [ScopeMap.bump_restrict]; grind)) (r1.cast (by simp [ScopeMap.bump_restrict]; grind))
+        pure (r1.cast (by simp [ScopeMap.bump_restrict]; grind))
+    | t => throw' s!"Case: need sum type, but got {t.pretty}"
+  | .rlam nm e =>
     match exp with
     | .some (.all_r t0) => do
-        let _ <- infer Phi Psi (lift_delta_r Delta) (lift_RCtx_r Theta) (lift_gamma_r Gamma) e (.some t0)
-        pure (.all_r t0)
-    | _ => throw "Error when type checking Λr: expected type must be of the form ∀ x. τ"
-  | .tlam e =>
+      let _ ← withRefVar nm (infer e (.some (t0.cast (by simp [ScopeMap.bump_restrict]))))
+      pure (.all_r t0)
+    | _ => throw' "Error when type checking Λr: expected type must be of the form ∀ x. τ"
+  | .tlam x e =>
     match exp with
     | .some (.all t0 t) => do
-      let _ <- infer Phi Psi (lift_delta (cons t0 Delta)) Theta (lift_gamma_d Gamma) e (.some t)
+      let _ ← withTyVar x t0 (infer e (.some (t.cast (by simp [ScopeMap.bump_restrict]))))
       pure (.all t0 t)
-    | _ => throw s!"Error when type checking Λ: expected type must be a ∀. Instead, got {exp} "
+    | _ => throw' s!"Error when type checking Λ: expected type must be a ∀. Instead, got {exp} "
   | .rapp e re => do
-    let re' <- resolve_re Gamma re
-    match <- infer Phi Psi Delta Theta Gamma e .none with
+    -- let re' ← resolve_re re
+    match ← infer e .none with
     | .all_r t0 => do
-      let result_ty := subst_ty (.var_label "_") (cons re' .var) .var_ty t0;
-      from_synth Phi Psi Delta Theta result_ty exp
-    | _ => throw "rapp: expected type must be of the form ∀r x. τ"
+      let result_ty := t0.subst (ScopeMap.Subst.down re.cast)
+      --(subst_ty (.var_label "_") (cons re' .var) .var_ty t0
+      from_synth result_ty exp
+    | _ => throw' "rapp: expected type must be of the form ∀r x. τ"
   | .tapp e t' => do
-    let t'' <- resolve_ty Gamma t'
-    match <- infer Phi Psi Delta Theta Gamma e .none with
+    -- let t'' ← resolve_ty t'
+    match ← infer e .none with
     | .all t0 t => do
-      check_subtype subtype_fuel Phi Psi Delta Theta t'' t0
-      let result_ty := subst_ty (.var_label "_") .var (cons t'' .var_ty) t;
-      from_synth Phi Psi Delta Theta result_ty exp
-    | _ => throw "tapp"
+      check_subtype t' t0
+      let result_ty := t.subst (ScopeMap.Subst.down t')
+      from_synth result_ty exp
+    | _ => throw' "tapp"
   | .rpack re e => do
-    let re' <- resolve_re Gamma re
+    -- let re' ← resolve_re re
     match exp with
-     | .some (.ex_r t0) => do
-      let substituted_type := subst_ty (.var_label "_") (cons re' .var) .var_ty t0
-      let _ <- infer Phi Psi Delta Theta Gamma e (.some substituted_type)
+    | .some (.ex_r t0) => do
+      let substituted_type := t0.subst (ScopeMap.Subst.down re.cast)
+      let _ ← infer e (.some substituted_type)
       pure (.ex_r t0)
-     | _ => throw "rpack: need expected type of form rpack(r, e)"
+    | _ => throw' "rpack: need expected type of form rpack(r, e)"
   | .pack t' e => do
-    let t' <- resolve_ty Gamma t'
+    -- let t' ← resolve_ty t'
     match exp with
-    | .none => throw "pack: empty expected"
+    | .none => throw' "pack: empty expected"
     | .some (.ex t0 t) => do
-      let substituted_type := subst_ty (.var_label "_") .var (cons t' .var_ty) t
-      check_subtype subtype_fuel Phi Psi Delta Theta t' t0
-      let _ <- infer Phi Psi Delta Theta Gamma e (.some substituted_type)
+      let substituted_type := t.subst (ScopeMap.Subst.down t')
+      check_subtype t' t0
+      let _ ← infer e (.some substituted_type)
       pure (.ex t0 t)
-    | _ => throw "pack"
-  | .unpack e e' =>
+    | _ => throw' "pack"
+  | .unpack e tx x e' =>
     match exp with
-    | .none => throw "unpack: empty expected"
+    | .none => throw' "unpack: empty expected"
     | .some exp_ty => do
-      match <- infer Phi Psi Delta Theta Gamma e .none with
+      match ← infer e .none with
       | .ex t0 t => do
-        let extended_delta := lift_delta (cons t0 Delta)
-        let extended_gamma := cons t (lift_gamma_d Gamma)
-        let renamed_t' := ren_ty id id shift id exp_ty
-        let _ <- infer Phi Psi extended_delta Theta extended_gamma e' (.some renamed_t')
+        let renamed_t' := (exp_ty.rename ((s.lift #Ty).restrict _))
+        let _ ← withTyVar tx t0 (withTmVar x (t.cast (by simp [ScopeMap.bump_restrict]))
+                             (infer e' (.some (renamed_t'.cast (by simp [ScopeMap.bump_restrict]; grind)))))
         pure exp_ty
-      | _ => throw "unpack"
-  | .l_lam e =>
+      | _ => throw' "unpack"
+  | .l_lam nm e =>
     match exp with
-    | .none => throw "l_lam: empty expected"
+    | .none => throw' "l_lam: empty expected"
     | .some exp_ty =>
       match exp_ty with
       | .all_l cs lab t_body => do
-        let _ <- infer (lift_phi ((cons (cs, lab)) Phi))
-                  (lift_psi Psi)
-                  (lift_delta_l Delta) Theta (lift_gamma_l Gamma)
-                  e (.some t_body)
+        let _ ← withLabelVar cs nm lab.cast (infer e (.some $ t_body.cast (by simp [ScopeMap.bump_restrict])))
         pure exp_ty
-      | _ => throw "l_lam"
+      | _ => throw' "l_lam"
   | .lapp e lab' =>
     match exp with
     | .none => do
-      match <- infer Phi Psi Delta Theta Gamma e .none with
-      | .all_l cs lab t  => do
-        let result_ty := subst_ty (cons lab' (.var_label "_")) .var .var_ty t
-        emit r Theta (.PhiEntails (vec.from_fn Phi) (.condition cs lab lab'))
-        pure result_ty
-      | _ => throw "lapp"
-    | .some exp_ty => do
-      match <- infer Phi Psi Delta Theta Gamma e .none with
+      let env ← read
+      match ← infer e .none with
       | .all_l cs lab t => do
-        let result_ty := subst_ty (cons lab' (.var_label "_")) .var .var_ty t
-        check_subtype subtype_fuel Phi Psi Delta Theta result_ty exp_ty
-        emit r Theta (.PhiEntails (vec.from_fn Phi) (.condition cs lab lab'))
+        let result_ty := t.subst (ScopeMap.Subst.down lab'.cast)
+        prove (.LblEntails ((<- read).lbl.cast) (.condition cs lab.cast lab'.cast))
+          s!"lapp: could not prove |= {cs} {lab} {lab'}"
+        pure result_ty
+      | _ => throw' "lapp"
+    | .some exp_ty => do
+      let env ← read
+      match ← infer e .none with
+      | .all_l cs lab t => do
+        let result_ty := t.subst (ScopeMap.Subst.down lab'.cast)
+        check_subtype result_ty exp_ty
+        prove (.LblEntails ((<- read).lbl.cast) (.condition cs lab.cast lab'.cast))
+          s!"lapp: could not prove |= {cs} {lab} {lab'}"
         pure exp_ty
-      | _ => throw "lapp"
+      | _ => throw' "lapp"
   | .annot e t' => do
-    let t' <- resolve_ty Gamma t'
-    let r <- infer Phi Psi Delta Theta Gamma e (.some t')
-    from_synth Phi Psi Delta Theta r exp
+    -- let t' ← resolve_ty t'
+    let r ← infer e (.some t')
+    from_synth r exp
   | .if_c lab e1 e2 => do
-    let t1 <- infer Phi ((.corr lab) :: Psi) Delta Theta Gamma e1 none
-    let t2 <- infer Phi ((.not_corr lab) :: Psi) Delta Theta Gamma e2 none
-    from_synth Phi Psi Delta Theta (.t_if lab t1 t2) exp
-  | .corr_case lab e =>
-    match exp with
+    let env ← read
+    let t1 ← withCorruption (.corr lab) (infer e1 none)
+    let t2 ← withCorruption (.not_corr lab) (infer e2 none)
+    from_synth (.t_if lab.cast t1 t2) exp
+  | .corr_case lab e => do
+    match ← check_corrupt lab with
     | .none => do
-      let psi_corr := (.corr lab) :: Psi
-      let psi_not_corr := (.not_corr lab) :: Psi
-      let t1 <- infer Phi psi_corr Delta Theta Gamma e .none
-      let t2 <- infer Phi psi_not_corr Delta Theta Gamma e .none
-      pure (.t_if lab t1 t2)
-    | .some exp_ty =>do
-      let psi_corr := (.corr lab) :: Psi
-      let psi_not_corr := (.not_corr lab) :: Psi
-      let _ <- infer Phi psi_corr Delta Theta Gamma e (.some exp_ty)
-      let _ <- infer Phi psi_not_corr Delta Theta Gamma e (.some exp_ty)
-      pure exp_ty
+      let env ← read
+      let t1 ← withCorruption (.corr lab) (infer e exp)
+      let t2 ← withCorruption (.not_corr lab) (infer e exp)
+      match exp with
+      | .none => pure (.t_if lab.cast t1 t2)
+      | .some exp_ty => pure exp_ty
+    | .some b => withCorruption (if b then (.corr lab) else (.not_corr lab)) (infer e exp)
   | .sync e => do
-    let _ <- infer Phi Psi Delta Theta Gamma e (.some .Public)
-    from_synth Phi Psi Delta Theta .Public exp
-  | .default => throw "infer: unhandled case"
-  | .loc _ => throw "infer: unhandled case"
-  | .error => throw "infer: unhandled case"
+    let _ ← infer e (.some .Public)
+    from_synth .Public exp
+  | .default => throw' "infer: unhandled case"
+  | .loc _ => throw' "infer: unhandled case"
+  | .error => throw' "infer: unhandled case"
 end
 
-opaque TypeError (o : Option opaqueSyntax) (s : String) : Prop := False
-
-open PrettyPrinter Delaborator
-
-@[app_unexpander TypeError]
-def delabTypeError : Unexpander
-  | `($_typeerror $_o $s) => set_option hygiene false in `(type error $s)
-  | _ => set_option hygiene false in `(bad)
-
-
--- def has_type_infer M [Monad M] (visit : forall l r d, Owl.opaqueSyntax -> ty l r d -> M Unit)
---    (Phi : phi_context l) (Psi : psi_context l) (Delta : delta_context l r d)
---     (Gamma : gamma_context l r d m) (e : tm l r d m) (exp : ty l r d) : M (Result Prop (List SideCondition)) := do
---   match <- (infer Phi Psi Delta Gamma e (.some exp)) (CheckState.init visit (fun _ => pure ())) with
---   | .ok (_, p) => pure $ .ok $ p.side_condition
---   | .err e => pure $ .err $ TypeError e.1 e.2
-
--- Useful TODO
-/-
-theorem infer_sound Phi Psi Delta Gamma (e : tm l d m) (exp : ty l d) :
-  has_type_infer Id (fun _ _ _ _ => ()) Phi Psi Delta Gamma e exp ->
-  has_type Phi Psi Delta Gamma e exp := by
-    sorry
--/
 
 syntax "split_grind" : tactic
 
@@ -695,4 +966,4 @@ macro_rules
       | (constructor <;> split_grind)
       | grind)
 
-end OwlTc
+end Owl

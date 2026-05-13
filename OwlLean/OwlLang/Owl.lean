@@ -1,19 +1,22 @@
 import Lean
+import OwlLean.OwlLang.ScopeMap
+
+open ScopeMap
 
 namespace Owl
 
 
-structure Lattice where
-  labels : Type
-  leq    : labels -> labels -> Prop
-  bot    : labels
-  bot_proof : forall (l : labels), (leq bot l) = true
-  join   : labels -> labels -> labels
-  meet   : labels -> labels -> labels
-  leq_trans : forall l1 l2 l3, leq l1 l2 -> leq l2 l3 -> leq l1 l3
-  leq_refl : forall l, leq l l
-  bot_all : forall l, leq bot l
-  join_le : forall l1 l2 l3, leq l1 l3 -> leq l2 l3 -> leq (join l1 l2) l3
+-- structure Lattice where
+--   labels : Type
+--   leq    : labels -> labels -> Prop
+--   bot    : labels
+--   bot_proof : forall (l : labels), (leq bot l) = true
+--   join   : labels -> labels -> labels
+--   meet   : labels -> labels -> labels
+--   leq_trans : forall l1 l2 l3, leq l1 l2 -> leq l2 l3 -> leq l1 l3
+--   leq_refl : forall l, leq l l
+--   bot_all : forall l, leq bot l
+--   join_le : forall l1 l2 l3, leq l1 l3 -> leq l2 l3 -> leq (join l1 l2) l3
 
 inductive LabelTm where
   | atom : String -> LabelTm
@@ -22,6 +25,7 @@ inductive LabelTm where
   | bot : LabelTm
   deriving BEq, Repr, Lean.ToExpr
 
+@[simp]
 def LabelTm.interp (t : LabelTm) (p : String -> Bool) : Bool :=
   match t with
   | .atom x => p x
@@ -33,77 +37,60 @@ def LabelTm.interp (t : LabelTm) (p : String -> Bool) : Bool :=
 def LabelTm.leq (l1 : LabelTm) (l2 : LabelTm) :=
   forall p, (! l2.interp p) || l1.interp p
 
-def L : Lattice := {
-    labels := LabelTm,
-    leq := LabelTm.leq,
-    bot := .bot,
-    bot_proof := by
-      intros l
-      simp [LabelTm.leq]
-      simp [LabelTm.interp]
-    join := .and,
-    meet := .or,
-    leq_trans := by
-      intros l1 l2 l3
-      unfold LabelTm.leq
-      intros h1 h2 p
-      grind
-    leq_refl := by
-      unfold LabelTm.leq
-      grind
-    bot_all := by
-      unfold LabelTm.leq
-      simp [LabelTm.interp]
-    join_le := by
-      intros l1 l2 l3 h1 h2
-      simp [LabelTm.leq, LabelTm.interp] at *
-      intros
-      grind
-}
+-- def labelTmLattice : Lattice := {
+--     labels := LabelTm,
+--     leq := LabelTm.leq,
+--     bot := .bot,
+--     bot_proof := by
+--       intros l
+--       simp [LabelTm.leq]
+--       simp [LabelTm.interp]
+--     join := .and,
+--     meet := .or,
+--     leq_trans := by
+--       intros l1 l2 l3
+--       unfold LabelTm.leq
+--       intros h1 h2 p
+--       grind
+--     leq_refl := by
+--       unfold LabelTm.leq
+--       grind
+--     bot_all := by
+--       unfold LabelTm.leq
+--       simp [LabelTm.interp]
+--     join_le := by
+--       intros l1 l2 l3 h1 h2
+--       simp [LabelTm.leq, LabelTm.interp] at *
+--       intros
+--       grind
+-- }
 
 
-instance : Lean.ToExpr L.labels := by
-  unfold L
-  simp
-  infer_instance
 
-instance : Repr L.labels := by
-  unfold L
-  simp
-  infer_instance
+def lattice_leq_trans : forall {l1 l2 l3}, LabelTm.leq l1 l2 -> LabelTm.leq l2 l3 -> LabelTm.leq l1 l3 :=
+  fun {l1 l2 l3} => by
+     intros
+     grind [LabelTm.leq]
 
-def lattice_leq_trans : forall {l1 l2 l3}, L.leq l1 l2 -> L.leq l2 l3 -> L.leq l1 l3 :=
-  fun {l1 l2 l3} =>
-    L.leq_trans l1 l2 l3
 
-grind_pattern lattice_leq_trans => L.leq l1 l2, L.leq l2 l3
+grind_pattern lattice_leq_trans => LabelTm.leq l1 l2, LabelTm.leq l2 l3
 
-def lattice_leq_refl : forall {l}, L.leq l l := fun {l} => L.leq_refl l
+def lattice_leq_refl : forall {l}, LabelTm.leq l l := fun {l} => by
+  grind [LabelTm.leq]
 
-grind_pattern lattice_leq_refl => L.leq l l
+grind_pattern lattice_leq_refl => LabelTm.leq l l
 
-def lattice_bot_all : forall {l}, L.leq L.bot l := fun {l} => L.bot_all l
+def lattice_bot_all : forall {l}, LabelTm.leq LabelTm.bot l := fun {l} => by
+  simp [LabelTm.leq]
 
-grind_pattern lattice_bot_all => L.leq L.bot l
+grind_pattern lattice_bot_all => LabelTm.leq LabelTm.bot l
 
-def lattice_join_bot : forall {l}, L.leq (L.join L.bot l) l := by
+def lattice_join_bot : forall {l}, LabelTm.leq (LabelTm.and LabelTm.bot l) l := by
   intros
-  apply L.join_le
-  grind
-  grind
+  simp [LabelTm.leq]
 
-grind_pattern lattice_join_bot => (L.join L.bot l)
+grind_pattern lattice_join_bot => (LabelTm.and LabelTm.bot l)
 
-@[simp]
-theorem leq_bot : L.leq L.bot l := by
-  grind
-
-abbrev Lcarrier : Type := L.labels
-
-instance : BEq Lcarrier := by
-  unfold Lcarrier
-  simp [L]
-  infer_instance
 
 
 structure opaqueSyntax where
@@ -112,6 +99,7 @@ structure opaqueSyntax where
 instance : Repr opaqueSyntax where
   reprPrec _ _ := f!"<syntax>"
 
+open Lean
 
 inductive cond_sym : Type
 | leq : cond_sym
@@ -122,190 +110,359 @@ inductive cond_sym : Type
 | ngeq : cond_sym
 | ngt : cond_sym
 | nlt : cond_sym
-deriving Repr, DecidableEq
+deriving Repr, DecidableEq, Lean.ToExpr
+
+syntax (name := Lvar) "#L" : term
+macro_rules
+  | `(term| #L) => `(0)
+
+syntax (name := Rvar) "#R" : term
+macro_rules
+  | `(term| #R) => `(1)
+
+syntax (name := Tyvar) "#Ty" : term
+macro_rules
+  | `(term| #Ty) => `(2)
+
+syntax (name := Tmvar) "#Tm" : term
+macro_rules
+  | `(term| #Tm) => `(3)
+
+inductive label : ScopeMap 1 -> Type where
+| var_label : String -> Fin (s.get 0) -> label s
+| latl : LabelTm -> label s
+| ljoin : label s -> label s -> label s
+| lmeet : label s -> label s -> label s
+deriving Repr, BEq, Lean.ToExpr
 
 
-inductive label : Nat -> Type where
-| var_label : String -> Fin n -> label n
-| latl : Lcarrier -> label n
-| ljoin : label n -> label n -> label n
-| lmeet : label n -> label n -> label n
-| default : label n
-deriving Repr, BEq
+inductive corruption : ScopeMap 1 -> Type where
+| corr : label s -> corruption s
+| not_corr : label s -> corruption s
+deriving Repr, BEq, Lean.ToExpr
 
-inductive corruption : Nat -> Type where
-| corr : label n -> corruption n
-| not_corr : label n -> corruption n
-deriving Repr, BEq
-
-inductive constr (n_label : Nat) : Type where
-| condition : cond_sym -> label n_label -> label n_label -> constr n_label
-deriving Repr, BEq
+inductive constr  : ScopeMap 1 -> Type where
+| condition : cond_sym -> label s -> label s -> constr s
+deriving Repr, BEq, Lean.ToExpr
 
 abbrev GUId := Nat
 
-inductive rexp : Nat -> Nat -> Type where
-  | fvar : Lean.Name -> rexp r n
-  | var : Fin r -> rexp r n
-  | op : String -> rexp r n -> rexp r n -> rexp r n
-  | tmvar : Fin n -> rexp r n
-  | const : String -> rexp r n
-deriving Repr, BEq
 
-def rexp.free (i : Fin r) (re : rexp r n) :=
+deriving instance BEq, Lean.ToExpr for String.Pos.Raw
+deriving instance BEq, Lean.ToExpr for Substring.Raw
+deriving instance BEq, Lean.ToExpr for Lean.SourceInfo
+deriving instance BEq, Lean.ToExpr for Lean.Syntax
+deriving instance BEq, Lean.ToExpr for Owl.opaqueSyntax
+
+
+-- TODO: remove tmvar, get ScopeMap 2; simplifiy the implementation
+inductive rexp : ScopeMap 2 -> Type where
+  | fvar : Lean.Name -> rexp s
+  | var : Fin (s.get #R) -> rexp s
+  | binop : String -> rexp s -> rexp s -> rexp s
+  | unop : String -> rexp s -> rexp s
+  | const : String -> rexp s
+deriving Repr, BEq, Lean.ToExpr
+
+
+
+inductive prop : ScopeMap 2 -> Type where
+  | peq : rexp s -> rexp s -> prop s
+  | pand : prop s -> prop s -> prop s
+  | por : prop s -> prop s -> prop s
+  | pimpl : prop s -> prop s -> prop s
+  | pnot : prop s -> prop s
+  | pall : prop (s.bump #R) -> prop s
+  deriving Repr, BEq, Lean.ToExpr
+
+
+
+
+inductive ty : ScopeMap 3 -> Type where
+| var_ty : String -> Fin (s.get #Ty) -> ty s
+| Any : ty s
+| Unit : ty s
+| RData : label (s.restrict 1) -> rexp (s.restrict 2) -> ty s
+| Data : label (s.restrict 1) -> ty s
+| Ref : ty s -> ty s
+| arr : ty s -> ty s -> ty s
+| union : ty s -> ty s -> ty s
+| inter : ty s -> ty s -> ty s
+| prod : ty s -> ty s -> ty s
+| sum : ty s -> ty s -> ty s
+| all : ty s -> ty (s.bump #Ty) -> ty s
+| ex : ty s -> ty (s.bump #Ty) -> ty s
+| ex_r : ty (s.bump #R) -> ty s
+| all_r : ty (s.bump #R) -> ty s
+| all_l : cond_sym -> label (s.restrict 1) -> ty (s.bump #L) -> ty s
+| t_if : label (s.restrict 1) -> ty s -> ty s -> ty s
+| refined : ty s -> prop (s.restrict 2) -> ty s
+| Public : ty s
+| default : ty s
+| admit : ty s
+deriving Repr, BEq, Lean.ToExpr
+
+
+
+mutual
+
+  inductive tm : ScopeMap 4 -> Type where
+   | mk : opaqueSyntax -> tmX s -> tm s
+   deriving Repr, Lean.ToExpr
+
+inductive tmX : ScopeMap 4 -> Type where
+| admit : tmX s
+| var_tm : Fin (s.get #Tm) -> tmX s
+| error : tmX s
+| skip : tmX s
+| bitstring : String -> tmX s
+| loc : Nat -> tmX s
+| fixlam : String -> String -> tm ((s.bump #Tm).bump #Tm) -> tmX s
+| tlet : String -> tm s -> tm (s.bump #Tm) -> tmX s
+| union_elim : String -> tm s -> tm (s.bump #Tm) -> tmX s
+| tlam : String -> tm (s.bump #Ty) -> tmX s
+| rlam : String -> tm (s.bump #R) -> tmX s
+| l_lam : String -> tm (s.bump #L) -> tmX s
+| binop : String -> tm s -> tm s -> tmX s
+| unop : String -> tm s -> tmX s
+| zero : tm s -> tmX s
+| app : tm s -> tm s -> tmX s
+| alloc : tm s -> tmX s
+| dealloc : tm s -> tmX s
+| assign : tm s -> tm s -> tmX s
+| tm_pair : tm s -> tm s -> tmX s
+| left_tm : tm s -> tmX s
+| right_tm : tm s -> tmX s
+| inl : tm s -> tmX s
+| inr  : tm s -> tmX s
+| case :
+    tm s ->
+    String ->
+    tm (s.bump #Tm) ->
+    String ->
+    tm (s.bump #Tm) -> tmX s
+| tapp : tm s -> ty (s.restrict 3) -> tmX s
+| lapp : tm s -> label (s.restrict 1) -> tmX s
+| rapp : tm s -> rexp (s.restrict 2) -> tmX s
+| pack : ty (s.restrict 3) -> tm s -> tmX s
+| rpack : rexp (s.restrict 2) -> tm s -> tmX s
+| unpack : tm s -> String -> String -> tm ((s.bump #Ty).bump #Tm) -> tmX s
+| if_tm :
+    tm s ->
+    tm s -> tm s -> tmX s
+| if_c :
+    label (s.restrict 1) -> tm s -> tm s -> tmX s
+| sync : tm s -> tmX s
+| corr_case : label (s.restrict 1) -> tm s -> tmX s
+| annot : tm s -> ty (s.restrict 3) -> tmX s
+| default : tmX s
+deriving Repr, Lean.ToExpr
+
+end
+
+def rexp.free (i : Fin (s.get #R)) (re : rexp s) :=
   match re with
   | .fvar _ => true
   | .var j      => i != j
-  | .op _ r1 r2 => rexp.free i r1 && rexp.free i r2
+  | .binop _ r1 r2 => rexp.free i r1 && rexp.free i r2
+  | .unop _ r1 => rexp.free i r1
   | .const _    => true
-  | .tmvar _ => true
 
 
-inductive prop : Nat -> Nat -> Type where
-  | peq : rexp r n -> rexp r n -> prop r n
-  | pand : prop r n -> prop r n -> prop r n
-  | por : prop r n -> prop r n -> prop r n
-  | pimpl : prop r n -> prop r n -> prop r n
-  | pnot : prop r n -> prop r n
-  | pall : prop (r + 1) n -> prop r n
-  deriving Repr, BEq
+-- class EqScopeMap (s : ScopeMap N) (t : ScopeMap N) where
+--   heq : s = t
+--
+-- class IsTrue (p : Prop) where
+--   pf : p
+--
+--
+--
+-- class FinToNat (i : Fin n) (m : outParam Nat) where
+--   heq : i.val = m
+--
+-- instance {x : Fin n}: FinToNat x x.val where
+--   heq := rfl
+--
+-- class LeNat (n : Nat) (m : Nat) where
+--   le : n ≤ m
+--
+-- instance : LeNat 0 0 where
+--   le := by simp
+--
+-- instance [h : LeNat n m] : LeNat n (m + 1) where
+--   le := by grind [h.le]
+--
+-- instance [h : LeNat n m] : LeNat (n + 1) (m + 1) where
+--   le := by grind [h.le]
+--
+-- instance {m1 m2 : ScopeMap 2} {p : prop m1} [h : EqScopeMap m1 m2] : CoeDep (prop m1) p (prop m2) where
+--   coe := h.heq ▸ p
+--
+-- instance [h : IsTrue (n =  m)] {i : Fin n} : CoeDep (Fin n) i (Fin m) where
+--   coe := i.cast h.pf
+--
+-- instance [h : IsTrue (m = n)] {i : Fin n} : CoeDep (Fin n) i (Fin m) where
+--   coe := i.cast h.pf.symm
+--
+-- class SameFin (i : Fin n) (j : Fin m) where
+--   same : i.val = j.val
+--
+-- class NeqFin (i : Fin n) (j : Fin m) where
+--   h : ¬ i.val = j.val
+--
+-- class GeFinNat (i : Fin n) (j : Nat) where
+--   h : i.val >= j
+--
+--
+-- instance {s : ScopeMap N} {i : Fin N} {M : Nat} {h h' : M ≤ N} [hiM : GeFinNat i M] : EqScopeMap ((s.bump i).restrict M h) (s.restrict M h') where
+--   heq := by
+--     simp [ScopeMap.bump_restrict]
+--     intros
+--     cases hiM
+--     grind
+--
+--
+-- instance [h : NeqFin x y] : NeqFin y x where
+--   h := by cases h; grind
+--
+--
+--
+-- instance [h : SameFin x y] : SameFin y x where
+--   same := h.same.symm
+--
+-- instance : SameFin (1 : Fin 4) (1 : Fin 3) where
+--   same := by simp
+--
+-- instance {s : ScopeMap N} {M : Nat} {hM} {x : Fin M} {y} [hxy : SameFin x y] : IsTrue ((s.restrict M hM).get x = s.get y) where
+--   pf := by
+--     simp
+--     unfold ScopeMap.get
+--     congr 1
+--     apply Fin.ext
+--     simp
+--     apply hxy.same
+--
+-- instance {s : ScopeMap N} {M : Nat} {hM : M <= N} {M' : Nat} {hM' : M' <= M} {h3 : M' <= N} :
+--    EqScopeMap ((s.restrict M hM).restrict M' hM') ((s.restrict M' h3))  where
+--      heq := by
+--       apply ScopeMap.restrict_restrict
+--
+--
+--
+--
+-- instance {s : ScopeMap N} {x y : Fin N} [h : NeqFin x y] : IsTrue ((s.bump x).get y = s.get y) where
+--   pf := by cases h; simp; grind
+--
+-- instance : NeqFin (1 : Fin 4) (3 : Fin 4) where
+--   h := by grind
+--
+-- instance : NeqFin (0 : Fin 4) (1 : Fin 4) where
+--   h := by grind
+--
+-- instance {s : ScopeMap N} {x : Fin N} : IsTrue ((s.bump x).get x = s.get x + 1) where
+--   pf := by simp
+--
+-- instance {s : ScopeMap N} {x : Fin N} : IsTrue (s.get x + 1 = (s.bump x).get x) where
+--   pf := by simp
+--
+-- instance : SameFin (2 : Fin 3) (2 : Fin 4) where
+--   same := by simp
+--
+-- instance {s : ScopeMap N} (x : Fin N) M h (y : Fin M) [Hsame : SameFin x y] : EqScopeMap ((s.bump x).restrict M h) ((s.restrict M h).bump y) where
+--   heq := by
+--      simp [ScopeMap.bump_restrict]
+--      split
+--      congr 1
+--      cases Hsame; grind
+--      cases y
+--      cases x
+--      cases Hsame
+--      grind
+--
+--
+-- instance : GeFinNat (2 : Fin 4) 1 where
+--   h := by simp
+--
+-- instance [h : EqScopeMap s t] (l : label s) : CoeDep (label s) l (label t) where
+--   coe := h.heq ▸ l
+--
+-- instance [h : EqScopeMap s t] (l : ty s) : CoeDep (ty s) l (ty t) where
+--   coe := h.heq ▸ l
+--
+-- instance [h : EqScopeMap s t] (p : prop s) : CoeDep (prop s) p (prop t) where
+--   coe := h.heq ▸ p
+--
+-- instance {s : ScopeMap N} : EqScopeMap ((s.bump x).bump y) ((s.bump y).bump x) where
+--    heq := by simp [ScopeMap.bump_bump]
+--
+-- instance {s : ScopeMap N} {x : Fin N} {M : Nat} {h : M <= N} {y : Fin M} [heq : SameFin x y] :  EqScopeMap ((s.bump x).restrict M h) ((s.restrict M h).bump y) where
+--   heq := by
+--     simp [ScopeMap.bump_restrict]
+--     split
+--     congr 1
+--     cases heq
+--     grind
+--     cases y
+--     cases heq
+--     grind
+--
+-- instance {s : ScopeMap N} {x : Fin N} {M : Nat} {h h' : M <= N} [h2 : IsTrue (x >= M)] :  EqScopeMap ((s.bump x).restrict M h) (s.restrict M h') where
+--   heq := by
+--     simp [ScopeMap.bump_restrict]
+--     intros
+--     cases h2
+--     grind
 
+#eval (1 : Fin 3)
+
+#check OfNat
 
 
 @[simp]
-def prop.rfree {n : Nat} (p : prop r n) (i : Fin r) : Bool :=
+def prop.rfree  (p : prop s) (i : Fin (s.get #R)) : Bool :=
   match p with
   | .peq re1 re2 => rexp.free i re1 && rexp.free i re2
   | .pand p1 p2 => prop.rfree p1 i && prop.rfree p2 i
   | .por p1 p2 => prop.rfree p1 i && prop.rfree p2 i
   | .pimpl p1 p2 => prop.rfree p1 i && prop.rfree p2 i
   | .pnot p1 => prop.rfree p1 i
-  | .pall p0 => prop.rfree p0 (Fin.succ i)
-
-
-
-inductive ty : Nat -> Nat -> Nat -> Nat -> Type where
-| var_ty : Fin n_ty -> ty n_label n_ref n_ty n_tm
-| Any : ty n_label n_ref n_ty n_tm
-| Unit : ty n_label n_ref n_ty n_tm
-| RData : label n_label -> rexp n_ref n_tm -> ty n_label n_ref n_ty n_tm
-| Data : label n_label -> ty n_label n_ref n_ty n_tm
-| Ref : ty n_label n_ref n_ty n_tm -> ty n_label n_ref n_ty n_tm
-| arr : ty n_label n_ref n_ty n_tm -> ty n_label n_ref n_ty n_tm -> ty n_label n_ref n_ty n_tm
-| union : ty n_label n_ref n_ty n_tm -> ty n_label n_ref n_ty n_tm -> ty n_label n_ref n_ty n_tm
-| inter : ty n_label n_ref n_ty n_tm -> ty n_label n_ref n_ty n_tm -> ty n_label n_ref n_ty n_tm
-| prod : ty n_label n_ref n_ty n_tm -> ty n_label n_ref n_ty n_tm -> ty n_label n_ref n_ty n_tm
-| sum : ty n_label n_ref n_ty n_tm -> ty n_label n_ref n_ty n_tm -> ty n_label n_ref n_ty n_tm
-| all : ty n_label n_ref n_ty n_tm -> ty n_label n_ref (n_ty + 1) n_tm -> ty n_label n_ref n_ty n_tm
-| ex : ty n_label n_ref n_ty n_tm -> ty n_label n_ref (n_ty + 1) n_tm -> ty n_label n_ref n_ty n_tm
-| ex_r : ty n_label (n_ref + 1) n_ty n_tm -> ty n_label n_ref n_ty n_tm
-| all_r : ty n_label (n_ref + 1) n_ty n_tm -> ty n_label n_ref n_ty n_tm
-| all_l : cond_sym -> label n_label -> ty (n_label + 1) n_ref n_ty n_tm -> ty n_label n_ref n_ty n_tm
-| t_if : label n_label -> ty n_label n_ref n_ty n_tm -> ty n_label n_ref n_ty n_tm -> ty n_label n_ref n_ty n_tm
-| refined : ty n_label n_ref n_ty n_tm -> prop n_ref n_tm -> ty n_label n_ref n_ty n_tm
-| Public : ty n_label n_ref n_ty n_tm
-| default : ty n_label n_ref n_ty n_tm
-| admit : ty n_label n_ref n_ty n_tm
-deriving Repr, BEq
+  | .pall p0 => prop.rfree p0 ((Fin.succ i).cast (by simp))
 
 
 @[simp]
-def ty.r_free {l r d : Nat} (i : Fin r) : ty l r d k → Bool
+def ty.r_free (t : ty s) (i : Fin (s.get #R)) : Bool :=
+  match t with
 | .admit => true
-| .var_ty _ => true
+| .var_ty _ _ => true
 | .Any => true
-| .refined t0 p => t0.r_free i && p.rfree i
+| .refined t0 p => t0.r_free i && p.rfree (i.cast (by simp))
 | .Unit => true
-| .RData _ re => rexp.free i re
+| .RData _ re => rexp.free (i.cast (by simp)) re
 | .Data _ => true
-| .Ref t => ty.r_free i t
-| .arr t1 t2 => ty.r_free i t1 && ty.r_free i t2
-| .union t1 t2 => ty.r_free i t1 && ty.r_free i t2
-| .inter t1 t2 => ty.r_free i t1 && ty.r_free i t2
-| .prod t1 t2 => ty.r_free i t1 && ty.r_free i t2
-| .sum t1 t2 => ty.r_free i t1 && ty.r_free i t2
-| .all t1 t2 => ty.r_free i t1 && ty.r_free i t2
-| .ex t1 t2 => ty.r_free i t1 && ty.r_free i t2
-| .ex_r t0 => ty.r_free (Fin.succ i) t0
-| .all_r t0 => ty.r_free (Fin.succ i) t0
-| .all_l _ _ t => ty.r_free i t
-| .t_if _ t1 t2 => ty.r_free i t1 && ty.r_free i t2
+| .Ref t => t.r_free i
+| .arr t1 t2 => t1.r_free i && t2.r_free i
+| .union t1 t2 => t1.r_free i && t2.r_free i
+| .inter t1 t2 => t1.r_free i && t2.r_free i
+| .prod t1 t2 => t1.r_free i && t2.r_free i
+| .sum t1 t2 => t1.r_free i && t2.r_free i
+| .all t1 t2 => t1.r_free i && t2.r_free (i.cast (by simp))
+| .ex t1 t2 => t1.r_free i && t2.r_free (i.cast (by simp))
+| .ex_r t0 => t0.r_free ((Fin.succ i).cast (by simp))
+| .all_r t0 => t0.r_free ((Fin.succ i).cast (by simp))
+| .all_l _ _ t => t.r_free (i.cast (by simp))
+| .t_if _ t1 t2 => t1.r_free i && t2.r_free i
 | .Public => true
 | .default => true
 
 
-inductive Dist (a : Type) : Type where
-| ret  : a -> Dist a
-| flip : (Bool -> Dist a) → Dist a
-
-
-mutual
-  inductive tm : Nat -> Nat -> Nat -> Nat -> Type where
-   | mk : opaqueSyntax -> tmX l d m r -> tm l d m r
-   deriving Repr
-
-inductive tmX : Nat -> Nat -> Nat -> Nat -> Type where
-| admit : tmX n_label n_ref n_ty n_tm
-| var_tm : Fin n_tm -> tmX n_label n_ref n_ty n_tm
-| error : tmX n_label n_ref n_ty n_tm
-| skip : tmX n_label n_ref n_ty n_tm
-| bitstring : String -> tmX n_label n_ref n_ty n_tm
-| loc : Nat -> tmX n_label n_ref n_ty n_tm
-| fixlam : String -> tm n_label n_ref n_ty ((n_tm + 1) + 1) -> tmX n_label n_ref n_ty n_tm
-| tlet : tm n_label n_ref n_ty n_tm -> tm n_label n_ref n_ty (n_tm + 1) -> tmX n_label n_ref n_ty n_tm
-| union_elim : tm n_label n_ref n_ty n_tm -> tm n_label n_ref n_ty (n_tm + 1) -> tmX n_label n_ref n_ty n_tm
-| tlam : tm n_label n_ref (n_ty + 1) n_tm -> tmX n_label n_ref n_ty n_tm
-| rlam : tm n_label (n_ref + 1) n_ty n_tm -> tmX n_label n_ref n_ty n_tm
-| l_lam : tm (n_label + 1) n_ref n_ty n_tm -> tmX n_label n_ref n_ty n_tm
-| Op : String -> tm n_label n_ref n_ty n_tm -> tm n_label n_ref n_ty n_tm -> tmX n_label n_ref n_ty n_tm
-| zero : tm n_label n_ref n_ty n_tm -> tmX n_label n_ref n_ty n_tm
-| app : tm n_label n_ref n_ty n_tm -> tm n_label n_ref n_ty n_tm -> tmX n_label n_ref n_ty n_tm
-| alloc : tm n_label n_ref n_ty n_tm -> tmX n_label n_ref n_ty n_tm
-| dealloc : tm n_label n_ref n_ty n_tm -> tmX n_label n_ref n_ty n_tm
-| assign : tm n_label n_ref n_ty n_tm -> tm n_label n_ref n_ty n_tm -> tmX n_label n_ref n_ty n_tm
-| tm_pair : tm n_label n_ref n_ty n_tm -> tm n_label n_ref n_ty n_tm -> tmX n_label n_ref n_ty n_tm
-| left_tm : tm n_label n_ref n_ty n_tm -> tmX n_label n_ref n_ty n_tm
-| right_tm : tm n_label n_ref n_ty n_tm -> tmX n_label n_ref n_ty n_tm
-| inl : tm n_label n_ref n_ty n_tm -> tmX n_label n_ref n_ty n_tm
-| inr {n_label n_ref n_ty n_tm} : tm n_label n_ref n_ty n_tm -> tmX n_label n_ref n_ty n_tm
-| case :
-    tm n_label n_ref n_ty n_tm ->
-    tm n_label n_ref n_ty (n_tm + 1) -> tm n_label n_ref n_ty (n_tm + 1) -> tmX n_label n_ref n_ty n_tm
-| tapp : tm n_label n_ref n_ty n_tm -> ty n_label n_ref n_ty n_tm -> tmX n_label n_ref n_ty n_tm
-| lapp : tm n_label n_ref n_ty n_tm -> label n_label -> tmX n_label n_ref n_ty n_tm
-| rapp : tm n_label n_ref n_ty n_tm -> rexp n_ref n_tm -> tmX n_label n_ref n_ty n_tm
-| pack : ty n_label n_ref n_ty n_tm -> tm n_label n_ref n_ty n_tm -> tmX n_label n_ref n_ty n_tm
-| rpack : rexp n_ref n_tm -> tm n_label n_ref n_ty n_tm -> tmX n_label n_ref n_ty n_tm
-| unpack : tm n_label n_ref n_ty n_tm -> tm n_label n_ref (n_ty + 1) (n_tm + 1) -> tmX n_label n_ref n_ty n_tm
-| if_tm :
-    tm n_label n_ref n_ty n_tm ->
-    tm n_label n_ref n_ty n_tm -> tm n_label n_ref n_ty n_tm -> tmX n_label n_ref n_ty n_tm
-| if_c :
-    label n_label -> tm n_label n_ref n_ty n_tm -> tm n_label n_ref n_ty n_tm -> tmX n_label n_ref n_ty n_tm
-| sync : tm n_label n_ref n_ty n_tm -> tmX n_label n_ref n_ty n_tm
-| corr_case : label n_label -> tm n_label n_ref n_ty n_tm -> tmX n_label n_ref n_ty n_tm
-| annot : tm n_label n_ref n_ty n_tm -> ty n_label n_ref n_ty n_tm -> tmX n_label n_ref n_ty n_tm
-| default : tmX n_label n_ref n_ty n_tm
-deriving Repr
-
-end
-
-deriving instance Lean.ToExpr for Owl.Lcarrier
-deriving instance Lean.ToExpr for Owl.label
-deriving instance Lean.ToExpr for Owl.corruption
-deriving instance Lean.ToExpr for Owl.cond_sym
-deriving instance Lean.ToExpr for Owl.constr
-deriving instance Lean.ToExpr for Owl.rexp
-deriving instance Lean.ToExpr for Owl.prop
-deriving instance Lean.ToExpr for Owl.ty
 
 @[always_inline]
-abbrev tm.get (t : tm l d m r) : tmX l d m r :=
+abbrev tm.get (t : tm s) : tmX s :=
   match t with
   | .mk _ v => v
 
 @[simp]
-def tm.mkD (t : tmX l d m r) : tm l d m r :=
+def tm.mkD (t : tmX s) : tm s :=
   let stx := Lean.Syntax.missing
   tm.mk (.mk stx) t
 
@@ -331,8 +488,6 @@ def cons (x : X) (f : Fin n -> X) (m : Fin (n + 1)) : X :=
       let i : Fin n := ⟨k, hk'⟩
       (f i)
 
-def up_ren (xi : ren m n) : ren (m + 1) (n + 1) :=
-  cons var_zero (funcomp shift xi)
 
 @[simp]
 def upRen_ty_label (xi : Fin m → Fin n) : Fin m → Fin n :=
@@ -351,466 +506,370 @@ def upRen_label_ty (xi : Fin m -> Fin n) : Fin m -> Fin n :=
   xi
 
 @[simp]
-def ren_label
-  (xi_label : Fin m_label → Fin n_label)
-  (s : label m_label) : label n_label :=
-  match s with
-  | .var_label n s0 => label.var_label n (xi_label s0)
+def label.rename
+  (l : label s) (ren : s.renaming s')
+  : label s' :=
+  match l with
+  | .var_label n s0 => label.var_label n (ren.apply #L s0)
   | .latl s0 => label.latl s0
-  | .ljoin s0 s1 => label.ljoin (ren_label xi_label s0) (ren_label xi_label s1)
-  | .lmeet s0 s1 => label.lmeet (ren_label xi_label s0) (ren_label xi_label s1)
-  | .default => .default
+  | .ljoin s0 s1 => label.ljoin (s0.rename ren) (s1.rename ren)
+  | .lmeet s0 s1 => label.lmeet (s0.rename ren) (s1.rename ren)
 
-def ren_constr
-  (xi_label : Fin m_label -> Fin n_label) (s : constr m_label) :
-  constr n_label :=
-  match s with
-  | .condition s0 s1 s2 => .condition s0 (ren_label xi_label s1) (ren_label xi_label s2)
+def constr.rename
+  (c : constr s)
+  (ren : s.renaming s') :
+  constr s' :=
+  match c with
+  | .condition s0 s1 s2 => .condition s0 (s1.rename ren) (s2.rename ren)
 
-def ren_corruption
-  (xi_label : Fin m_label → Fin n_label)
-  (s : corruption m_label) : corruption n_label :=
-  match s with
-  | .corr l1 => .corr (ren_label xi_label l1)
-  | .not_corr l1 => .not_corr (ren_label xi_label l1)
+def corruption.rename
+  (c : corruption s) (ren : s.renaming s') : corruption s' :=
+  match c with
+  | .corr l1 => .corr (l1.rename ren)
+  | .not_corr l1 => .not_corr (l1.rename ren)
 
 
-def ren_rexp (xi_ref : Fin m_ref -> Fin n_ref)
-  (xi_tm : Fin m_tm -> Fin n_tm)
-  (r : rexp m_ref m_tm) : rexp n_ref n_tm :=
+def rexp.rename (r : rexp s) (ren : s.renaming s')
+  : rexp s' :=
     match r with
-    | .fvar i => .fvar i
-    | .var j => .var (xi_ref j)
-    | .op s r1 r2 => .op s (ren_rexp xi_ref xi_tm r1) (ren_rexp xi_ref xi_tm r2)
+    | .fvar nm => .fvar nm
+    | .var j => .var (ren.apply #R j)
+    | .binop s r1 r2 => .binop s (r1.rename ren) (r2.rename ren)
+    | .unop s r1 => .unop s (r1.rename ren)
     | .const b => .const b
-    | .tmvar j => .tmvar (xi_tm j)
 
-def ren_prop
-  (xi_ref : Fin m_ref -> Fin n_ref)
-  (xi_tm : Fin m_tm -> Fin n_tm)
-  (p : prop m_ref m_tm) : prop n_ref n_tm :=
+def prop.rename (p : prop s) (ren : s.renaming s') : prop s' :=
   match p with
-  | .peq re1 re2 => .peq (ren_rexp xi_ref xi_tm re1) (ren_rexp xi_ref xi_tm re2)
-  | .pand p1 p2 => .pand (ren_prop xi_ref xi_tm p1) (ren_prop xi_ref xi_tm p2)
-  | .por p1 p2 => .por (ren_prop xi_ref xi_tm p1) (ren_prop xi_ref xi_tm p2)
-  | .pimpl p1 p2 => .pimpl (ren_prop xi_ref xi_tm p1) (ren_prop xi_ref xi_tm p2)
-  | .pnot p1 => .pnot (ren_prop xi_ref xi_tm p1)
-  | .pall p => .pall (ren_prop (up_ren xi_ref) xi_tm p)
+  | .peq re1 re2 => .peq (re1.rename ren) (re2.rename ren)
+  | .pand p1 p2 => .pand (p1.rename ren) (p2.rename ren)
+  | .por p1 p2 => .por (p1.rename ren) (p2.rename ren)
+  | .pimpl p1 p2 => .pimpl (p1.rename ren) (p2.rename ren)
+  | .pnot p1 => .pnot (p1.rename ren)
+  | .pall p => .pall (p.rename (ren.bump #R))
 
 
 @[simp]
-def ren_ty
-(xi_label : Fin m_label -> Fin n_label)
-(xi_ref : Fin m_ref -> Fin n_ref )
-(xi_ty : Fin m_ty -> Fin n_ty)
-(xi_tm  : Fin m_tm -> Fin n_tm)
-(s : ty m_label m_ref m_ty m_tm)  : ty n_label n_ref n_ty n_tm :=
-  match s with
+def ty.rename (t : ty s) (ren : s.renaming s') : ty s' :=
+  match t with
   | .admit => .admit
-  | .var_ty s0 => .var_ty (xi_ty s0)
+  | .var_ty s s0 => .var_ty s (ren.apply #Ty s0)
   | .Any => .Any
   | .Unit => .Unit
-  | .RData s0 re => .RData (ren_label xi_label s0) (ren_rexp xi_ref xi_tm re)
-  | .Data s0 => .Data (ren_label xi_label s0)
-  | .Ref s0 => .Ref (ren_ty xi_label xi_ref xi_ty xi_tm s0)
+  | .RData s0 re => .RData (s0.rename $ ren.restrict) (re.rename $ ren.restrict)
+  | .Data s0 => .Data (s0.rename $ ren.restrict)
+  | .Ref s0 => .Ref (s0.rename ren)
   | .arr s0 s1 =>
-      .arr (ren_ty xi_label xi_ref xi_ty xi_tm s0) (ren_ty xi_label xi_ref xi_ty xi_tm s1)
+      .arr (s0.rename ren) (s1.rename ren)
   | .union s0 s1 =>
-      .union (ren_ty xi_label xi_ref xi_ty xi_tm s0) (ren_ty xi_label xi_ref xi_ty xi_tm s1)
+      .union (s0.rename ren) (s1.rename ren)
   | .inter s0 s1 =>
-      .inter (ren_ty xi_label xi_ref xi_ty xi_tm s0) (ren_ty xi_label xi_ref xi_ty xi_tm s1)
+      .inter (s0.rename ren) (s1.rename ren)
   | .prod s0 s1 =>
-      .prod (ren_ty xi_label xi_ref xi_ty xi_tm s0) (ren_ty xi_label xi_ref xi_ty xi_tm s1)
+      .prod (s0.rename ren) (s1.rename ren)
   | .refined t p =>
-      .refined (ren_ty xi_label xi_ref xi_ty xi_tm t) (ren_prop xi_ref xi_tm p)
+      .refined (t.rename ren) (p.rename $ ren.restrict)
   | .sum s0 s1 =>
-      .sum (ren_ty xi_label xi_ref xi_ty xi_tm s0) (ren_ty xi_label xi_ref xi_ty xi_tm s1)
-
+      .sum (s0.rename ren) (s1.rename ren)
   | .all s0 s1 =>
-      .all (ren_ty xi_label xi_ref xi_ty xi_tm s0)
-        (ren_ty (upRen_ty_label xi_label) xi_ref (upRen_ty_ty xi_ty) xi_tm s1)
+      .all (s0.rename ren)
+           (s1.rename $ ren.bump #Ty)
   | .ex s0 s1 =>
-      .ex (ren_ty xi_label xi_ref xi_ty xi_tm s0)
-        (ren_ty (upRen_ty_label xi_label) xi_ref (upRen_ty_ty xi_ty) xi_tm s1)
-  | .ex_r t0 => .ex_r (ren_ty xi_label (up_ren xi_ref) xi_ty xi_tm t0)
-  | .all_r t0 => .all_r (ren_ty xi_label (up_ren xi_ref) xi_ty xi_tm t0)
+      .ex (s0.rename ren)
+           (s1.rename $ ren.bump #Ty)
+  | .ex_r t0 => .ex_r (t0.rename $ ren.bump #R)
+  | .all_r t0 => .all_r (t0.rename $ ren.bump #R)
   | .all_l s0 s1 s2 =>
-      .all_l s0 (ren_label xi_label s1)
-        (ren_ty (upRen_label_label xi_label) xi_ref (upRen_label_ty xi_ty) xi_tm s2)
+      .all_l s0 (s1.rename $ ren.restrict _)
+        (s2.rename $ ren.bump #L)
   | .t_if s0 s1 s2 =>
-      .t_if (ren_label xi_label s0) (ren_ty xi_label xi_ref xi_ty xi_tm s1)
-        (ren_ty xi_label xi_ref xi_ty xi_tm s2)
+      .t_if (s0.rename $ ren.restrict _) (s1.rename ren)
+        (s2.rename ren)
   | .Public => .Public
   | .default => .default
 
-@[simp]
-def upRen_tm_label (xi : Fin m -> Fin n) :
-  Fin m -> Fin n :=
-    xi
-
-@[simp]
-def upRen_tm_ty (xi : Fin m -> Fin n) : Fin m -> Fin n :=
-    xi
-
-@[simp]
-def upRen_tm_tm (xi : Fin m -> Fin n) :
-  Fin (m + 1) -> Fin (n + 1) :=
-    (up_ren xi)
-
-@[simp]
-def upRen_ty_tm (xi : Fin m -> Fin n) : Fin m -> Fin n :=
-    xi
-
-@[simp]
-def upRen_label_tm (xi : Fin m -> Fin n) :
-  Fin m -> Fin n :=
-    xi
 
 mutual
 
-def ren_tm
-(xi_label : Fin m_label -> Fin n_label)
-(xi_ref : Fin m_ref -> Fin n_ref)
-(xi_ty : Fin m_ty -> Fin n_ty)
-(xi_tm : Fin m_tm -> Fin n_tm)
-
-(s : tm m_label m_ref m_ty m_tm ) :
-tm n_label n_ref n_ty n_tm :=
-  match s with
-  | .mk stx inner => .mk stx (ren_tmX xi_label xi_ref xi_ty xi_tm inner)
+def tm.rename
+ (t : tm s)
+ (ren : s.renaming s')
+ : tm s' :=
+  match t with
+  | .mk stx inner => .mk stx (inner.rename ren)
 
 
-def ren_tmX
-(xi_label : Fin m_label -> Fin n_label)
-(xi_ref : Fin m_ref -> Fin n_ref)
-
-(xi_ty : Fin m_ty -> Fin n_ty)
-(xi_tm : Fin m_tm -> Fin n_tm)
-(s : tmX m_label m_ref m_ty m_tm ) :
-tmX n_label n_ref n_ty n_tm :=
-  match s with
+def tmX.rename (t : tmX s) (ren : s.renaming s') : tmX s' :=
+  match t with
   | .admit => .admit
-  | .var_tm s0 => .var_tm (xi_tm s0)
+  | .var_tm s0 => .var_tm (ren.apply #Tm s0)
   | .error => .error
   | .skip => .skip
   | .bitstring s0 => .bitstring s0
   | .loc s0 => .loc s0
-  | .fixlam nm s0 =>
-      .fixlam nm
-        (ren_tm (upRen_tm_label (upRen_tm_label xi_label))
-           xi_ref
-           (upRen_tm_ty (upRen_tm_ty xi_ty))
-           (upRen_tm_tm (upRen_tm_tm xi_tm)) s0)
-  | .tlam s0 =>
-      .tlam
-        (ren_tm (upRen_ty_label xi_label) xi_ref
-           (upRen_ty_ty xi_ty)
-           (upRen_ty_tm xi_tm) s0)
-  | .rlam s0 =>
+  | .fixlam nm1 nm2 s0 =>
+      .fixlam nm1 nm2
+        (s0.rename $ (ren.bump #Tm).bump #Tm)
+  | .tlam nm s0 =>
+      .tlam nm (s0.rename $ ren.bump #Ty)
+  | .rlam nm s0 =>
     .rlam
-        (ren_tm xi_label (up_ren xi_ref) xi_ty xi_tm s0)
-  | .tlet e1 e2 =>
-    .tlet (ren_tm xi_label xi_ref xi_ty xi_tm e1)
-          (ren_tm xi_label xi_ref xi_ty (upRen_tm_tm xi_tm) e2)
-  | .union_elim e1 e2 =>
-    .union_elim (ren_tm xi_label xi_ref xi_ty xi_tm e1)
-          (ren_tm xi_label xi_ref xi_ty (upRen_tm_tm xi_tm) e2)
-  | .l_lam s0 =>
+        nm (s0.rename $ ren.bump #R)
+  | .tlet nm e1 e2 =>
+    .tlet nm (e1.rename ren)
+          (e2.rename $ ren.bump #Tm)
+  | .union_elim nm e1 e2 =>
+    .union_elim nm (e1.rename ren)
+                (e2.rename $ ren.bump #Tm)
+  | .l_lam nm s0 =>
       .l_lam
-        (ren_tm (upRen_label_label xi_label) xi_ref
-           (upRen_label_ty xi_ty)
-           (upRen_label_tm xi_tm) s0)
-  | .Op s0 s1 s2 =>
-      .Op s0 (ren_tm xi_label xi_ref xi_ty xi_tm s1)
-        (ren_tm xi_label xi_ref xi_ty xi_tm s2)
-  | .zero s0 => .zero (ren_tm xi_label xi_ref xi_ty xi_tm s0)
+        nm (s0.rename $ ren.bump #L)
+  | .binop s0 s1 s2 =>
+      .binop s0 (s1.rename ren) (s2.rename ren)
+  | .unop s0 s2 =>
+      .unop s0 (s2.rename ren)
+  | .zero s0 => .zero (s0.rename ren)
   | .app s0 s1 =>
-     .app (ren_tm xi_label xi_ref xi_ty xi_tm s0)
-        (ren_tm xi_label xi_ref xi_ty xi_tm s1)
+     .app (s0.rename ren)
+        (s1.rename ren)
   | .alloc s0 =>
-      .alloc (ren_tm xi_label xi_ref xi_ty xi_tm s0)
+      .alloc (s0.rename ren)
   | .dealloc s0 =>
-      .dealloc (ren_tm xi_label xi_ref xi_ty xi_tm s0)
+      .dealloc (s0.rename ren)
   | .assign s0 s1 =>
-      .assign (ren_tm xi_label xi_ref xi_ty xi_tm s0)
-        (ren_tm xi_label xi_ref xi_ty xi_tm s1)
+      .assign (s0.rename ren)
+        (s1.rename ren)
   | .tm_pair s0 s1 =>
-      .tm_pair (ren_tm xi_label xi_ref xi_ty xi_tm s0)
-        (ren_tm xi_label xi_ref xi_ty xi_tm s1)
+      .tm_pair (s0.rename ren)
+        (s1.rename ren)
   | .left_tm s0 =>
-      .left_tm (ren_tm xi_label xi_ref xi_ty xi_tm s0)
+      .left_tm (s0.rename ren)
   | .right_tm s0 =>
-      .right_tm (ren_tm xi_label xi_ref xi_ty xi_tm s0)
-  | .inl s0 => .inl (ren_tm xi_label xi_ref xi_ty xi_tm s0)
-  | .inr s0 => .inr (ren_tm xi_label xi_ref xi_ty xi_tm s0)
-  | .case s0 s1 s2 =>
-      .case (ren_tm xi_label xi_ref xi_ty xi_tm s0)
-        (ren_tm (upRen_tm_label xi_label) xi_ref (upRen_tm_ty xi_ty)
-           (upRen_tm_tm xi_tm) s1)
-        (ren_tm (upRen_tm_label xi_label) xi_ref (upRen_tm_ty xi_ty)
-           (upRen_tm_tm xi_tm) s2)
+      .right_tm (s0.rename ren)
+  | .inl s0 => .inl (s0.rename ren)
+  | .inr s0 => .inr (s0.rename ren)
+  | .case s0 nm1 s1 nm2 s2 =>
+      .case (s0.rename ren)
+            nm1
+            (s1.rename $ ren.bump #Tm)
+            nm2
+            (s2.rename $ ren.bump #Tm)
   | .tapp s0 s1 =>
-      .tapp (ren_tm xi_label xi_ref xi_ty xi_tm s0)
-        (ren_ty xi_label xi_ref xi_ty xi_tm s1)
+      .tapp (s0.rename ren)
+        (s1.rename $ ren.restrict)
   | .lapp s0 s1 =>
-      .lapp (ren_tm xi_label xi_ref xi_ty xi_tm s0)
-        (ren_label xi_label s1)
+      .lapp (s0.rename ren)
+            (s1.rename $ ren.restrict)
   | .rapp e0 re =>
-    .rapp (ren_tm xi_label xi_ref xi_ty xi_tm e0)
-          (ren_rexp xi_ref xi_tm re)
-  | .pack s s0 => .pack (ren_ty xi_label xi_ref xi_ty xi_tm s) (ren_tm xi_label xi_ref xi_ty xi_tm s0)
-  | .rpack re t0 => .rpack (ren_rexp xi_ref xi_tm re) (ren_tm xi_label xi_ref xi_ty xi_tm t0)
-  | .unpack s0 s1 =>
-      .unpack (ren_tm xi_label xi_ref xi_ty xi_tm s0)
-        (ren_tm (upRen_tm_label xi_label) xi_ref (upRen_tm_ty (upRen_ty_ty xi_ty))
-           (upRen_tm_tm xi_tm) s1)
+      .rapp (e0.rename ren)
+            (re.rename $ ren.restrict)
+  | .pack s s0 => .pack
+    (s.rename $ ren.restrict)
+    (s0.rename ren)
+  | .rpack re t0 => .rpack (re.rename $ ren.restrict) (t0.rename ren)
+  | .unpack s0 nm1 nm2 s1 =>
+      .unpack (s0.rename ren)
+              nm1
+              nm2
+              (s1.rename $ (ren.bump #Ty).bump #Tm)
   | .if_tm s0 s1 s2 =>
-      .if_tm (ren_tm xi_label xi_ref xi_ty xi_tm s0)
-        (ren_tm xi_label xi_ref xi_ty xi_tm s1) (ren_tm xi_label xi_ref xi_ty xi_tm s2)
+      .if_tm (s0.rename ren)
+             (s1.rename ren) (s2.rename ren)
   | .if_c s0 s1 s2 =>
-      .if_c (ren_label xi_label s0)
-        (ren_tm xi_label xi_ref xi_ty xi_tm s1) (ren_tm xi_label xi_ref xi_ty xi_tm s2)
-  | .sync s0 => .sync (ren_tm xi_label xi_ref xi_ty xi_tm s0)
-  | .corr_case lab e => .corr_case (ren_label xi_label lab) (ren_tm xi_label xi_ref xi_ty xi_tm e)
-  | .annot e t => .annot (ren_tm xi_label xi_ref xi_ty xi_tm e) (ren_ty xi_label xi_ref xi_ty xi_tm t)
+      .if_c (s0.rename $ ren.restrict)
+            (s1.rename ren)
+            (s2.rename ren)
+  | .sync s0 => .sync (s0.rename ren)
+  | .corr_case lab e => .corr_case (lab.rename $ ren.restrict) (e.rename ren)
+  | .annot e t => .annot (e.rename ren) (t.rename $ ren.restrict)
   | .default => .default
 end
 
+abbrev OwlFunctors (x : Fin 3) : ScopeFunctor 3 x :=
+  match x with
+  | ⟨#L, _⟩ => ⟨fun m => label (m.restrict 1), fun m m' r x => x.rename (r.restrict) , fun i => .var_label "_" (by simpa using i)⟩
+  | ⟨#R, _⟩  => ⟨fun m => rexp (m.restrict _), fun m m' r x => x.rename (r.restrict) , fun i => .var (by simpa using i)⟩
+  | ⟨#Ty, _⟩ => ⟨fun m => ty m, fun m m' r x => x.rename r, fun i => .var_ty "_" (by simpa using i)⟩
+--  | ⟨#Tm, _⟩ => ⟨fun m => Fin (m.get _), fun m m' r i => r.apply _ i, fun i => i⟩
+
+
+abbrev Subst := ScopeMap.Subst 3 OwlFunctors
+
+abbrev LabelFunctors (x : Fin 1) : ScopeFunctor 1 x :=
+  match x with
+  | ⟨0, _⟩  => ⟨fun m => label m, fun m m' r x => x.rename r , fun i => .var_label "_" (by simpa using i)⟩
+
 @[simp]
-def subst_label
-(sigma_label : Fin m_label -> label n_label) (s : label m_label) :
-label n_label :=
-  match s with
-  | .var_label _ s0 => sigma_label s0
+abbrev LabelSubst := ScopeMap.Subst 1 LabelFunctors
+
+abbrev mapM [Monad m] (c : m a) (f : a -> b) : m b :=
+  c >>= fun x => pure (f x)
+
+abbrev RexpFunctors (x : Fin 2) : ScopeFunctor 2 x :=
+  match x with
+  | ⟨#L, _⟩  => ⟨fun m => label (m.restrict 1), fun m m' r x => x.rename (r.restrict) , fun i => .var_label "_" (by simpa using i)⟩
+  | ⟨#R, _⟩  => ⟨fun m => rexp m, fun m m' r x => x.rename r, fun i => .var (by simpa using i)⟩
+--  | ⟨#Tm, _⟩  => ⟨fun m => Fin (m.get _), fun m m' r i => r.apply _ i, fun i => i⟩
+
+abbrev RexpSubst := ScopeMap.Subst 2 RexpFunctors
+
+def Subst.toLabelSubst (sub : Subst s s') : LabelSubst (s.restrict 1) (s'.restrict 1) :=
+  ⟨fun x i =>
+    match x with
+    | 0 => by
+        simp
+        exact (sub.apply 0 (by simpa using i))
+  ⟩
+
+def Subst.toRexpSubst (sub : Subst s s') : RexpSubst (s.restrict 2) (s'.restrict 2) :=
+  ⟨fun x i => by
+    unfold RexpFunctors
+    match x with
+    | #L => simp; exact (sub.apply #L  (by simpa using i))
+    | #R => simp; exact (sub.apply #R  (by simpa using i))
+--    | #Tm => simp; exact(sub.apply #Tm  (by simpa using i))
+    ⟩
+
+
+@[simp]
+def label.subst (l : label s) (sub : LabelSubst s s') : label s' :=
+  match l with
+  | .var_label _ s0 => sub.apply #L s0
   | .latl s0 => .latl s0
   | .ljoin s0 s1 =>
-      .ljoin (subst_label sigma_label s0) (subst_label sigma_label s1)
+      let s0' := s0.subst sub
+      let s1' := s1.subst sub
+      .ljoin s0' s1'
   | .lmeet s0 s1 =>
-      .lmeet (subst_label sigma_label s0) (subst_label sigma_label s1)
-  | .default => .default
+      let s0' := s0.subst sub
+      let s1' := s1.subst sub
+      .lmeet s0' s1'
 
 @[simp]
-def subst_corruption
-(sigma_label : Fin m_label -> label n_label) (s : corruption m_label) :
-corruption n_label :=
-  match s with
-  | .corr l1 => .corr (subst_label sigma_label l1)
-  | .not_corr l1 => .not_corr (subst_label sigma_label l1)
+def corruption.subst (c : corruption s) (sub : LabelSubst s s') : corruption s' :=
+  match c with
+  | .corr l1 =>
+      let l1' := l1.subst sub
+      .corr l1'
+  | .not_corr l1 =>
+      let l1' := l1.subst sub
+      .not_corr l1'
 
 @[simp]
-def subst_constr
-  (sigma_label : Fin m_label -> label n_label) (s : constr m_label) :
-  constr n_label :=
-  match s with
+def constr.subst (c : constr s) (sub : LabelSubst s s') : constr s' :=
+  match c with
   | .condition s0 s1 s2 =>
-      .condition s0 (subst_label sigma_label s1)
-        (subst_label sigma_label s2)
-
-@[simp]
-def up_ty_label (sigma : Fin m -> label n_label)
-  : Fin m -> label n_label :=
-    (funcomp (ren_label id) sigma)
-
-@[simp]
-def up_ty_ty
-  (sigma : Fin m -> ty n_label n_ref n_ty n_tm) : Fin (m + 1) -> ty n_label n_ref (n_ty + 1) n_tm :=
-    (cons (.var_ty var_zero)
-         (funcomp (ren_ty id id shift id) sigma))
-
-@[simp]
-def up_label_label
-  (sigma : Fin m -> label n_label) : Fin (m + 1) -> label (n_label + 1) :=
-    (cons (.var_label "_" var_zero)
-         (funcomp (ren_label shift) sigma))
-
-@[simp]
-def up_label_ty
-  (sigma : Fin m -> ty n_label n_ty n_ref n_tm) : Fin m -> ty (n_label + 1) n_ty n_ref n_tm :=
-    (funcomp (ren_ty shift id id id) sigma)
-
-@[simp]
-def up_tm_label
-  (sigma : Fin m -> label n_label)
-  : Fin m -> label n_label :=
-  (funcomp (ren_label id) sigma)
-
-@[simp]
-def up_tm_ty
-  (sigma : Fin m -> ty n_label n_ref n_ty n_tm) : Fin m -> ty n_label n_ref n_ty n_tm:=
-  (funcomp (ren_ty id id id id) sigma)
-
-@[simp]
-def up_tm_tm
-  (sigma : Fin m -> tm n_label n_ref n_ty n_tm ) :
-  Fin (m + 1) -> tm n_label n_ref n_ty (n_tm + 1) :=
-  (cons (tm.mkD (.var_tm var_zero))
-    (funcomp (ren_tm id id id shift ) sigma))
-
-@[simp]
-def up_ty_tm
-  (sigma : Fin m -> tm n_label n_ref n_ty n_tm ) : Fin m -> tm n_label n_ref (n_ty + 1) n_tm :=
-  (funcomp (ren_tm id id shift id) sigma)
-
-@[simp]
-def up_rexp_ty
-  (sigma : Fin m -> ty n_label n_ref n_ty n_tm) : Fin m -> ty n_label (n_ref + 1) n_ty n_tm :=
-  funcomp (ren_ty id shift id id) sigma
-
-@[simp]
-def up_rexp (sigma : Fin m -> rexp n n_tm) : Fin (m + 1) -> rexp (n + 1) n_tm :=
-  cons (.var (var_zero)) (funcomp (ren_rexp shift id) sigma)
-
-@[simp]
-def up_label_tm
-  (sigma : Fin m -> tm n_label n_ty n_tm n_ref) : Fin m -> tm (n_label + 1) n_ty n_tm n_ref :=
-  (funcomp (ren_tm shift id id id) sigma)
+      let s1' := s1.subst sub
+      let s2' := s2.subst sub
+      .condition s0 s1' s2'
 
 
-def subst_rexp
-  (sigma_ref : Fin m_ref -> rexp n_ref m_tm)
-  (r : rexp m_ref m_tm) : rexp n_ref m_tm:=
+def rexp.subst (r : rexp s) (sub : RexpSubst s s') : rexp s' :=
   match r with
-  | .fvar i => .fvar i
-  | .var j => sigma_ref j
-  | .op s r1 r2 => .op s (subst_rexp sigma_ref r1) (subst_rexp sigma_ref r2)
+  | .fvar nm => .fvar nm
+  | .var j => sub.apply #R j
+  | .binop s r1 r2 =>
+      let r1' := r1.subst sub
+      let r2' := r2.subst sub
+      .binop s r1' r2'
+  | .unop s r1 =>
+      let r1' := r1.subst sub
+      .unop s r1'
   | .const b => .const b
-  | .tmvar j => .tmvar j
 
-
-def subst_prop (sigma_ref : Fin m_ref -> rexp n_ref m_tm )
-  (p : prop m_ref m_tm ) : prop n_ref m_tm :=
-    match p with
-    | .peq re1 re2 => .peq (subst_rexp sigma_ref re1) (subst_rexp sigma_ref re2)
-    | .pand p1 p2 => .pand (subst_prop sigma_ref p1) (subst_prop sigma_ref p2)
-    | .por p1 p2 => .por (subst_prop sigma_ref p1) (subst_prop sigma_ref p2)
-    | .pimpl p1 p2 => .pimpl (subst_prop sigma_ref p1) (subst_prop sigma_ref p2)
-    | .pnot p1 => .pnot (subst_prop sigma_ref p1)
-    | .pall p => .pall (subst_prop (up_rexp sigma_ref) p)
+def prop.subst (p : prop s) (sub : RexpSubst s s') : prop s' :=
+  match p with
+  | .peq re1 re2 => .peq (re1.subst sub) (re2.subst sub)
+  | .pand p1 p2 => .pand (p1.subst sub) (p2.subst sub)
+  | .por p1 p2 => .por (p1.subst sub) (p2.subst sub)
+  | .pimpl p1 p2 => .pimpl (p1.subst sub) (p2.subst sub)
+  | .pnot p1 => .pnot (p1.subst sub)
+  | .pall p => .pall (p.subst $ sub.bump #R)
 
 
 @[simp]
-def subst_ty
-(sigma_label : Fin m_label -> label n_label)
-(sigma_ref : Fin m_ref -> rexp n_ref n_tm)
-(sigma_ty : Fin m_ty -> ty n_label n_ref n_ty n_tm)
-(s : ty m_label m_ref m_ty n_tm ) :
-ty n_label n_ref n_ty n_tm :=
-  match s with
+def ty.subst (t : ty s) (sub : Subst s s') : ty s' :=
+  match t with
   | .admit => .admit
-  | .var_ty s0 => sigma_ty s0
+  | .var_ty _ s0 => sub.apply #Ty s0
   | .Any => .Any
   | .Unit => .Unit
-  | .RData s0 re => .RData (subst_label sigma_label s0) (subst_rexp sigma_ref re)
-  | .Data s0 => .Data (subst_label sigma_label s0)
-  | .Ref s0 => .Ref (subst_ty sigma_label sigma_ref sigma_ty s0)
-  | .refined t p =>
-    .refined (subst_ty sigma_label sigma_ref sigma_ty t) (subst_prop sigma_ref p)
-  | .arr s0 s1 =>
-      .arr (subst_ty sigma_label sigma_ref sigma_ty s0)
-        (subst_ty sigma_label sigma_ref sigma_ty s1)
-  | .union s0 s1 =>
-      .union (subst_ty sigma_label sigma_ref sigma_ty s0)
-        (subst_ty sigma_label sigma_ref sigma_ty s1)
-  | .inter s0 s1 =>
-      .inter (subst_ty sigma_label sigma_ref sigma_ty s0)
-        (subst_ty sigma_label sigma_ref sigma_ty s1)
-  | .prod s0 s1 =>
-      .prod (subst_ty sigma_label sigma_ref sigma_ty s0)
-        (subst_ty sigma_label sigma_ref sigma_ty s1)
-  | .sum s0 s1 =>
-      .sum (subst_ty sigma_label sigma_ref sigma_ty s0)
-        (subst_ty sigma_label sigma_ref sigma_ty s1)
+  | .RData s0 re => .RData (s0.subst sub.toLabelSubst) (re.subst sub.toRexpSubst)
+  | .Data s0 => .Data (s0.subst sub.toLabelSubst)
+  | .Ref s0 => .Ref (s0.subst sub)
+  | .refined t p => .refined (t.subst sub) (p.subst sub.toRexpSubst)
+  | .arr s0 s1 => .arr (s0.subst sub) (s1.subst sub)
+  | .union s0 s1 => .union (s0.subst sub) (s1.subst sub)
+  | .inter s0 s1 => .inter (s0.subst sub) (s1.subst sub)
+  | .prod s0 s1 => .prod (s0.subst sub) (s1.subst sub)
+  | .sum s0 s1 => .sum (s0.subst sub) (s1.subst sub)
   | .all s0 s1 =>
-      .all (subst_ty sigma_label sigma_ref sigma_ty s0)
-        (subst_ty (up_ty_label sigma_label) sigma_ref (up_ty_ty sigma_ty) s1)
+      .all (s0.subst sub) (s1.subst $ sub.bump _)
   | .ex s0 s1 =>
-      .ex (subst_ty sigma_label sigma_ref sigma_ty s0)
-        (subst_ty (up_ty_label sigma_label) sigma_ref (up_ty_ty sigma_ty) s1)
+      .ex (s0.subst sub) (s1.subst $ sub.bump _)
   | .ex_r t0 =>
-      .ex_r (subst_ty sigma_label (up_rexp sigma_ref) (up_rexp_ty sigma_ty) t0)
+      .ex_r (t0.subst $ sub.bump _)
   | .all_r t0 =>
-      .all_r (subst_ty sigma_label (up_rexp sigma_ref) (up_rexp_ty sigma_ty) t0)
+      .all_r (t0.subst $ sub.bump _)
   | .all_l s0 s1 s2 =>
-      .all_l s0 (subst_label sigma_label s1)
-        (subst_ty (up_label_label sigma_label) sigma_ref (up_label_ty sigma_ty) s2)
+      .all_l s0 (s1.subst sub.toLabelSubst) (s2.subst $ sub.bump _)
   | .t_if s0 s1 s2 =>
-      .t_if (subst_label sigma_label s0)
-        (subst_ty sigma_label sigma_ref sigma_ty s1) (subst_ty sigma_label sigma_ref sigma_ty s2)
+      .t_if (s0.subst sub.toLabelSubst) (s1.subst sub) (s2.subst sub)
   | .Public => .Public
   | .default => .default
 
-abbrev ty.subst_rexp (t : ty m_label (m_ref + 1) m_ty m_tm) (i : Lean.Name) : ty m_label m_ref m_ty m_tm :=
-  subst_ty (label.var_label "_") (cons (.fvar i) .var) .var_ty t
-
-abbrev ty.weaken_tm (t : ty m_label m_ref m_ty m_tm) : ty m_label m_ref m_ty (m_tm + 1) :=
-  ren_ty id id id shift t
+def _root_.Fin.down (f : Fin (n + 1)) : Option (Fin n) :=
+  if h : f < n then .some ⟨f.val, by grind⟩ else none
 
 
-def shift_bound_by (shift_num : Nat) : Fin n -> Fin (n + shift_num) :=
-  fun x => (x.addNat shift_num)
+-- Down-coercions
 
-def rexp.resolve_tm [Monad m] (f : Fin n -> m (rexp r 0)) : rexp r n -> m (rexp r 0)
-  | .var i => pure $ .var i
-  | .const i => pure $ .const i
-  | .tmvar j => f j
-  | .op s r1 r2 => do
-    return .op s (<- r1.resolve_tm f) (<- r2.resolve_tm f)
-  | .fvar j => pure $ .fvar j
+/-
 
-def prop.resolve_tm [Monad m] (f : Fin n -> m (rexp r 0)) : prop r n -> m (prop r 0)
-  | .peq r1 r2 => do
-      return .peq (<- r1.resolve_tm f) (<- r2.resolve_tm f)
-  | .pand p1 p2 => do
-      return .pand (<- p1.resolve_tm f) (<- p2.resolve_tm f)
-  | .por p1 p2 => do
-      return .por (<- p1.resolve_tm f) (<- p2.resolve_tm f)
-  | .pimpl p1 p2 => do
-      return .pimpl (<- p1.resolve_tm f) (<- p2.resolve_tm f)
-  | .pnot p1 => do
-      return .pnot (<- p1.resolve_tm f)
-  | .pall p => do
-      let p' <- p.resolve_tm (fun i =>
-        ren_rexp shift id <$> f i)
-      return .pall p'
+class Down (s t : Type) where
+  down : s -> t
 
+def label.downTy (l : label s.bumpTy) : label s :=
+  match l with
+  | .var_label s0 i => .var_label s0 i
+  | .latl x => .latl x
+  | .ljoin l1 l2 => .ljoin (l1.downTy) (l2.downTy)
+  | .lmeet l1 l2 => .lmeet (l1.downTy) (l2.downTy)
+  | .default => .default
 
-def ty.resolve_tm [Monad m] (f : Fin n -> m (rexp r 0)) : ty l r d n -> m (ty l r d 0)
-| .admit => pure .admit
-| .var_ty i => pure $ .var_ty i
-| .Any => pure .Any
-| .Unit => pure .Unit
-| .RData l p => do
-  return .RData l (← p.resolve_tm f)
-| .Data l => do
-  return .Data l
-| .Public => pure .Public
-| .refined t p => do
-  return .refined (← t.resolve_tm f) (← p.resolve_tm f)
-| .Ref t => do
-  return .Ref (← t.resolve_tm f)
-| .arr t1 t2 => do
-  return .arr (← t1.resolve_tm f) (← t2.resolve_tm f)
-| .union t1 t2 => do
-  return .union (← t1.resolve_tm f) (← t2.resolve_tm f)
-| .inter t1 t2 => do
-  return .inter (← t1.resolve_tm f) (← t2.resolve_tm f)
-| .ex t1 t2 => do
-  return .ex (← t1.resolve_tm f) (← t2.resolve_tm f)
-| .ex_r t => do
-  return .ex_r (← t.resolve_tm (fun i => ren_rexp shift id <$> f i))
-| .all_r t => do
-  return .all_r (← t.resolve_tm (fun i => ren_rexp shift id <$> f i))
-| .all t1 t2 => do
-  return .all (← t1.resolve_tm f) (← t2.resolve_tm f)
-| .all_l c l t => do
-  return .all_l c l (← t.resolve_tm f)
-| .sum t1 t2 => do
-  return .sum (← t1.resolve_tm f) (← t2.resolve_tm f)
-| .prod t1 t2 => do
-  return .prod (← t1.resolve_tm f) (← t2.resolve_tm f)
-| .t_if l t1 t2 => do
-  return .t_if l (← t1.resolve_tm f) (← t2.resolve_tm f)
-| .default => pure .default
+instance : Down (label s.bumpTy) (label s) where
+  down := label.downTy
 
+instance [Down s t] : Down (List s) (List t) where
+  down := fun l => l.map (Down.down ·)
+
+def rexp.downTy (r : rexp s.bumpTy) : rexp s :=
+  match r with
+  | .fvar i => .fvar i
+  | .var j => .var j
+  | .op s r1 r2 => .op s (r1.downTy) (r2.downTy)
+  | .const b => .const b
+  | .tmvar j => .tmvar j
+
+instance : Down (rexp s.bumpTy) (rexp s) where
+  down := rexp.downTy
+
+def label.downTm (l : label s.bumpTm) : label s :=
+  match l with
+  | .var_label s0 i => .var_label s0 i
+  | .latl x => .latl x
+  | .ljoin l1 l2 => .ljoin (l1.downTm) (l2.downTm)
+  | .lmeet l1 l2 => .lmeet (l1.downTm) (l2.downTm)
+  | .default => .default
+
+/-
+
+inductive Decl : ScopeEnv -> ScopeEnv -> Type where
+  | Nil : Decl se se
+  | DeclTy {se : ScopeEnv} (name : String) (ty : ty se.l se.r se.d se.m) : Decl se {se with d := se.d + 1}
+  | DeclTm : String -> tm l r d m -> Decl se {se with m := se.m + 1}
+  | DeclApp : Decl se se' -> Decl se' se'' -> Decl se se''
+-/
+
+-/
 
 end Owl
