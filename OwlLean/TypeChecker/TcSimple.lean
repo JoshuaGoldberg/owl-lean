@@ -533,6 +533,17 @@ partial def extract_refinements {s : Scope} (t : ty (s.restrict _)) : CheckT' s 
 --   h := by grind
 
 
+def check_corrupt {s : Scope} (lab : label (s.restrict _)) :
+    CheckT' s (Option Bool) := do
+  if (<- read).corrs.contains (.corr lab) then pure (.some True)
+  else if ← decideProp (.PhiPsiEntailCorr s!"check_corrupt" ((<- read).lbl.cast (by simp)) ((<- read).corrs.cast (by simp)) (.corr (lab.cast (by simp))))
+  then pure (.some True)
+  else if (<- read).corrs.contains (.not_corr lab) then pure (.some False)
+  else if ← decideProp (.PhiPsiEntailCorr s!"check_corrupt" ((<- read).lbl.cast (by simp)) ((<- read).corrs.cast (by simp)) (.not_corr (lab.cast (by simp))))
+  then pure (.some False)
+  else pure (.none)
+
+
 -- Computes the side condition necessary for t1 <: t2
 partial def check_subtype'  {s : Scope} (t1 t2 : ty (s.restrict _)) : CheckT' s (SideCondition (s.restrict _)) := do
   log s!"check_subtype': {t1.pretty} <: {t2.pretty}"
@@ -541,6 +552,22 @@ partial def check_subtype'  {s : Scope} (t1 t2 : ty (s.restrict _)) : CheckT' s 
     | .admit, _ => pure .ScTrue
     | _, .Any => pure .ScTrue
     | .Unit, .Unit => pure .ScTrue
+    | .t_if lab ta1 ta2, t' => do
+      match <- check_corrupt lab.cast with
+      | some b => check_subtype' (if b then ta1 else ta2) t'
+      | none => do
+        let env ← read
+        let r1 ← withCorruption (.corr (lab.cast)) (check_subtype' ta1 t')
+        let r2 ← withCorruption (.not_corr (lab.cast)) (check_subtype' ta2 t')
+        pure (r1.ScAnd r2)
+    | t, .t_if lab ta1' ta2' => do
+      match <- check_corrupt lab.cast with
+      | some b => check_subtype' t (if b then ta1' else ta2')
+      | none => do
+        let env ← read
+        let r1 ← withCorruption ((.corr (lab.cast))) (check_subtype' t ta1')
+        let r2 ← withCorruption ((.not_corr (lab.cast))) (check_subtype' t ta2')
+        pure (r1.ScAnd r2)
     | _, .refined t p => do
       let r1 ← check_subtype' t1 t
       pure (r1.ScAnd (.PropHolds (p.cast)))
@@ -627,16 +654,6 @@ partial def check_subtype'  {s : Scope} (t1 t2 : ty (s.restrict _)) : CheckT' s 
                                (constraint.cast (by simp [ScopeMap.bump_restrict]))
       let r2 ← withLabelVar cs "_" (lab.cast) (check_subtype' (t.cast (by simp [ScopeMap.bump_restrict])) (t'.cast (by simp [ScopeMap.bump_restrict])))
       pure (.WithLabel cs (lab.cast) ((r1.ScAnd r2).cast (by simp [ScopeMap.bump_restrict])))
-    | .t_if lab ta1 ta2, t' => do
-      let env ← read
-      let r1 ← withCorruption (.corr (lab.cast)) (check_subtype' ta1 t')
-      let r2 ← withCorruption (.not_corr (lab.cast)) (check_subtype' ta2 t')
-      pure (r1.ScAnd r2)
-    | t, .t_if lab ta1' ta2' => do
-      let env ← read
-      let r1 ← withCorruption ((.corr (lab.cast))) (check_subtype' t ta1')
-      let r2 ← withCorruption ((.not_corr (lab.cast))) (check_subtype' t ta2')
-      pure (r1.ScAnd r2)
     | _, _ => do
       let env ← read
       pure (.LblContextInconsistent s!"check_subtype': {t1} and {t2} are not comparable" (env.lbl.cast) (env.corrs.cast))
@@ -652,16 +669,6 @@ def from_synth {s : Scope} (t : ty (s.restrict _)) (exp : Option (ty (s.restrict
   | .some t' => do
     check_subtype t t'
     pure t'
-
-def check_corrupt {s : Scope} (lab : label (s.restrict _)) :
-    CheckT' s (Option Bool) := do
-  if (<- read).corrs.contains (.corr lab) then pure (.some True)
-  else if ← decideProp (.PhiPsiEntailCorr s!"check_corrupt" ((<- read).lbl.cast (by simp)) ((<- read).corrs.cast (by simp)) (.corr (lab.cast (by simp))))
-  then pure (.some True)
-  else if (<- read).corrs.contains (.not_corr lab) then pure (.some False)
-  else if ← decideProp (.PhiPsiEntailCorr s!"check_corrupt" ((<- read).lbl.cast (by simp)) ((<- read).corrs.cast (by simp)) (.not_corr (lab.cast (by simp))))
-  then pure (.some False)
-  else pure (.none)
 
 /-
 

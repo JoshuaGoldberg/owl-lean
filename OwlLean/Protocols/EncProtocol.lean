@@ -89,48 +89,27 @@ theorem blah : True := by grind
 
 #ty StateMachine := ∃ S <: Any . (S * ((S * Public) -> (S * Public)))
 
--- #tc protocol_state [lM]
-
-
-/-
--- state machine
-def StateMachine := OwlTy {
-  ∃ S <: Any . (S * ((S * Public) -> (S * Public)))
-}
-
--- state machine execution type
-def run_sm_ty := OwlTy {
-  $ StateMachine [] [] -> (Public -> Public)
-}
-
-def two_sm := OwlTy {
-  $ StateMachine [] [] -> $ StateMachine [] [] -> ((Public * Public) -> Public)
-}
-
--- the whole double state machine
-#tc_with tc_run_alice_bob := lM, lKL ⊐ lM, lKH ⊐ lKL ; · ; aKH <: Data lKH, aKL <: Data lKL ; · ;
-  encH => ($ ENC_Inner [lKH] [aKL, aKH]),
-  encL => ($ ENC_Inner [lKL] [Data lM, aKL]),
-  msg => Data lM
-  ⊢
-  let run_sm_tm =
-    λ (m : $ StateMachine [] []) : (Public -> Public) =>
-      unpack m as (S, contents) in
-      let state_ref = alloc (π1 contents) in
-      let step = π2 contents in
-      λ (input: Public) : Public =>
-        let result = step ⟨!state_ref, input⟩ in
-        (state_ref := π1 result) ;
-        π2 result
+#tc state_machine_protocol [lM, lKL ⊐ lM, lKH ⊐ lKL] [] [aKH <: Data lKH, aKL <: Data lKL] [
+  encH : ($ ENC_inner [lKH, lKL] [] [aKL, aKH]),
+  encL : ($ ENC_inner [lKL, lM] [] [Data lM, aKL]),
+  msg : Data lM
+] := ⊢ {
+  let run_sm = λ (m : $ StateMachine [] [] [] ) : (Public -> Public) =>
+    unpack m as (S, contents) in
+    let state_ref = alloc (π1 contents) in
+    let step = π2 contents in
+    λ (input: Public) : Public =>
+      let result = step ⟨!state_ref, input⟩ in
+      (state_ref := π1 result) ;
+      π2 result
   in
-
   let run_two_sm =
-    λ (a : $ StateMachine [] []) : ($ StateMachine [] [] -> (Public * Public) -> Public) =>
-      λ (b : $ StateMachine [] []) : ((Public * Public) -> Public) =>
+    λ (a : $ StateMachine [] [] []) : ($ StateMachine [] [] [] -> (Public * Public) -> Public) =>
+      λ (b : $ StateMachine [] [] []) : ((Public * Public) -> Public) =>
       -- generate a single state machine run function
-      let A = (run_sm_tm a) in
+      let A = (run_sm a) in
       -- let's do it again!
-      let B = (run_sm_tm b) in
+      let B = (run_sm b) in
       λ (val : (Public * Public)) : Public =>
         let (det, msg) = val in
         if (⟨"eq"⟩ (det, "0")) then
@@ -138,8 +117,7 @@ def two_sm := OwlTy {
         else
           B msg
   in
-
-  let alice_sm : $ StateMachine [] [] =
+  let alice_sm : $ StateMachine [] [] [] =
   pack (Public,
       ⟨"0",
         (λ (args : (Public * Public)) : (Public * Public) =>
@@ -158,8 +136,7 @@ def two_sm := OwlTy {
             ⟨"10", ""⟩)
       ⟩)
   in
-
-  let bob_sm : $ StateMachine [] [] =
+  let bob_sm : $ StateMachine [] [] [] =
     let key_store : Ref (unit + (corr (lKL)? Public : aKL)) = alloc (
       let v : unit + (corr (lKL)? Public : aKL) = ı1 () in
       v
@@ -196,16 +173,5 @@ def two_sm := OwlTy {
             ⟨"10", ""⟩)⟩
     )
   in
-  let a = (alice_sm) in
-  let b = (bob_sm) in
-  (((run_two_sm : $ two_sm [] []) a) b)
-  :
-  (Public * Public) -> Public
-  by {
-    unfold sideConditions
-    unfold interpSideConditions
-    simp
-    split_grind
-  }
-
--/
+  ((run_two_sm alice_sm) bob_sm)
+} : (Public * Public) -> Public
