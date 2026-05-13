@@ -6,78 +6,78 @@ import Std.Data.HashMap
 open Owl
 open Lean Elab Meta
 
-
-/-
-
-elab "label_parse" "(" p:owl_label ")" : term => do
-  return toExpr (← elabLabel p)
-
-elab "cond_sym_parse" "(" p:owl_cond_sym ")" : term => do
-  return toExpr (← elabCondSym p)
-
-elab "constraint_parse" "(" p:owl_constr ")" : term => do
-  return toExpr (← elabConstr p)
-
-elab "type_parse" "(" p:owl_type ")" : term => do
-  return toExpr (← elabType p)
-
-elab "term_parse" "(" p:owl_tm ")" : term => do
-  return toExpr (← elabTm p)
-
-elab "Owl_Parse" "{" p:owl_tm "}" : term => do
-  return toExpr (← elabTm p)
-
-@[simp]
-def PhiEntails (phi : phi_context n) (cond : constr n) : Prop :=
-  phi |= cond
-
-elab "(" phi:owl_phi " ⊨ " cond:owl_constr ")" : term => do
-  let lvars ← collectPhiVarNames phi
-  let phiV ← elabPhiLen phi lvars.length
-  let phiE ← mkAppM ``vec.to_fn #[toExpr (vec.from_fn phiV)]
-  let condE := toExpr (← elabConstr cond lvars)
-  mkAppM ``PhiEntails #[phiE, condE]
-
-elab "Ψ:=" p:owl_phi : term => do
-  let lvars ← collectPhiVarNames p
-  let phiV ← elabPhiLen p lvars.length
-  mkAppM ``vec.to_fn #[toExpr (vec.from_fn phiV)]
-
--/
-
-
-elab "Owl" "[" lvars:ident,* "]" "[" rvars:ident,* "]" "[" tvars:ident,* "]" "[" vars:ident,* "]" "{" p:owl_tm "}" : term => do
-  let varNames := vars.getElems.map (fun id => id.getId.toString)
-  let lvarNames := lvars.getElems.map (fun id => id.getId.toString)
-  let rvarNames := rvars.getElems.map (fun id => id.getId.toString)
-  let tvarNames := tvars.getElems.map (fun id => id.getId.toString)
-  let varList := varNames.toList
-  let tvarList := tvarNames.toList
-  let lvarList := lvarNames.toList
-  let rvarList := rvarNames.toList
-  return toExpr (← elabTm p lvarList rvarList tvarList varList)
-
-/--
-`OwlTy_with [ls] [rs] [tvs] { τ }` elaborates `τ` under the given label, refinement, and type-variable contexts.
--/
-elab "OwlTy_with" "[" lvars:ident,* "]" "[" rvars:ident,* "]" "[" tvars:ident,* "]" "{" p:owl_type "}" : term => do
-  let lvarNames := lvars.getElems.map (fun id => id.getId.toString)
-  let rvarNames := rvars.getElems.map (fun id => id.getId.toString)
-  let tvarNames := tvars.getElems.map (fun id => id.getId.toString)
-  let tvarList := tvarNames.toList
-  let lvarList := lvarNames.toList
-  let rvarList := rvarNames.toList
-  let τ ← elabType p lvarList rvarList tvarList
-  Term.synthesizeSyntheticMVarsNoPostponing
-  return toExpr τ
-
-elab "OwlTy" "{" p:owl_type "}" : term => do
-  Term.elabTerm (← `(OwlTy_with [] [] [] { $p })) .none
-
-elab "OwlLabel" "[" lvars:ident,* "]" "{" p:owl_label "}" : term => do
-  let lvarNames := lvars.getElems.map (fun id => id.getId.toString)
-  let lvarList := lvarNames.toList
-  return toExpr (← elabLabel p lvarList)
+--
+-- /-
+--
+-- elab "label_parse" "(" p:owl_label ")" : term => do
+--   return toExpr (← elabLabel p)
+--
+-- elab "cond_sym_parse" "(" p:owl_cond_sym ")" : term => do
+--   return toExpr (← elabCondSym p)
+--
+-- elab "constraint_parse" "(" p:owl_constr ")" : term => do
+--   return toExpr (← elabConstr p)
+--
+-- elab "type_parse" "(" p:owl_type ")" : term => do
+--   return toExpr (← elabType p)
+--
+-- elab "term_parse" "(" p:owl_tm ")" : term => do
+--   return toExpr (← elabTm p)
+--
+-- elab "Owl_Parse" "{" p:owl_tm "}" : term => do
+--   return toExpr (← elabTm p)
+--
+-- @[simp]
+-- def PhiEntails (phi : phi_context n) (cond : constr n) : Prop :=
+--   phi |= cond
+--
+-- elab "(" phi:owl_phi " ⊨ " cond:owl_constr ")" : term => do
+--   let lvars ← collectPhiVarNames phi
+--   let phiV ← elabPhiLen phi lvars.length
+--   let phiE ← mkAppM ``vec.to_fn #[toExpr (vec.from_fn phiV)]
+--   let condE := toExpr (← elabConstr cond lvars)
+--   mkAppM ``PhiEntails #[phiE, condE]
+--
+-- elab "Ψ:=" p:owl_phi : term => do
+--   let lvars ← collectPhiVarNames p
+--   let phiV ← elabPhiLen p lvars.length
+--   mkAppM ``vec.to_fn #[toExpr (vec.from_fn phiV)]
+--
+-- -/
+--
+--
+-- elab "Owl" "[" lvars:ident,* "]" "[" rvars:ident,* "]" "[" tvars:ident,* "]" "[" vars:ident,* "]" "{" p:owl_tm "}" : term => do
+--   let varNames := vars.getElems.map (fun id => id.getId.toString)
+--   let lvarNames := lvars.getElems.map (fun id => id.getId.toString)
+--   let rvarNames := rvars.getElems.map (fun id => id.getId.toString)
+--   let tvarNames := tvars.getElems.map (fun id => id.getId.toString)
+--   let varList := varNames.toList
+--   let tvarList := tvarNames.toList
+--   let lvarList := lvarNames.toList
+--   let rvarList := rvarNames.toList
+--   return toExpr (← elabTm p lvarList rvarList tvarList varList)
+--
+-- /--
+-- `OwlTy_with [ls] [rs] [tvs] { τ }` elaborates `τ` under the given label, refinement, and type-variable contexts.
+-- -/
+-- elab "OwlTy_with" "[" lvars:ident,* "]" "[" rvars:ident,* "]" "[" tvars:ident,* "]" "{" p:owl_type "}" : term => do
+--   let lvarNames := lvars.getElems.map (fun id => id.getId.toString)
+--   let rvarNames := rvars.getElems.map (fun id => id.getId.toString)
+--   let tvarNames := tvars.getElems.map (fun id => id.getId.toString)
+--   let tvarList := tvarNames.toList
+--   let lvarList := lvarNames.toList
+--   let rvarList := rvarNames.toList
+--   let τ ← elabType p lvarList rvarList tvarList
+--   Term.synthesizeSyntheticMVarsNoPostponing
+--   return toExpr τ
+--
+-- elab "OwlTy" "{" p:owl_type "}" : term => do
+--   Term.elabTerm (← `(OwlTy_with [] [] [] { $p })) .none
+--
+-- elab "OwlLabel" "[" lvars:ident,* "]" "{" p:owl_label "}" : term => do
+--   let lvarNames := lvars.getElems.map (fun id => id.getId.toString)
+--   let lvarList := lvarNames.toList
+--   return toExpr (← elabLabel p lvarList)
 
 structure Sequent where
   l : Nat
@@ -91,7 +91,7 @@ structure Sequent where
   Theta : prop_ctx (ScopeMap.ofList [l, r])
   Gamma : tm_ctx (ScopeMap.ofList [l, r, d, m])
   e : tm (ScopeMap.ofList [l, r, d, m])
-  t : ty (ScopeMap.ofList [l, r, d])
+  t : Option (ty (ScopeMap.ofList [l, r, d]))
 
 opaque owl_f_interp' : String -> String -> String -> String
 
@@ -115,9 +115,10 @@ def doTc (n : TSyntax `ident) (s : Sequent) := do
     tms := s.Gamma
     curSyntax := none }
 
-  match ← ReaderT.run (infer s.e (some s.t)) env with
-  | .ok _ => do
+  match ← ReaderT.run (infer s.e s.t) env with
+  | .ok tres => do
     println! "Successfully checked {n}"
+    if s.t.isNone then println! "Inferred type: {tres.pretty}"
     reportSuccess
     let eTy <- mkAppM ``tm #[
       <- mkAppM ``ScopeMap.ofList #[toExpr [s.l, s.r, s.d, s.m]]
@@ -240,8 +241,19 @@ def elabTmEntries (stx : List (TSyntax `tm_entry)) (L : TCtx) (R : TCtx) (D : TC
        Vec.vec.cons (n, t) ctx
     elabTmEntries es L R D M' ctx'
 
+declare_syntax_cat owl_tc_ann
+syntax owl_type : owl_tc_ann
+syntax "?" : owl_tc_ann
 
-elab "#tc" n:ident "[" lvars:(label_entry),* "]" "[" rvars:ident,* "]" "[" tvars:ty_var_entry,* "]" "[" tms:tm_entry,* "]" ":=" "⊢" "{" e:owl_tm "}" ":" t:owl_type : command => do
+def elabTcAnn (stx : TSyntax `owl_tc_ann) (L R D : TCtx) : TermElabM (Option (ty (ScopeMap.ofList [L.length, R.length, D.length]))) :=
+  match stx with
+  | `(owl_tc_ann | $t:owl_type) => do
+    let t <- elabType t L R D
+    return some t
+  | `(owl_tc_ann | ?) => return none
+  | _ => throwUnsupportedSyntax
+
+elab "#tc" n:ident "[" lvars:(label_entry),* "]" "[" rvars:ident,* "]" "[" tvars:ty_var_entry,* "]" "[" tms:tm_entry,* "]" ":=" "⊢" "{" e:owl_tm "}" ":" t:owl_tc_ann : command => do
   Command.liftTermElabM $ withEnableInfoTree false do
     let lvars := lvars.getElems.toList
     let ⟨L, Lctx⟩ <- elabLabelEntries lvars [] .nil
@@ -251,7 +263,7 @@ elab "#tc" n:ident "[" lvars:(label_entry),* "]" "[" rvars:ident,* "]" "[" tvars
     let ⟨D, Dctx⟩ <- elabTyVarEntries tvars L R [] .nil
     let ⟨M, Mctx⟩ <- elabTmEntries tms.getElems.toList L R D [] .nil
     let tmE ← elabTm e L R D M
-    let tyE ← elabType t L R D
+    let tyE ← elabTcAnn t L R D
     let seq : Sequent := {
       l := L.length
       r := R.length
@@ -269,7 +281,7 @@ elab "#tc" n:ident "[" lvars:(label_entry),* "]" "[" rvars:ident,* "]" "[" tvars
     doTc n seq
 
 
-elab "#tc" n:ident ":=" "⊢" "{" e:owl_tm "}" ":" t:owl_type : command => do
+elab "#tc" n:ident ":=" "⊢" "{" e:owl_tm "}" ":" t:owl_tc_ann : command => do
   Command.elabCommand (← `(#tc $n [] [] [] [] := ⊢ { $e } : $t))
 
 elab "#ty" n:ident "[" lvars:ident,* "]" "[" rvars:ident,* "]" "[" tvars:ident,* "]" ":=" t:owl_type : command => do

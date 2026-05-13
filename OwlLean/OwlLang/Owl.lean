@@ -196,10 +196,10 @@ inductive ty : ScopeMap 3 -> Type where
 | all_r : ty (s.bump #R) -> ty s
 | all_l : cond_sym -> label (s.restrict 1) -> ty (s.bump #L) -> ty s
 | t_if : label (s.restrict 1) -> ty s -> ty s -> ty s
-| refined : ty s -> prop (s.restrict 2) -> ty s
+| refined : ty s -> prop (s.restrict 2) -> ty s -- τ ∧ p
+-- TODO: p => τ
 | Public : ty s
-| default : ty s
-| admit : ty s
+| admit : ty s -- Just for debugging
 deriving Repr, BEq, Lean.ToExpr
 
 
@@ -211,21 +211,12 @@ mutual
    deriving Repr, Lean.ToExpr
 
 inductive tmX : ScopeMap 4 -> Type where
-| admit : tmX s
+| admit : tmX s -- Only used for debugging
 | var_tm : Fin (s.get #Tm) -> tmX s
-| error : tmX s
-| skip : tmX s
-| bitstring : String -> tmX s
-| loc : Nat -> tmX s
-| fixlam : String -> String -> tm ((s.bump #Tm).bump #Tm) -> tmX s
-| tlet : String -> tm s -> tm (s.bump #Tm) -> tmX s
-| union_elim : String -> tm s -> tm (s.bump #Tm) -> tmX s
-| tlam : String -> tm (s.bump #Ty) -> tmX s
-| rlam : String -> tm (s.bump #R) -> tmX s
-| l_lam : String -> tm (s.bump #L) -> tmX s
+| secparam : tmX s
+| sample : tm s -> tmX s
 | binop : String -> tm s -> tm s -> tmX s
 | unop : String -> tm s -> tmX s
-| zero : tm s -> tmX s
 | app : tm s -> tm s -> tmX s
 | alloc : tm s -> tmX s
 | dealloc : tm s -> tmX s
@@ -241,6 +232,17 @@ inductive tmX : ScopeMap 4 -> Type where
     tm (s.bump #Tm) ->
     String ->
     tm (s.bump #Tm) -> tmX s
+
+| unit : tmX s
+| bitstring : String -> tmX s
+| loc : Nat -> tmX s
+| fixlam : String -> String -> tm ((s.bump #Tm).bump #Tm) -> tmX s
+| tlet : String -> tm s -> tm (s.bump #Tm) -> tmX s
+| union_elim : String -> tm s -> tm (s.bump #Tm) -> tmX s
+| tlam : String -> tm (s.bump #Ty) -> tmX s
+| rlam : String -> tm (s.bump #R) -> tmX s
+| l_lam : String -> tm (s.bump #L) -> tmX s
+| zero : tm s -> tmX s
 | tapp : tm s -> ty (s.restrict 3) -> tmX s
 | lapp : tm s -> label (s.restrict 1) -> tmX s
 | rapp : tm s -> rexp (s.restrict 2) -> tmX s
@@ -252,13 +254,14 @@ inductive tmX : ScopeMap 4 -> Type where
     tm s -> tm s -> tmX s
 | if_c :
     label (s.restrict 1) -> tm s -> tm s -> tmX s
-| sync : tm s -> tmX s
 | corr_case : label (s.restrict 1) -> tm s -> tmX s
 | annot : tm s -> ty (s.restrict 3) -> tmX s
-| default : tmX s
 deriving Repr, Lean.ToExpr
 
 end
+
+def mkTm (t : tmX s) : tm s :=
+  tm.mk (.mk Lean.Syntax.missing) t
 
 def rexp.free (i : Fin (s.get #R)) (re : rexp s) :=
   match re with
@@ -413,10 +416,6 @@ def rexp.free (i : Fin (s.get #R)) (re : rexp s) :=
 --     cases h2
 --     grind
 
-#eval (1 : Fin 3)
-
-#check OfNat
-
 
 @[simp]
 def prop.rfree  (p : prop s) (i : Fin (s.get #R)) : Bool :=
@@ -452,7 +451,6 @@ def ty.r_free (t : ty s) (i : Fin (s.get #R)) : Bool :=
 | .all_l _ _ t => t.r_free (i.cast (by simp))
 | .t_if _ t1 t2 => t1.r_free i && t2.r_free i
 | .Public => true
-| .default => true
 
 
 
@@ -585,7 +583,6 @@ def ty.rename (t : ty s) (ren : s.renaming s') : ty s' :=
       .t_if (s0.rename $ ren.restrict _) (s1.rename ren)
         (s2.rename ren)
   | .Public => .Public
-  | .default => .default
 
 
 mutual
@@ -602,8 +599,9 @@ def tmX.rename (t : tmX s) (ren : s.renaming s') : tmX s' :=
   match t with
   | .admit => .admit
   | .var_tm s0 => .var_tm (ren.apply #Tm s0)
-  | .error => .error
-  | .skip => .skip
+  | .secparam => .secparam
+  | .sample s0 => .sample (s0.rename ren)
+  | .unit => .unit
   | .bitstring s0 => .bitstring s0
   | .loc s0 => .loc s0
   | .fixlam nm1 nm2 s0 =>
@@ -678,10 +676,8 @@ def tmX.rename (t : tmX s) (ren : s.renaming s') : tmX s' :=
       .if_c (s0.rename $ ren.restrict)
             (s1.rename ren)
             (s2.rename ren)
-  | .sync s0 => .sync (s0.rename ren)
   | .corr_case lab e => .corr_case (lab.rename $ ren.restrict) (e.rename ren)
   | .annot e t => .annot (e.rename ren) (t.rename $ ren.restrict)
-  | .default => .default
 end
 
 abbrev OwlFunctors (x : Fin 3) : ScopeFunctor 3 x :=
@@ -815,7 +811,6 @@ def ty.subst (t : ty s) (sub : Subst s s') : ty s' :=
   | .t_if s0 s1 s2 =>
       .t_if (s0.subst sub.toLabelSubst) (s1.subst sub) (s2.subst sub)
   | .Public => .Public
-  | .default => .default
 
 def _root_.Fin.down (f : Fin (n + 1)) : Option (Fin n) :=
   if h : f < n then .some ⟨f.val, by grind⟩ else none

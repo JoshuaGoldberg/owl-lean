@@ -67,7 +67,7 @@ def ty.pretty (t : ty s) : String :=
   | .sum t1 t2 => "(" ++ t1.pretty ++ " + " ++ t2.pretty ++ ")"
   | .all t0 t => "forall (" ++ t0.pretty ++ "), " ++ t.pretty
   | .ex t0 t => "exists (" ++ t0.pretty ++ "), " ++ t.pretty
-  | .ex_r t0 => "exists_r" ++ t0.pretty
+  | .ex_r t0 => "∃ " ++ t0.pretty
   | .all_r t0 => "exists_r" ++ t0.pretty
   | .all_l cs l t =>
       "forall(" ++ cs.pretty ++ " " ++ l.pretty ++ "). " ++ t.pretty
@@ -75,7 +75,6 @@ def ty.pretty (t : ty s) : String :=
       "if corr(" ++ l.pretty ++ ") then " ++ t1.pretty ++ " else " ++ t2.pretty ++ " }"
   | .Public => "Public"
   | .admit => "admit"
-  | .default => "default"
 
 instance : ToString (ty s) where
   toString := ty.pretty

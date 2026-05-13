@@ -39,7 +39,6 @@ def Owl.ty.simplify (t : ty s) (corrs : corr_ctx (s.restrict _)) : ty s :=
       | .not_corr _ => t1.simplify corrs
   | .sum t0 t1 => .sum (t0.simplify corrs) (t1.simplify corrs)
   | .prod t0 t1 => .prod (t0.simplify corrs) (t1.simplify corrs)
-  | .default => .default
   | .all_l cs l t => .all_l cs l (t.simplify (ScopeMap.bump_restrict _ _ _ _ ▸  corrs.bumpLbl))
 
 
@@ -493,8 +492,6 @@ abbrev subtype_fuel := 10
 
 
 
--- TODO : Finish up various cases that have not yet been completed (for check_subtype and infer)!
-
 abbrev Scope := ScopeMap 4
 
 
@@ -548,115 +545,117 @@ def check_corrupt {s : Scope} (lab : label (s.restrict _)) :
 partial def check_subtype'  {s : Scope} (t1 t2 : ty (s.restrict _)) : CheckT' s (SideCondition (s.restrict _)) := do
   log s!"check_subtype': {t1.pretty} <: {t2.pretty}"
   if t1 == t2 then pure .ScTrue else
-    match t1, t2 with
-    | .admit, _ => pure .ScTrue
-    | _, .Any => pure .ScTrue
-    | .Unit, .Unit => pure .ScTrue
-    | .t_if lab ta1 ta2, t' => do
-      match <- check_corrupt lab.cast with
-      | some b => check_subtype' (if b then ta1 else ta2) t'
-      | none => do
-        let env ← read
-        let r1 ← withCorruption (.corr (lab.cast)) (check_subtype' ta1 t')
-        let r2 ← withCorruption (.not_corr (lab.cast)) (check_subtype' ta2 t')
+    let (pextract, t1) <- extract_refinements t1
+    withHypsAppend pextract $ do
+      match t1, t2 with
+      | .admit, _ => pure .ScTrue
+      | _, .Any => pure .ScTrue
+      | .Unit, .Unit => pure .ScTrue
+      | .t_if lab ta1 ta2, t' => do
+        match <- check_corrupt lab.cast with
+        | some b => check_subtype' (if b then ta1 else ta2) t'
+        | none => do
+          let env ← read
+          let r1 ← withCorruption (.corr (lab.cast)) (check_subtype' ta1 t')
+          let r2 ← withCorruption (.not_corr (lab.cast)) (check_subtype' ta2 t')
+          pure (r1.ScAnd r2)
+      | t, .t_if lab ta1' ta2' => do
+        match <- check_corrupt lab.cast with
+        | some b => check_subtype' t (if b then ta1' else ta2')
+        | none => do
+          let env ← read
+          let r1 ← withCorruption ((.corr (lab.cast))) (check_subtype' t ta1')
+          let r2 ← withCorruption ((.not_corr (lab.cast))) (check_subtype' t ta2')
+          pure (r1.ScAnd r2)
+      | _, .refined t p => do
+        let r1 ← check_subtype' t1 t
+        pure (r1.ScAnd (.PropHolds (p.cast)))
+      | _, .inter t21 t22 => do
+        let r1 ← check_subtype' t1 t21
+        let r2 ← check_subtype' t1 t22
         pure (r1.ScAnd r2)
-    | t, .t_if lab ta1' ta2' => do
-      match <- check_corrupt lab.cast with
-      | some b => check_subtype' t (if b then ta1' else ta2')
-      | none => do
+      | _, .union t21 t22 => do
+        let r1 ← check_subtype' t1 t21
+        let r2 ← check_subtype' t1 t22
+        pure (r1.ScOr r2)
+      | .inter t11 t12, _ => do
+        let r1 ← check_subtype' t11 t2
+        let r2 ← check_subtype' t12 t2
+        pure (r1.ScOr r2)
+      | .RData l1 _, .Data l2 => do
         let env ← read
-        let r1 ← withCorruption ((.corr (lab.cast))) (check_subtype' t ta1')
-        let r2 ← withCorruption ((.not_corr (lab.cast))) (check_subtype' t ta2')
+        pure (.LblEntails (env.lbl.cast) (.condition .leq (l1.cast) (l2.cast)))
+      | .RData l1 re1, .RData l2 re2 => do
+        let env ← read
+        let r1 := SideCondition.LblEntails (env.lbl.cast) (.condition .leq (l1.cast) (l2.cast))
+        let r2 := SideCondition.RexpEq re1 re2
+        pure (r1.ScAnd (r2.cast))
+      | .Data l1, .Public => do
+        let env ← read
+        pure (.PhiPsiEntailCorr s!"Data {l1}, Public" (env.lbl.cast) (env.corrs.cast) (.corr (l1.cast)))
+      | .Data l1, .Data l2 =>
+        let env ← read
+        pure (.LblEntails (env.lbl.cast) (.condition .leq (l1.cast) (l2.cast)))
+      | .RData l1 _, .Public => do
+        let env ← read
+        pure (.PhiPsiEntailCorr s!"RData {l1}, Public" (env.lbl.cast) (env.corrs.cast) (.corr (l1.cast)))
+      | .Data l1, ty.ex_r (.RData l2 (.var ⟨0, _⟩)) => do
+        let env ← read
+        pure (.LblEntails (env.lbl.cast)
+                          (.condition .leq (l1.cast)
+                          (l2.cast (by simp [ScopeMap.bump_restrict]))))
+      | .var_ty _ x1, .var_ty _ x2 =>
+        pure (if x1 = x2 then .ScTrue else .ScFalse)
+      | .Public, .Public => pure .ScTrue
+      | .var_ty _ x, t => do
+        let tx := ((<- read).ty_vars.get x).2
+        -- x <: tx
+        -- tx <: t
+        ----------
+        -- x <: t
+        check_subtype' tx t
+      -- TODO: I deleted the case of (t <: .var_ty _ x).
+      | (.arr ta1 ta2), (.arr ta1' ta2') => do
+        let r1 ← check_subtype' ta1' ta1
+        let r2 ← check_subtype' ta2 ta2'
         pure (r1.ScAnd r2)
-    | _, .refined t p => do
-      let r1 ← check_subtype' t1 t
-      pure (r1.ScAnd (.PropHolds (p.cast)))
-    | _, .inter t21 t22 => do
-      let r1 ← check_subtype' t1 t21
-      let r2 ← check_subtype' t1 t22
-      pure (r1.ScAnd r2)
-    | _, .union t21 t22 => do
-      let r1 ← check_subtype' t1 t21
-      let r2 ← check_subtype' t1 t22
-      pure (r1.ScOr r2)
-    | .inter t11 t12, _ => do
-      let r1 ← check_subtype' t11 t2
-      let r2 ← check_subtype' t12 t2
-      pure (r1.ScOr r2)
-    | .RData l1 _, .Data l2 => do
-      let env ← read
-      pure (.LblEntails (env.lbl.cast) (.condition .leq (l1.cast) (l2.cast)))
-    | .RData l1 re1, .RData l2 re2 => do
-      let env ← read
-      let r1 := SideCondition.LblEntails (env.lbl.cast) (.condition .leq (l1.cast) (l2.cast))
-      let r2 := SideCondition.RexpEq re1 re2
-      pure (r1.ScAnd (r2.cast))
-    | .Data l1, .Public => do
-      let env ← read
-      pure (.PhiPsiEntailCorr s!"Data {l1}, Public" (env.lbl.cast) (env.corrs.cast) (.corr (l1.cast)))
-    | .Data l1, .Data l2 =>
-      let env ← read
-      pure (.LblEntails (env.lbl.cast) (.condition .leq (l1.cast) (l2.cast)))
-    | .RData l1 _, .Public => do
-      let env ← read
-      pure (.PhiPsiEntailCorr s!"RData {l1}, Public" (env.lbl.cast) (env.corrs.cast) (.corr (l1.cast)))
-    | .Data l1, ty.ex_r (.RData l2 (.var ⟨0, _⟩)) => do
-      let env ← read
-      pure (.LblEntails (env.lbl.cast)
-                        (.condition .leq (l1.cast)
-                        (l2.cast (by simp [ScopeMap.bump_restrict]))))
-    | .var_ty _ x1, .var_ty _ x2 =>
-      pure (if x1 = x2 then .ScTrue else .ScFalse)
-    | .Public, .Public => pure .ScTrue
-    | .var_ty _ x, t => do
-      let tx := ((<- read).ty_vars.get x).2
-      -- x <: tx
-      -- tx <: t
-      ----------
-      -- x <: t
-      check_subtype' tx t
-    -- TODO: I deleted the case of (t <: .var_ty _ x).
-    | (.arr ta1 ta2), (.arr ta1' ta2') => do
-      let r1 ← check_subtype' ta1' ta1
-      let r2 ← check_subtype' ta2 ta2'
-      pure (r1.ScAnd r2)
-    | (.prod ta1 ta2), (.prod ta1' ta2') => do
-      let r1 ← check_subtype' ta1 ta1'
-      let r2 ← check_subtype' ta2 ta2'
-      pure (r1.ScAnd r2)
-    | (.sum ta1 ta2), (.sum ta1' ta2') => do
-      let r1 ← check_subtype' ta1 ta1'
-      let r2 ← check_subtype' ta2 ta2'
-      pure (r1.ScAnd r2)
-    | .Ref u, .Ref v =>
-      if u == v then pure .ScTrue else pure .ScFalse
-    | .all t0 t, .all t0' t' => do
-      let r1 ← check_subtype' t0 t0'
-      let r2 ← withTyVar "_" t0' (check_subtype' (t.cast (by simp [ScopeMap.bump_restrict])) (t'.cast (by simp [ScopeMap.bump_restrict])))
-      pure (r1.ScAnd (r2.cast (by simp [ScopeMap.bump_restrict])))
-    | .ex t0 t, .ex t0' t' => do
-      let r1 ← check_subtype' t0 t0'
-      let r2 ← withTyVar "_" t0 (check_subtype' (t.cast (by simp [ScopeMap.bump_restrict])) (t'.cast (by simp [ScopeMap.bump_restrict])))
-      pure (r1.ScAnd (r2.cast (by simp [ScopeMap.bump_restrict])))
-    | .all_l cs lab t, .all_l _cs' lab' t' => do
-      unless cs = _cs' do throw' s!"check_subtype': cs and cs' are not equal"
-      let env ← read
-      let extPhi : lbl_ctx ((s.bump #L).restrict 1) :=
-          (vec.cons ("_", cs, lab.rename (((s.lift #L).restrict _).restrict _))
-                    (env.lbl.map fun _ (n, (sc, l)) =>
-                           (n, (sc, l.rename (by rw [ScopeMap.restrict_restrict]; exact ((s.lift #L).restrict _)))))).cast
-             (by simp)
-             (by simp)
-      let constraint : constr ((s.bump #L).restrict 1) := (.condition cs (.var_label "_" (by simp [ScopeMap.get]; exact 0))
-                              (lab'.rename (by rw [ScopeMap.restrict_restrict]; exact ((s.lift #L).restrict _))))
-      let r1 : SideCondition ((s.bump #L).restrict 2) :=
-        SideCondition.LblEntails (extPhi.cast)
-                               (constraint.cast (by simp [ScopeMap.bump_restrict]))
-      let r2 ← withLabelVar cs "_" (lab.cast) (check_subtype' (t.cast (by simp [ScopeMap.bump_restrict])) (t'.cast (by simp [ScopeMap.bump_restrict])))
-      pure (.WithLabel cs (lab.cast) ((r1.ScAnd r2).cast (by simp [ScopeMap.bump_restrict])))
-    | _, _ => do
-      let env ← read
-      pure (.LblContextInconsistent s!"check_subtype': {t1} and {t2} are not comparable" (env.lbl.cast) (env.corrs.cast))
+      | (.prod ta1 ta2), (.prod ta1' ta2') => do
+        let r1 ← check_subtype' ta1 ta1'
+        let r2 ← check_subtype' ta2 ta2'
+        pure (r1.ScAnd r2)
+      | (.sum ta1 ta2), (.sum ta1' ta2') => do
+        let r1 ← check_subtype' ta1 ta1'
+        let r2 ← check_subtype' ta2 ta2'
+        pure (r1.ScAnd r2)
+      | .Ref u, .Ref v =>
+        if u == v then pure .ScTrue else pure .ScFalse
+      | .all t0 t, .all t0' t' => do
+        let r1 ← check_subtype' t0' t0
+        let r2 ← withTyVar "_" t0' (check_subtype' (t.cast (by simp [ScopeMap.bump_restrict])) (t'.cast (by simp [ScopeMap.bump_restrict])))
+        pure (r1.ScAnd (r2.cast (by simp [ScopeMap.bump_restrict])))
+      | .ex t0 t, .ex t0' t' => do
+        let r1 ← check_subtype' t0 t0'
+        let r2 ← withTyVar "_" t0 (check_subtype' (t.cast (by simp [ScopeMap.bump_restrict])) (t'.cast (by simp [ScopeMap.bump_restrict])))
+        pure (r1.ScAnd (r2.cast (by simp [ScopeMap.bump_restrict])))
+      | .all_l cs lab t, .all_l _cs' lab' t' => do
+        unless cs = _cs' do throw' s!"check_subtype': cs and cs' are not equal"
+        let env ← read
+        let extPhi : lbl_ctx ((s.bump #L).restrict 1) :=
+            (vec.cons ("_", cs, lab.rename (((s.lift #L).restrict _).restrict _))
+                      (env.lbl.map fun _ (n, (sc, l)) =>
+                             (n, (sc, l.rename (by rw [ScopeMap.restrict_restrict]; exact ((s.lift #L).restrict _)))))).cast
+               (by simp)
+               (by simp)
+        let constraint : constr ((s.bump #L).restrict 1) := (.condition cs (.var_label "_" (by simp [ScopeMap.get]; exact 0))
+                                (lab'.rename (by rw [ScopeMap.restrict_restrict]; exact ((s.lift #L).restrict _))))
+        let r1 : SideCondition ((s.bump #L).restrict 2) :=
+          SideCondition.LblEntails (extPhi.cast)
+                                 (constraint.cast (by simp [ScopeMap.bump_restrict]))
+        let r2 ← withLabelVar cs "_" (lab.cast) (check_subtype' (t.cast (by simp [ScopeMap.bump_restrict])) (t'.cast (by simp [ScopeMap.bump_restrict])))
+        pure (.WithLabel cs (lab.cast) ((r1.ScAnd r2).cast (by simp [ScopeMap.bump_restrict])))
+      | _, _ => do
+        let env ← read
+        pure (.LblContextInconsistent s!"check_subtype': {t1} and {t2} are not comparable" (env.lbl.cast) (env.corrs.cast))
 
 def check_subtype {s : Scope} (t1 t2 : ty (s.restrict _)) : CheckT' s Unit := do
   let sc ← check_subtype' t1 t2
@@ -734,9 +733,27 @@ def infer (e : tm s) (exp : Option (ty (s.restrict _))) : CheckT' s (ty (s.restr
 def inferX (e : tmX s) (exp : Option (ty (s.restrict _))) : CheckT' s (ty (s.restrict _))  :=
   match e with
   | .admit => from_synth .admit exp
+  | .secparam => from_synth .Public exp
+  | .sample e => do
+    let t ← infer e .none
+    let tInf <- match t with
+                | .Public | .Data _ => pure .Public
+                | .RData _ r =>
+                  let r : rexp (s.restrict 2) := r.cast
+                  let peq : prop ((s.restrict 2).bump #R) :=
+                    .peq (.unop "zero" $ r.rename $ ((s.lift #R).restrict _).castR (by simp [ScopeMap.restrict_bump]))
+                         (.unop "zero" $ .var ⟨0, by simp [ScopeMap.restrict_bump]⟩)
+                  let r' : ty ((s.restrict 3)) :=
+                    ty.ex_r $ .refined
+                      (.RData (.latl LabelTm.bot) (.var ⟨0, by simp [ScopeMap.restrict_bump]⟩))
+                      (peq.cast (by simp [ScopeMap.bump_restrict]))
+                  pure r'
+                | _ => throw' s!"Error when checking sample: did not get a bitstring; got {t}"
+    from_synth tInf exp
+
   | .var_tm x => do
     from_synth ((<- read).tms.get x).2 exp
-  | .skip => from_synth .Unit exp
+  | .unit => from_synth .Unit exp
   | .bitstring b => from_synth (.RData (.latl LabelTm.bot) (.const b)) exp
   | .binop op e1 e2 => do
     let t1 ← infer e1 .none
@@ -949,12 +966,7 @@ def inferX (e : tmX s) (exp : Option (ty (s.restrict _))) : CheckT' s (ty (s.res
       | .none => pure (.t_if lab.cast t1 t2)
       | .some exp_ty => pure exp_ty
     | .some b => withCorruption (if b then (.corr lab) else (.not_corr lab)) (infer e exp)
-  | .sync e => do
-    let _ ← infer e (.some .Public)
-    from_synth .Public exp
-  | .default => throw' "infer: unhandled case"
   | .loc _ => throw' "infer: unhandled case"
-  | .error => throw' "infer: unhandled case"
 end
 
 

@@ -26,8 +26,6 @@ Known gaps (no active `#tc` here; the typechecker or empty sequent does not supp
 -- Base type `unit`.
 #tc tc_unit := ⊢ { () } : unit
 
--- `sync` requires a `Public` scrutinee and yields `Public`.
-#tc tc_sync := ⊢ { sync "ok" } : Public
 
 -- Boolean-style `if` on `Public`, branches must agree up to subtyping.
 #tc tc_if_unit := ⊢ { if "0" then () else () } : unit
@@ -105,3 +103,6 @@ Known gaps (no active `#tc` here; the typechecker or empty sequent does not supp
 
 -- Refined type syntax: supertype `Public` with a trivially true equation on the value.
 #tc tc_refined_public := ⊢ { let x = "1" in rpack ("1", x) } : ∃r. RData ⊥ [r]
+
+-- Sample: bitstrings are also `Public`.
+#tc tc_sample_public := ⊢ { sample "1" } : Public

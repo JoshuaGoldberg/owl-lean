@@ -388,7 +388,8 @@ syntax "rpack" "(" owl_rexp "," owl_tm ")" : owl_tm
 syntax "unpack" owl_tm "as" "(" owl_var "," owl_var ")" "in" owl_tm : owl_tm
 syntax "if" owl_tm "then" owl_tm "else" owl_tm : owl_tm
 syntax "if" "corr" "(" owl_label ")" "then" owl_tm "else" owl_tm : owl_tm
-syntax "sync" owl_tm : owl_tm
+syntax "secparam" : owl_tm
+syntax "sample" owl_tm : owl_tm
 syntax "union_elim" ident "=" owl_tm "in" owl_tm : owl_tm
 syntax "let" owl_var "=" owl_tm "in" owl_tm : owl_tm
 syntax owl_tm ";" owl_tm : owl_tm
@@ -431,8 +432,7 @@ mutual
       match G.lookup nm with
       | .none => throwError s!"Unknown term variable: {nm}"
       | .some j => return .var_tm j
-  | `(owl_tm| error) => return .error
-  | `(owl_tm| ()) => return .skip
+  | `(owl_tm| ()) => return .unit
   | `(owl_tm| $b:str  ) => do
     return .bitstring b.getString
   | `(owl_tm| fix $f:owl_var ( $v:owl_var ) $e:owl_tm) => do
@@ -531,6 +531,10 @@ mutual
     let re ← elab_rexp re P Rs
     let e ← elabTm e P Rs D G
     return .rpack re e
+  | `(owl_tm| secparam) => return .secparam
+  | `(owl_tm| sample $e:owl_tm) => do
+    let e ← elabTm e P Rs D G
+    return .sample e
   | `(owl_tm| if $e1:owl_tm then $e2:owl_tm else $e3:owl_tm) => do
     let e1 ← elabTm e1 P Rs D G
     let e2 ← elabTm e2 P Rs D G
@@ -541,9 +545,6 @@ mutual
     let e1 ← elabTm e1 P Rs D G
     let e2 ← elabTm e2 P Rs D G
     return .if_c c e1 e2
-  | `(owl_tm| sync $e:owl_tm) => do
-    let e ← elabTm e P Rs D G
-    return .sync e
   | `(owl_tm| union_elim $id1:ident = $e:owl_tm  in $b:owl_tm) => do
     let e ← elabTm e P Rs D G
     let b ← elabTm b P Rs D (id1.getId.toString :: G)

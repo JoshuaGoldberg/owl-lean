@@ -1,5 +1,7 @@
 import OwlLean.TypeChecker.OwlComplete
 
+-- TODO: incorporate sample so that k is random
+
 #ty ENC_inner [lK, lM] [] [tau, alphaK] :=
        (alphaK *
         ((corr (lK) ? (Public * Public) -> Public : (alphaK * tau) -> Public) *
