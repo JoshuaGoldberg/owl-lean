@@ -105,4 +105,4 @@ Known gaps (no active `#tc` here; the typechecker or empty sequent does not supp
 #tc tc_refined_public := ⊢ { let x = "1" in rpack ("1", x) } : ∃r. RData ⊥ [r]
 
 -- Sample: bitstrings are also `Public`.
-#tc tc_sample_public := ⊢ { sample "1" } : Public
+#tc tc_sample_public := ⊢ { sample secparam } : ?

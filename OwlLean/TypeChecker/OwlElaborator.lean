@@ -189,7 +189,7 @@ partial def elab_rexp (stx : Syntax) (P : TCtx := []) (Rs : TCtx) : TermElabM (r
     | .none => throwError s!"Unknown refinement variable: {nm}"
     | .some j => return .var j
   | `(owl_rexp |  $ob:str  ) => do
-    return .const ob.getString
+    return .const ob.getString.toList
   | _ => throwUnsupportedSyntax
 
 
@@ -198,13 +198,17 @@ syntax "(" owl_prop ")" : owl_prop
 syntax owl_rexp "=" owl_rexp : owl_prop
 syntax owl_prop "∧" owl_prop : owl_prop
 syntax owl_prop "∨" owl_prop : owl_prop
-syntax owl_prop "→" owl_prop : owl_prop
+syntax owl_prop "=>" owl_prop : owl_prop
 syntax "¬" owl_prop : owl_prop
 syntax "∀" ident "." owl_prop : owl_prop
+syntax "True" : owl_prop
+syntax "False" : owl_prop
 
 partial def elab_prop (stx : Syntax) (P : TCtx) (Rs : TCtx)  : TermElabM (prop (ScopeMap.ofList [P.length, Rs.length])) :=
   match stx with
   | `(owl_prop| ( $e:owl_prop )) => elab_prop e P Rs
+  | `(owl_prop | True ) => return .ptrue
+  | `(owl_prop | False ) => return (.pnot .ptrue)
   | `(owl_prop| $e1:owl_rexp = $e2:owl_rexp) => do
     let r1 ← elab_rexp e1 P Rs
     let r2 ← elab_rexp e2 P Rs
@@ -217,7 +221,7 @@ partial def elab_prop (stx : Syntax) (P : TCtx) (Rs : TCtx)  : TermElabM (prop (
     let p1 ← elab_prop p1 P Rs
     let p2 ← elab_prop p2 P Rs
     return .por p1 p2
-  | `(owl_prop| $p1:owl_prop → $p2:owl_prop) => do
+  | `(owl_prop| $p1:owl_prop => $p2:owl_prop) => do
     let p1 ← elab_prop p1 P Rs
     let p2 ← elab_prop p2 P Rs
     return .pimpl p1 p2
@@ -388,11 +392,12 @@ syntax "rpack" "(" owl_rexp "," owl_tm ")" : owl_tm
 syntax "unpack" owl_tm "as" "(" owl_var "," owl_var ")" "in" owl_tm : owl_tm
 syntax "if" owl_tm "then" owl_tm "else" owl_tm : owl_tm
 syntax "if" "corr" "(" owl_label ")" "then" owl_tm "else" owl_tm : owl_tm
+syntax "get_val" ident " = " owl_tm " in " owl_tm : owl_tm
 syntax "secparam" : owl_tm
 syntax "sample" owl_tm : owl_tm
 syntax "union_elim" ident "=" owl_tm "in" owl_tm : owl_tm
 syntax "let" owl_var "=" owl_tm "in" owl_tm : owl_tm
-syntax owl_tm ";" owl_tm : owl_tm
+syntax:1 owl_tm ";" owl_tm : owl_tm
 syntax "let" owl_var ":" owl_type "=" owl_tm "in" owl_tm : owl_tm
 syntax "let" "admit" owl_var ":" owl_type "=" owl_tm "in" owl_tm : owl_tm
 syntax "let" "(" owl_var "," owl_var ")" "=" owl_tm "in" owl_tm : owl_tm
@@ -403,6 +408,7 @@ syntax "$" term:max "[" owl_label,* "]" "[" owl_type,* "]" "[" owl_tm,* "]" : ow
 syntax "corr_case" owl_label "in" owl_tm : owl_tm
 syntax "(" owl_tm ":" owl_type ")" : owl_tm
 syntax owl_tm "." num : owl_tm
+syntax "assert" "(" owl_prop ")" : owl_tm
 syntax "admit" : owl_tm
 
 -- ALLOW : let (x , y) = e in ...
@@ -427,6 +433,8 @@ mutual
   match stx with
   | `(owl_tm| ( $e:owl_tm)) => elabTmX e P Rs D G
   | `(owl_tm| admit ) => return .admit
+  | `(owl_tm | $n:num ) =>
+    return .bitstring (Nat.toDigits 10 n.getNat)
   | `(owl_tm| $id:ident) => do
       let nm := id.getId.toString
       match G.lookup nm with
@@ -434,7 +442,7 @@ mutual
       | .some j => return .var_tm j
   | `(owl_tm| ()) => return .unit
   | `(owl_tm| $b:str  ) => do
-    return .bitstring b.getString
+    return .bitstring b.getString.toList
   | `(owl_tm| fix $f:owl_var ( $v:owl_var ) $e:owl_tm) => do
     let e' ← elabTm e P Rs D (elabVar f :: elabVar v :: G)
     return .fixlam (elabVar f) (elabVar v) e'
@@ -515,6 +523,10 @@ mutual
     let e ← elabTm e P Rs D G
     let re ← elab_rexp re P Rs
     return .rapp e re
+  | `(owl_tm| get_val $rname:ident = $e:owl_tm in $t:owl_tm) => do
+    let e ← elabTm e P Rs D G
+    let t ← elabTm t P (rname.getId.toString :: Rs) D G
+    return .get_val rname.getId.toString e t
   | `(owl_tm| $e:owl_tm ⟨ $l:owl_label ⟩) => do
     let e ← elabTm e P Rs D G
     let l ← elabLabel l P
@@ -527,6 +539,8 @@ mutual
     let t ← elabType t P Rs D
     let e ← elabTm e P Rs D G
     return .pack t e
+  | `(owl_tm| assert ($p:owl_prop)) => do
+    elabTmX (← `(owl_tm| ( () : unit { $p } ) )) P Rs D G
   | `(owl_tm| rpack ($re:owl_rexp, $e:owl_tm)) => do
     let re ← elab_rexp re P Rs
     let e ← elabTm e P Rs D G
@@ -549,6 +563,8 @@ mutual
     let e ← elabTm e P Rs D G
     let b ← elabTm b P Rs D (id1.getId.toString :: G)
     return .union_elim (id1.getId.toString) e b
+  | `(owl_tm| $e1:owl_tm ; $e2:owl_tm ) => do
+     elabTmX (← `(owl_tm| (let _ = $e1 in $e2))) P Rs D G
   | `(owl_tm| let $v1:owl_var = $e:owl_tm  in $b:owl_tm) => do
     let e ← elabTm e P Rs D G
     let b ← elabTm b P Rs D (elabVar v1 :: G)
@@ -561,8 +577,6 @@ mutual
     elabTmX (← `(owl_tm| let $v1 = π1 $e in let $v2 = π2 $e in $b)) P Rs D G
   | `(owl_tm| let ($v1:owl_var, $v2:owl_var, $v3:owl_var) = $e:owl_tm  in $b:owl_tm) => do
     elabTmX (← `(owl_tm| let $v1 = π1 $e in let $v2 = π1 (π2 $e) in let $v3 = π2 (π2 $e) in $b)) P Rs D G
-  | `(owl_tm| $e1:owl_tm ; $e2:owl_tm ) => do
-    elabTmX (← `(owl_tm| (let _ = $e1 in $e2))) P Rs D G
   | `(owl_tm| λ ($v:owl_var : $t1:owl_type) : $t2:owl_type => $e:owl_tm) => do
     elabTmX (← `(owl_tm| ((λ $v => $e) : ($t1 -> $t2)))) P Rs D G
   | `(owl_tm| λ $v:owl_var => $e:owl_tm) => do

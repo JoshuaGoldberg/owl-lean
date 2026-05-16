@@ -161,7 +161,7 @@ inductive rexp : ScopeMap 2 -> Type where
   | var : Fin (s.get #R) -> rexp s
   | binop : String -> rexp s -> rexp s -> rexp s
   | unop : String -> rexp s -> rexp s
-  | const : String -> rexp s
+  | const : List Char -> rexp s
 deriving Repr, BEq, Lean.ToExpr
 
 
@@ -173,6 +173,7 @@ inductive prop : ScopeMap 2 -> Type where
   | pimpl : prop s -> prop s -> prop s
   | pnot : prop s -> prop s
   | pall : prop (s.bump #R) -> prop s
+  | ptrue : prop s
   deriving Repr, BEq, Lean.ToExpr
 
 
@@ -234,7 +235,7 @@ inductive tmX : ScopeMap 4 -> Type where
     tm (s.bump #Tm) -> tmX s
 
 | unit : tmX s
-| bitstring : String -> tmX s
+| bitstring : List Char -> tmX s
 | loc : Nat -> tmX s
 | fixlam : String -> String -> tm ((s.bump #Tm).bump #Tm) -> tmX s
 | tlet : String -> tm s -> tm (s.bump #Tm) -> tmX s
@@ -249,6 +250,7 @@ inductive tmX : ScopeMap 4 -> Type where
 | pack : ty (s.restrict 3) -> tm s -> tmX s
 | rpack : rexp (s.restrict 2) -> tm s -> tmX s
 | unpack : tm s -> String -> String -> tm ((s.bump #Ty).bump #Tm) -> tmX s
+| get_val : String -> tm s -> tm (s.bump #R) -> tmX s
 | if_tm :
     tm s ->
     tm s -> tm s -> tmX s
@@ -426,6 +428,7 @@ def prop.rfree  (p : prop s) (i : Fin (s.get #R)) : Bool :=
   | .pimpl p1 p2 => prop.rfree p1 i && prop.rfree p2 i
   | .pnot p1 => prop.rfree p1 i
   | .pall p0 => prop.rfree p0 ((Fin.succ i).cast (by simp))
+  | .ptrue => true
 
 
 @[simp]
@@ -544,6 +547,7 @@ def prop.rename (p : prop s) (ren : s.renaming s') : prop s' :=
   | .pimpl p1 p2 => .pimpl (p1.rename ren) (p2.rename ren)
   | .pnot p1 => .pnot (p1.rename ren)
   | .pall p => .pall (p.rename (ren.bump #R))
+  | .ptrue => .ptrue
 
 
 @[simp]
@@ -603,6 +607,7 @@ def tmX.rename (t : tmX s) (ren : s.renaming s') : tmX s' :=
   | .sample s0 => .sample (s0.rename ren)
   | .unit => .unit
   | .bitstring s0 => .bitstring s0
+  | .get_val s t0 t1 => .get_val s (t0.rename ren) (t1.rename $ ren.bump #R)
   | .loc s0 => .loc s0
   | .fixlam nm1 nm2 s0 =>
       .fixlam nm1 nm2
@@ -780,6 +785,7 @@ def prop.subst (p : prop s) (sub : RexpSubst s s') : prop s' :=
   | .pimpl p1 p2 => .pimpl (p1.subst sub) (p2.subst sub)
   | .pnot p1 => .pnot (p1.subst sub)
   | .pall p => .pall (p.subst $ sub.bump #R)
+  | .ptrue => .ptrue
 
 
 @[simp]

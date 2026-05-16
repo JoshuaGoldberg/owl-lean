@@ -1,4 +1,5 @@
 import OwlLean.TypeChecker.OwlTyping
+import OwlLean.TypeChecker.OwlBuiltins
 import OwlLean.OwlLang.ToString
 import OwlLean.OwlLang.ScopeMap
 
@@ -172,8 +173,13 @@ def throw' (s : String) : CheckT' sc α := do
 -- def lift_RCtx_r (θ : RCtx n) : RCtx (n + 1) :=
 --   θ.map (ren_prop shift id)
 
+def ScopeMap.renaming.cast (r : ScopeMap.renaming s t) (h1 : s = s') (h2 : t = t') : ScopeMap.renaming s' t' :=
+  h2 ▸ h1 ▸ r
 
 def ScopeMap.renaming.castR (r : ScopeMap.renaming s t) (h : t = t') : ScopeMap.renaming s t' :=
+  h ▸ r
+
+def ScopeMap.renaming.castL (r : ScopeMap.renaming s t) (h : s = s') : ScopeMap.renaming s' t :=
   h ▸ r
 
 /-- Extend `gamma` with one term variable (its typing is at type index `0`). -/
@@ -256,12 +262,14 @@ def withLabelVar [Monad m] (cs : cond_sym) (n : String) (lab : label (s.restrict
 
 attribute [simp] Fin.foldr_succ
 
-partial def rexp.interp {s : ScopeMap 2}
+
+@[simp]
+def rexp.interp {s : ScopeMap 2}
   (re : rexp s)
-  (f_interp : String -> String -> String -> String )
-  (fv : Lean.Name -> String)
-  (bv : vec String (s.get #R))
-  : String :=
+  (f_interp : String -> OwlVal -> OwlVal -> OwlVal )
+  (fv : Lean.Name -> OwlVal)
+  (bv : vec OwlVal (s.get #R))
+  : OwlVal :=
   match re with
   | .fvar nm => fv nm
   | .var i => bv.get (i.cast $ by simp)
@@ -271,7 +279,7 @@ partial def rexp.interp {s : ScopeMap 2}
     f_interp s r1_interp r2_interp
   | .unop s r1 =>
     let r1_interp := r1.interp f_interp fv bv
-    f_interp ("<UNOP>" ++ s) r1_interp ""
+    f_interp s r1_interp []
   | .const b => b
 
 
@@ -313,14 +321,15 @@ theorem label.cast_sizeOf {s t : ScopeMap 1} (h : s = t) (l : label s) : sizeOf 
 @[simp]
 def prop.interp {s : ScopeMap 2}
 (p : prop s)
-(f_interp : String -> String -> String -> String)
-(fv : Lean.Name -> String)
-(bv : vec String (s.get #R))
+(f_interp : String -> OwlVal -> OwlVal -> OwlVal)
+(fv : Lean.Name -> OwlVal)
+(bv : vec OwlVal (s.get #R))
 : Prop :=
   match p with
+  | .ptrue => True
   | .peq re1 re2 =>
-     let r1_interp : String := re1.interp f_interp fv bv
-     let r2_interp : String := re2.interp f_interp fv bv
+     let r1_interp : OwlVal := re1.interp f_interp fv bv
+     let r2_interp : OwlVal := re2.interp f_interp fv bv
      r1_interp = r2_interp
   | .pand p1 p2 =>
      let p1_interp : Prop := p1.interp f_interp fv bv
@@ -346,18 +355,18 @@ def prop.interp {s : ScopeMap 2}
 @[simp]
 def prop_ctx.interp {s : ScopeMap 2}
   (hyps : prop_ctx s)
-  (f_interp : String -> String -> String -> String)
-  (fv : Lean.Name -> String)
-  (bv : vec String (s.get #R))
+  (f_interp : String -> OwlVal -> OwlVal -> OwlVal)
+  (fv : Lean.Name -> OwlVal)
+  (bv : vec OwlVal (s.get #R))
   : Prop :=
   hyps.foldr (fun p acc => p.interp f_interp fv bv ∧ acc) True
 
 
 @[simp]
 def SideCondition.eval {s : ScopeMap 2} (p : SideCondition s)
-(f_interp : String -> String -> String -> String)
-(fv : Lean.Name -> String)
-(bv : vec String (s.get #R))
+(f_interp : String -> OwlVal -> OwlVal -> OwlVal)
+(fv : Lean.Name -> OwlVal)
+(bv : vec OwlVal (s.get #R))
 : Prop :=
   match p with
   | LblEntails phi c => phi.entails c
@@ -392,13 +401,6 @@ def CheckT'.liftTermElab (k : TermElabM α) : CheckT' s α :=
     pure (.ok r)
 
 namespace Proof
-
-opaque owl_f_interp' : String -> String -> String -> String
-
-def owl_f_interp (s x y : String) : String :=
-  match s with
-  | "concat" => x ++ y
-  | _ => owl_f_interp' s x y
 
 @[simp]
 def SideConditionWithContext.eval (sc : SideConditionWithContext) : Prop :=
@@ -697,6 +699,16 @@ private def ty.getLabel {s : Scope} (t : ty (s.restrict 3)) :
   | .Data l => pure l
   | _ => throw' "infer_op: argument must be of type Data / RData / Public"
 
+-- May have to return an arbitrary rexp if the type is not an RData
+def ty.getRexp {s : Scope} (t : ty (s.restrict 3)) :
+    CheckT' s (rexp ((s.restrict 3).restrict 2)) :=
+  match t with
+  | .RData _ r => pure r
+  | .Data _ | .Public => do
+      let i <- freshName
+      pure (.fvar i)
+  | _ => throw' "infer_op: argument must be a bitstring"
+
 def infer_binop {s : Scope} (op : String) (t1 t2 : ty (s.restrict _)) : CheckT' s (ty (s.restrict _)) := do
   let env ← read
   match t1, t2 with
@@ -755,6 +767,16 @@ def inferX (e : tmX s) (exp : Option (ty (s.restrict _))) : CheckT' s (ty (s.res
     from_synth ((<- read).tms.get x).2 exp
   | .unit => from_synth .Unit exp
   | .bitstring b => from_synth (.RData (.latl LabelTm.bot) (.const b)) exp
+  | .get_val rname e t => do
+     let t0 <- infer e .none
+     let r <- t0.getRexp
+     let r' : rexp ((s.bump #R).restrict 2) :=
+      r.rename $ ((s.lift #R).restrict _).castL (by simp)
+     withRefVar rname $
+       withHypsAppend [.peq r' (.var ⟨0, by simp⟩ )] $ do
+        let res <- infer t (exp.map fun t => t.rename ((s.lift #R).restrict _))
+        let res : (ty ((s.restrict 3).bump #R)) := res.cast (by simp [ScopeMap.bump_restrict])
+        pure $ res.subst (ScopeMap.Subst.down r)
   | .binop op e1 e2 => do
     let t1 ← infer e1 .none
     let t2 ← infer e2 .none
@@ -824,7 +846,7 @@ def inferX (e : tmX s) (exp : Option (ty (s.restrict _))) : CheckT' s (ty (s.res
       let expected := (t'.cast (by simp [ScopeMap.bump_restrict]; grind))
       let _ ← withTmVar nm2 t (withTmVar nm1 ((ty.arr t t').cast (by simp [ScopeMap.bump_restrict]; grind)) (infer e (.some expected)))
       pure (.arr t t')
-    | _ => throw' "fixlam"
+    | _ => throw' "λ : need type annotation either on binder or on output type "
   | .app e1 e2 =>
     match exp with
     | .none => do

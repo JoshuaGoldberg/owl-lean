@@ -40,7 +40,7 @@ def rexp.pretty (re : rexp s) : String :=
   | .var i => "r" ++ toString i.toNat
   | .binop s r1 r2 => s ++ "(" ++ r1.pretty ++ "," ++ r2.pretty ++ ")"
   | .unop s r1 => s ++ "(" ++ r1.pretty ++ ")"
-  | .const b => b
+  | .const b => b.toString
 
 def prop.pretty (p : prop s) : String :=
   match p with
@@ -50,6 +50,7 @@ def prop.pretty (p : prop s) : String :=
   | .pimpl p1 p2 => p1.pretty ++ " → " ++ p2.pretty
   | .pnot p1 => "¬ " ++ p1.pretty
   | .pall p1 => "∀ ." ++ p1.pretty
+  | .ptrue => "True"
 
 def ty.pretty (t : ty s) : String :=
   match t with

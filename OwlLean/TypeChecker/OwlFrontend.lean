@@ -1,5 +1,6 @@
 import OwlLean.TypeChecker.OwlElaborator
 import OwlLean.TypeChecker.OwlTyping
+import OwlLean.TypeChecker.OwlBuiltins
 import Lean
 import Std.Data.HashMap
 
@@ -93,12 +94,6 @@ structure Sequent where
   e : tm (ScopeMap.ofList [l, r, d, m])
   t : Option (ty (ScopeMap.ofList [l, r, d]))
 
-opaque owl_f_interp' : String -> String -> String -> String
-
-def owl_f_interp (s x y : String) : String :=
-  match s with
-  | "concat" => x ++ y
-  | _ => owl_f_interp' s x y
 
 def reportSuccess : TermElabM Unit := do
   let msgData := .tagged `goalsAccomplished m!"Goals accomplished!"
