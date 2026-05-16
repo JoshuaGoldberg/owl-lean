@@ -371,55 +371,69 @@ notation:100 "PURE" => pure ()
 notation:100 "THROW" => throw ()
 
 -- syntax for terms
-syntax "(" owl_tm ")" : owl_tm
-syntax ident : owl_tm
-syntax num : owl_tm
-syntax "error" : owl_tm
-syntax "()" : owl_tm
-syntax str : owl_tm
-syntax "fix" owl_var "(" owl_var ")" owl_tm : owl_tm
-syntax "Λ" owl_var "." owl_tm : owl_tm
-syntax "Λβ" owl_var "." owl_tm : owl_tm
-syntax "Λr" ident "." owl_tm : owl_tm
-syntax "⟨" owl_tm "," owl_tm "⟩" : owl_tm
-syntax "⟨" term "⟩" "(" owl_tm "," owl_tm ")" : owl_tm -- Binary Op case
-syntax "⟨" term "⟩" "(" owl_tm ")" : owl_tm -- Unary Op case
-syntax "zero" owl_tm : owl_tm
-syntax owl_tm owl_tm : owl_tm
-syntax "alloc" owl_tm : owl_tm
-syntax "!" owl_tm : owl_tm
-syntax owl_tm ":=" owl_tm : owl_tm
-syntax "π1" owl_tm : owl_tm
-syntax "π2" owl_tm : owl_tm
-syntax "ı1" owl_tm : owl_tm
-syntax "ı2" owl_tm : owl_tm
-syntax "case" owl_tm "with" "|" "inl" owl_var "=>" owl_tm "|" "inr" owl_var "=>" owl_tm : owl_tm
-syntax owl_tm "[" owl_type "]" : owl_tm
-syntax owl_tm "[{" owl_rexp "}]" : owl_tm
-syntax owl_tm "⟨" owl_label "⟩" : owl_tm
-syntax "pack" "(" owl_type "," owl_tm ")" : owl_tm
-syntax "rpack" "(" owl_rexp "," owl_tm ")" : owl_tm
-syntax "unpack" owl_tm "as" "(" owl_var "," owl_var ")" "in" owl_tm : owl_tm
-syntax "if" owl_tm "then" owl_tm "else" owl_tm : owl_tm
-syntax "if" "corr" "(" owl_label ")" "then" owl_tm "else" owl_tm : owl_tm
-syntax "get_val" ident " = " owl_tm " in " owl_tm : owl_tm
-syntax "secparam" : owl_tm
-syntax "sample" owl_tm : owl_tm
-syntax "union_elim" ident "=" owl_tm "in" owl_tm : owl_tm
-syntax "let" owl_var "=" owl_tm "in" owl_tm : owl_tm
-syntax:1 owl_tm ";" owl_tm : owl_tm
-syntax "let" owl_var ":" owl_type "=" owl_tm "in" owl_tm : owl_tm
-syntax "let" "admit" owl_var ":" owl_type "=" owl_tm "in" owl_tm : owl_tm
-syntax "let" "(" owl_var "," owl_var ")" "=" owl_tm "in" owl_tm : owl_tm
-syntax "let" "(" owl_var "," owl_var "," owl_var ")" "=" owl_tm "in" owl_tm : owl_tm
-syntax "λ" "(" owl_var ":" owl_type ")" ":" owl_type "=>" owl_tm : owl_tm
-syntax "λ" owl_var "=>" owl_tm : owl_tm
-syntax "$" term:max "[" owl_label,* "]" "[" owl_type,* "]" "[" owl_tm,* "]" : owl_tm
-syntax "corr_case" owl_label "in" owl_tm : owl_tm
-syntax "(" owl_tm ":" owl_type ")" : owl_tm
-syntax owl_tm "." num : owl_tm
-syntax "assert" "(" owl_prop ")" : owl_tm
-syntax "admit" : owl_tm
+/-
+Precedences mirror core `term` application (`syntax:lead … :lead … :arg` for juxtaposition):
+atoms must resolve to `:max`; otherwise they keep metavariable precedence `0` and cannot appear
+left of juxtaposition (`f x` fails).
+
+Binder and `let` bodies use `owl_tm:min` (not `:lead`): sequence (`;`) is only `syntax:min`, so its
+syntax node cannot sit under a slot that requires `:lead`; `owl_tm:min` accepts juxtaposition too
+because `lead > min`.
+
+Inside parentheses parse `owl_tm:min` so application spines `(f g h)` and sequences `(a ; b)` both work.
+
+Sequences use `:min / :min1` operands so `a ; b ; c` parses left-associated (like notation `LXOR`);
+`syntax:1` produced a node weaker than binder bodies could consume.
+-/
+syntax:max "(" owl_tm:min ")" : owl_tm
+syntax:max ident : owl_tm
+syntax:max num : owl_tm
+syntax:max "error" : owl_tm
+syntax:max "()" : owl_tm
+syntax:max str : owl_tm
+syntax:max "fix" owl_var "(" owl_var ")" owl_tm:min : owl_tm
+syntax:max "Λ" owl_var "." owl_tm:min : owl_tm
+syntax:max "Λβ" owl_var "." owl_tm:min : owl_tm
+syntax:max "Λr" ident "." owl_tm:min : owl_tm
+syntax:max "⟨" owl_tm:lead "," owl_tm:lead "⟩" : owl_tm
+syntax:max "⟨" term "⟩" "(" owl_tm:lead "," owl_tm:lead ")" : owl_tm -- Binary Op case
+syntax:max "⟨" term "⟩" "(" owl_tm:lead ")" : owl_tm -- Unary Op case
+syntax:max "zero" owl_tm:arg : owl_tm
+syntax:lead owl_tm:lead owl_tm:arg : owl_tm
+syntax:max "alloc" owl_tm:arg : owl_tm
+syntax:max "!" owl_tm:arg : owl_tm
+syntax:lead owl_tm:lead ":=" owl_tm:min : owl_tm
+syntax:max "π1" owl_tm:arg : owl_tm
+syntax:max "π2" owl_tm:arg : owl_tm
+syntax:max "ı1" owl_tm:arg : owl_tm
+syntax:max "ı2" owl_tm:arg : owl_tm
+syntax:lead "case" owl_tm:lead "with" "|" "inl" owl_var "=>" owl_tm:min "|" "inr" owl_var "=>" owl_tm:min : owl_tm
+syntax:lead owl_tm:lead "[" owl_type "]" : owl_tm
+syntax:lead owl_tm:lead "[{" owl_rexp "}]" : owl_tm
+syntax:lead owl_tm:lead "⟨" owl_label "⟩" : owl_tm
+syntax:max "pack" "(" owl_type "," owl_tm:min ")" : owl_tm
+syntax:max "rpack" "(" owl_rexp "," owl_tm:min ")" : owl_tm
+syntax:max "unpack" owl_tm:lead "as" "(" owl_var "," owl_var ")" "in" owl_tm:min : owl_tm
+syntax:lead "if" owl_tm:lead "then" owl_tm:min "else" owl_tm:min : owl_tm
+syntax:max "if" "corr" "(" owl_label ")" "then" owl_tm:min "else" owl_tm:min : owl_tm
+syntax:max "get_val" ident " = " owl_tm:lead " in " owl_tm:min : owl_tm
+syntax:max "secparam" : owl_tm
+syntax:max "sample" owl_tm:arg : owl_tm
+syntax:max "union_elim" ident "=" owl_tm:lead "in" owl_tm:min : owl_tm
+syntax:max "let" owl_var "=" owl_tm:min "in" owl_tm:min : owl_tm
+syntax:min owl_tm:min ";" owl_tm:min1 : owl_tm
+syntax:max "let" owl_var ":" owl_type "=" owl_tm:min "in" owl_tm:min : owl_tm
+syntax:max "let" "admit" owl_var ":" owl_type "=" owl_tm:min "in" owl_tm:min : owl_tm
+syntax:max "let" "(" owl_var "," owl_var ")" "=" owl_tm:min "in" owl_tm:min : owl_tm
+syntax:max "let" "(" owl_var "," owl_var "," owl_var ")" "=" owl_tm:min "in" owl_tm:min : owl_tm
+syntax:max "λ" "(" owl_var ":" owl_type ")" ":" owl_type "=>" owl_tm:min : owl_tm
+syntax:max "λ" owl_var "=>" owl_tm:min : owl_tm
+syntax "$" term:max "[" owl_label,* "]" "[" owl_type,* "]" "[" owl_tm:min,* "]" : owl_tm
+syntax:max "corr_case" owl_label "in" owl_tm:min : owl_tm
+syntax:max "(" owl_tm:min ":" owl_type ")" : owl_tm
+syntax:lead owl_tm:lead "." num : owl_tm
+syntax:max "assert" "(" owl_prop ")" : owl_tm
+syntax:max "admit" : owl_tm
 
 -- ALLOW : let (x , y) = e in ...
 -- expands to :
