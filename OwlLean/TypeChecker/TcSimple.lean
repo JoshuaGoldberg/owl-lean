@@ -144,6 +144,7 @@ structure SideConditionWithContext where
 abbrev CheckT' s (α : Type) :=
   ReaderT (Env s) TermElabM (Result (Option Owl.opaqueSyntax × String) α)
 
+
 @[always_inline, simp]
 instance {s} : Monad (CheckT' s) where
   pure x := fun _ => pure (.ok x)
@@ -991,13 +992,18 @@ def inferX (e : tmX s) (exp : Option (ty (s.restrict _))) : CheckT' s (ty (s.res
   | .loc _ => throw' "infer: unhandled case"
 end
 
+def checkDecl (decl : Decl s1 s2) (k : CheckT' s2 α) : CheckT' s1 α := do
+  match decl with
+  | .Nil => k
+  | .DeclTy name ty => withTyVar name.toString ty k
+  | .DeclTm name tm ot => do
+     let t <- ReaderT.adapt (fun e => {e with defName := name}) $ infer tm ot
+     withTmVar name.toString t k
+  | .DeclTmAssume name t => withTmVar name.toString t k
+  | .DeclLabel name cs lab => withLabelVar cs name.toString lab k
+  | .DeclApp d1 d2 => do
+    checkDecl d1 (checkDecl d2 k)
 
-syntax "split_grind" : tactic
-
-macro_rules
-  | `(tactic| split_grind) => `(tactic|
-      first
-      | (constructor <;> split_grind)
-      | grind)
+def checkDecls (decl : Decl s1 s2) := checkDecl decl (pure ())
 
 end Owl

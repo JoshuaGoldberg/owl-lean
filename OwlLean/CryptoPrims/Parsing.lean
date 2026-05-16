@@ -1,6 +1,7 @@
 import OwlLean.OwlLang.Owl
 import OwlLean.TypeChecker.OwlComplete
 import Std.Data.TreeMap
+import OwlLean.CryptoPrims.AuthEnc
 open Owl
 
 
@@ -16,3 +17,14 @@ open Owl
     assert ( u = "zw" );
     v
 } : Public -> Public
+
+#owl {
+  type T <: Public
+
+  label L1 ⊑ ⊥
+
+  def f : Data L1 -> Data ⊥ =
+    λ x => x
+
+
+}

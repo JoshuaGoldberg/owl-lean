@@ -862,6 +862,17 @@ def label.downTm (l : label s.bumpTm) : label s :=
   | .lmeet l1 l2 => .lmeet (l1.downTm) (l2.downTm)
   | .default => .default
 
+-/
+
+
+inductive Decl : ScopeMap 4 -> ScopeMap 4 -> Type where
+  | Nil : Decl se se
+  | DeclTy {s : ScopeMap 4} (name : Name) (ty : ty (s.restrict _)) : Decl s (s.bump #Ty)
+  | DeclTm {s : ScopeMap 4} (name : Name) (tm : tm s) (ot : Option (ty (s.restrict _))) : Decl s (s.bump #Tm)
+  | DeclTmAssume {s : ScopeMap 4} (name : Name) (t : ty (s.restrict _)) : Decl s (s.bump #Tm)
+  | DeclLabel {s : ScopeMap 4} (name : Name) (cond_sym : cond_sym) (label : label (s.restrict _)) : Decl s (s.bump #L)
+  | DeclApp : Decl se se' -> Decl se' se'' -> Decl se se''
+
 /-
 
 inductive Decl : ScopeEnv -> ScopeEnv -> Type where
@@ -871,6 +882,5 @@ inductive Decl : ScopeEnv -> ScopeEnv -> Type where
   | DeclApp : Decl se se' -> Decl se' se'' -> Decl se se''
 -/
 
--/
 
 end Owl

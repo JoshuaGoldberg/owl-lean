@@ -23,8 +23,8 @@ declare_syntax_cat owl_gamma_entry
 declare_syntax_cat owl_psi_entry
 declare_syntax_cat owl_psi
 declare_syntax_cat owl_rexp
-declare_syntax_cat owl_decl_entry
-declare_syntax_cat owl_decl
+declare_syntax_cat owl_decl_entry (behavior := both)
+declare_syntax_cat owl_decl (behavior := both)
 
 private def natLit? (e : Expr) : Option Nat :=
   match e with
@@ -106,7 +106,9 @@ partial def elabLabel (stx : Syntax) (P : TCtx := []) : TermElabM (label (ScopeM
   | `(owl_label| $id:ident) => do
       let nm := id.getId.toString
       match P.lookup nm with
-      | .none => throwError s!"Unknown label variable: {nm}"
+      | .none => do
+        logErrorAt id s!"Unknown label variable: {nm}"
+        throwError s!"Error while checking label"
       | .some j => return .var_label nm j
   | `(owl_label| $ $l:term [ $xs:owl_label,* ] ) => do
       let xsVals ← xs.getElems.mapM (elabLabel · P)
@@ -117,7 +119,9 @@ partial def elabLabel (stx : Syntax) (P : TCtx := []) : TermElabM (label (ScopeM
       if h : lLen = xsList.length then
         let lVal ← liftM <| unsafe Meta.evalExpr (α := Owl.label (ScopeMap.ofList [lLen])) lTy lEx
         return subst_label lVal (h ▸ (xsList.get))
-      else throwError s!"embedlabel: length mismatch: expected {lLen}, got {xsList.length}"
+      else do
+        logErrorAt l s!"embedlabel: length mismatch: expected {lLen}, got {xsList.length}"
+        throwError s!"Error while checking label"
   | `(owl_label| $ $l:term ) => do
       let xsVals : List (label (ScopeMap.ofList [P.length])) := []
       let lEx ← Term.elabTerm l (mkConst ``Owl.label)
@@ -128,7 +132,9 @@ partial def elabLabel (stx : Syntax) (P : TCtx := []) : TermElabM (label (ScopeM
         have hx : xsVals.length = 0 := by simp [xsVals]
         have hlen : lLen = xsVals.length := h0.trans hx.symm
         return subst_label lVal (hlen ▸ (xsVals.get))
-      else throwError "embedlabel: empty arg list but embedded label is not arity 0"
+      else do
+        logErrorAt l s!"embedlabel: empty arg list but embedded label is not arity 0"
+        throwError s!"Error while checking label"
   | `(owl_label| ⊥) => return .latl Owl.LabelTm.bot
   | _ => throwUnsupportedSyntax
 
@@ -186,14 +192,16 @@ partial def elab_rexp (stx : Syntax) (P : TCtx := []) (Rs : TCtx) : TermElabM (r
   | `(owl_rexp | $i:ident ) => do
     let nm := i.getId.toString
     match Rs.lookup nm with
-    | .none => throwError s!"Unknown refinement variable: {nm}"
+    | .none => do
+      logErrorAt i s!"Unknown refinement variable: {nm}"
+      throwError s!"Error while checking refinement"
     | .some j => return .var j
   | `(owl_rexp |  $ob:str  ) => do
     return .const ob.getString.toList
   | _ => throwUnsupportedSyntax
 
 
-declare_syntax_cat owl_prop
+declare_syntax_cat owl_prop (behavior := both)
 syntax "(" owl_prop ")" : owl_prop
 syntax owl_rexp "=" owl_rexp : owl_prop
 syntax owl_prop "∧" owl_prop : owl_prop
@@ -201,8 +209,8 @@ syntax owl_prop "∨" owl_prop : owl_prop
 syntax owl_prop "=>" owl_prop : owl_prop
 syntax "¬" owl_prop : owl_prop
 syntax "∀" ident "." owl_prop : owl_prop
-syntax "True" : owl_prop
-syntax "False" : owl_prop
+syntax &"True" : owl_prop
+syntax &"False" : owl_prop
 
 partial def elab_prop (stx : Syntax) (P : TCtx) (Rs : TCtx)  : TermElabM (prop (ScopeMap.ofList [P.length, Rs.length])) :=
   match stx with
@@ -264,7 +272,9 @@ partial def elabType (stx : Syntax) (P : TCtx) (Rs : TCtx) (D : TCtx) :
   | `(owl_type| $id:ident) => do
       let nm := id.getId.toString
       match D.lookup nm with
-      | .none => throwError s!"Unknown type variable: {nm}"
+      | .none => do
+        logErrorAt id s!"Unknown type variable: {nm}"
+        throwError s!"Error while checking type"
       | .some j => return .var_ty id.getId.toString j
   | `(owl_type| Any) => return .Any
   | `(owl_type| unit) => return .Unit
@@ -438,7 +448,9 @@ mutual
   | `(owl_tm| $id:ident) => do
       let nm := id.getId.toString
       match G.lookup nm with
-      | .none => throwError s!"Unknown term variable: {nm}"
+      | .none => do
+        logErrorAt id s!"Unknown term variable: {nm}"
+        throwError s!"Error while checking term"
       | .some j => return .var_tm j
   | `(owl_tm| ()) => return .unit
   | `(owl_tm| $b:str  ) => do
@@ -594,289 +606,15 @@ mutual
   | _ => throwUnsupportedSyntax
 end
 
-/-
-
--- Phi Mappings
-syntax "(" owl_phi_entry ")" : owl_phi_entry
-syntax  ident owl_cond_sym owl_label : owl_phi_entry
-syntax ident : owl_phi_entry
-
-/-- One phi row: returns (new label-parameter name, condition × label). -/
-partial def elabPhiOne (P : TCtx) : Syntax → TermElabM (String × (cond_sym × label (ScopeMap.ofList [P.length])))
-  | `(owl_phi_entry| ( $e:owl_phi_entry)) => elabPhiOne P e
-  | `(owl_phi_entry|  $id:ident $co:owl_cond_sym $lab:owl_label) => do
-      let c ← elabCondSym co
-      let l ← elabLabel lab P
-      return (id.getId.toString, (c, l))
-  | `(owl_phi_entry| $id:ident) => do
-      let c : cond_sym := .geq
-      let l : label (ScopeMap.ofList [P.length]) := .latl Owl.labelTmLattice.bot
-      return (id.getId.toString, (c, l))
-  | _ => throwUnsupportedSyntax
-
-syntax "(" owl_delta_entry ")" : owl_delta_entry
-syntax  ident "<:" owl_type : owl_delta_entry
-
-partial def elabDeltaOne (P R D : TCtx) : Syntax → TermElabM (String × ty P.length R.length D.length 0)
-  | `(owl_delta_entry| ( $e:owl_delta_entry)) => elabDeltaOne P R D e
-  | `(owl_delta_entry|  $id:ident <: $t:owl_type) => do
-      let t ← elabType t P R D []
-      return (id.getId.toString, t)
-  | _ => throwUnsupportedSyntax
-
-syntax "(" owl_gamma_entry ")" : owl_gamma_entry
-syntax  ident "=>" owl_type : owl_gamma_entry
-
-partial def elabGammaOne (P R D : TCtx) : Syntax → TermElabM (String × ty P.length R.length D.length 0)
-  | `(owl_gamma_entry| ( $e:owl_gamma_entry)) => elabGammaOne P R D e
-  | `(owl_gamma_entry|  $id:ident => $t:owl_type) => do
-      let t ← elabType t P R D []
-      return (id.getId.toString, t)
-  | _ => throwUnsupportedSyntax
-
-syntax "(" owl_psi_entry ")" : owl_psi_entry
-syntax  "corr(" owl_label ")" : owl_psi_entry
-syntax  "¬corr(" owl_label ")" : owl_psi_entry
-
-partial def elabPsiOne (P : TCtx) : Syntax → TermElabM (corruption P.length)
-  | `(owl_psi_entry| ( $e:owl_psi_entry)) => elabPsiOne P e
-  | `(owl_psi_entry| corr($l1:owl_label)) => do
-      let l1 ← elabLabel l1 P
-      return .corr l1
-  | `(owl_psi_entry| ¬corr($l1:owl_label)) => do
-      let l1 ← elabLabel l1 P
-      return .not_corr l1
-  | _ => throwUnsupportedSyntax
-
-declare_syntax_cat owl_theta
-
-syntax "·" : owl_theta
-syntax owl_theta "," ident : owl_theta
-syntax owl_theta "," owl_prop : owl_theta
-
-syntax "(" owl_phi_entry "," owl_phi ")" : owl_phi
-syntax owl_phi_entry "," owl_phi : owl_phi
-syntax owl_phi_entry : owl_phi
-syntax "(" owl_phi_entry ")" : owl_phi
-syntax "·" : owl_phi
-
-syntax "(" owl_delta_entry "," owl_delta ")" : owl_delta
-syntax owl_delta_entry "," owl_delta : owl_delta
-syntax owl_delta_entry : owl_delta
-syntax "(" owl_delta_entry ")" : owl_delta
-syntax "·" : owl_delta
-
-syntax "(" owl_gamma_entry "," owl_gamma ")" : owl_gamma
-syntax owl_gamma_entry "," owl_gamma : owl_gamma
-syntax owl_gamma_entry : owl_gamma
-syntax "(" owl_gamma_entry ")" : owl_gamma
-syntax "·" : owl_gamma
-
-syntax "(" owl_psi_entry "," owl_psi ")" : owl_psi
-syntax owl_psi_entry "," owl_psi : owl_psi
-syntax owl_psi_entry : owl_psi
-syntax "(" owl_psi_entry ")" : owl_psi
-syntax "·" : owl_psi
-
-partial def phiSyntaxList (stx : Syntax) : TermElabM (List Syntax) :=
-  match stx with
-  | `(owl_phi| ($e1:owl_phi_entry, $rest:owl_phi)) => do
-      let r ← phiSyntaxList rest
-      return e1 :: r
-  | `(owl_phi| $e1:owl_phi_entry , $rest:owl_phi) => do
-      let r ← phiSyntaxList rest
-      return e1 :: r
-  | `(owl_phi| $e:owl_phi_entry) => return [e]
-  | `(owl_phi| ($e:owl_phi_entry) ) => return [e]
-  | `(owl_phi| · ) => return []
-  | _ => throwUnsupportedSyntax
-
-partial def elabPhiExpr (stx : Syntax) : TermElabM (Sigma (fun n => phi_context n)) := do
-  let entries ← phiSyntaxList stx
-  let rec go (es : List Syntax) (P : TCtx) (phi : phi_context P.length) : TermElabM (Sigma (fun n => phi_context n)) :=
-    match es with
-    | [] => return ⟨P.length, phi⟩
-    | e :: es' => do
-      let (nm, pr) ← elabPhiOne P e
-      go es' (nm :: P) (pcons pr phi)
-  go entries.reverse [] empty_phi
-
-partial def deltaSyntaxList (stx : Syntax) : TermElabM (List Syntax) :=
-  match stx with
-  | `(owl_delta| ($e1:owl_delta_entry, $rest:owl_delta)) => do
-      let r ← deltaSyntaxList rest
-      return e1 :: r
-  | `(owl_delta| $e1:owl_delta_entry , $rest:owl_delta) => do
-      let r ← deltaSyntaxList rest
-      return e1 :: r
-  | `(owl_delta| $e:owl_delta_entry) => return [e]
-  | `(owl_delta| ($e:owl_delta_entry) ) => return [e]
-  | `(owl_delta| · ) => return []
-  | _ => throwUnsupportedSyntax
-
-partial def elabDeltaExpr (stx : Syntax) (P R : TCtx) : TermElabM (Sigma (fun n => delta_context P.length R.length n)) := do
-  let entries ← deltaSyntaxList stx
-  let rec go (es : List Syntax) (D : TCtx) (d : delta_context P.length R.length D.length) :
-      TermElabM (Sigma (fun n => delta_context P.length R.length n)) :=
-    match es with
-    | [] => return ⟨D.length, d⟩
-    | e :: es' => do
-      let (nm, tyVal) ← elabDeltaOne P R D e
-      go es' (nm :: D) (dcons tyVal d)
-  go entries.reverse [] empty_delta
-
-partial def gammaSyntaxList (stx : Syntax) : TermElabM (List Syntax) :=
-  match stx with
-  | `(owl_gamma| ($e1:owl_gamma_entry, $rest:owl_gamma)) => do
-      let r ← gammaSyntaxList rest
-      return e1 :: r
-  | `(owl_gamma| $e1:owl_gamma_entry , $rest:owl_gamma) => do
-      let r ← gammaSyntaxList rest
-      return e1 :: r
-  | `(owl_gamma| $e:owl_gamma_entry) => return [e]
-  | `(owl_gamma| ($e:owl_gamma_entry) ) => return [e]
-  | `(owl_gamma| · ) => return []
-  | _ => throwUnsupportedSyntax
-
-partial def elabGammaExpr (stx : Syntax) (P R D : TCtx) :
-    TermElabM (Sigma (fun n => gamma_context P.length R.length D.length n)) := do
-  let entries ← gammaSyntaxList stx
-  let rec go (es : List Syntax) (G : TCtx) (g : gamma_context P.length R.length D.length G.length) :
-      TermElabM (Sigma (fun n => gamma_context P.length R.length D.length n)) :=
-    match es with
-    | [] => return ⟨G.length, g⟩
-    | e :: es' => do
-      let (nm, tyVal) ← elabGammaOne P R D e
-      go es' (nm :: G) (Owl.cons tyVal g)
-  go entries.reverse [] empty_gamma
-
-/-- Variable names for label parameters `P`, in the same order as `elabPhiExpr` / `elabPhi`. -/
-partial def collectPhiVarNameOne (stx : Syntax) : TermElabM String :=
-  match stx with
-  | `(owl_phi_entry| ($e:owl_phi_entry)) => collectPhiVarNameOne e
-  | `(owl_phi_entry| $id:ident $_:owl_cond_sym $_:owl_label) => return id.getId.toString
-  | `(owl_phi_entry| $id:ident) => return id.getId.toString
-  | _ => throwUnsupportedSyntax
-
-partial def collectPhiVarNames (stx : Syntax) : TermElabM (List String) := do
-  let entries ← phiSyntaxList stx
-  let mut names : List String := []
-  for e in entries.reverse do
-    names := (← collectPhiVarNameOne e) :: names
-  return names
-
-partial def collectDeltaVarNameOne (stx : Syntax) : TermElabM String :=
-  match stx with
-  | `(owl_delta_entry| ($e:owl_delta_entry)) => collectDeltaVarNameOne e
-  | `(owl_delta_entry| $id:ident <: $_:owl_type) => return id.getId.toString
-  | _ => throwUnsupportedSyntax
-
-partial def collectDeltaVarNames (stx : Syntax) : TermElabM (List String) := do
-  let entries ← deltaSyntaxList stx
-  let mut names : List String := []
-  for e in entries.reverse do
-    names := (← collectDeltaVarNameOne e) :: names
-  return names
-
-partial def collectGammaVarNameOne (stx : Syntax) : TermElabM String :=
-  match stx with
-  | `(owl_gamma_entry| ($e:owl_gamma_entry)) => collectGammaVarNameOne e
-  | `(owl_gamma_entry| $id:ident => $_:owl_type) => return id.getId.toString
-  | _ => throwUnsupportedSyntax
-
-partial def collectGammaVarNames (stx : Syntax) : TermElabM (List String) := do
-  let entries ← gammaSyntaxList stx
-  let mut names : List String := []
-  for e in entries.reverse do
-    names := (← collectGammaVarNameOne e) :: names
-  return names
-
-/-- Refinement-parameter names bound in `owl_theta`, outermost last (matches old `STheta.getVars`). -/
-partial def collectThetaVarNames (stx : Syntax) : List String :=
-  match stx with
-  | `(owl_theta| ·) => []
-  | `(owl_theta| $th:owl_theta, $id:ident) => id.getId.toString :: collectThetaVarNames th
-  | `(owl_theta| $th:owl_theta, $_:owl_prop) => collectThetaVarNames th
-  | _ => []
-
-partial def psiSyntaxList (stx : Syntax) : TermElabM (List Syntax) :=
-  match stx with
-  | `(owl_psi| ($e1:owl_psi_entry, $rest:owl_psi)) => do
-      let r ← psiSyntaxList rest
-      return e1 :: r
-  | `(owl_psi| $e1:owl_psi_entry , $rest:owl_psi) => do
-      let r ← psiSyntaxList rest
-      return e1 :: r
-  | `(owl_psi| $e:owl_psi_entry) => return [e]
-  | `(owl_psi| ($e:owl_psi_entry) ) => return [e]
-  | `(owl_psi| · ) => return []
-  | _ => throwUnsupportedSyntax
-
-partial def elabPsiExpr (stx : Syntax) (P : TCtx) : TermElabM (psi_context P.length) := do
-  let entries ← psiSyntaxList stx
-  entries.mapM (elabPsiOne P)
-
-partial def elabThetaExpr (stx : Syntax) (R : TCtx) : TermElabM (RCtx R.length) :=
-  match stx with
-  | `(owl_theta| ·) => return []
-  | `(owl_theta| $th:owl_theta, $_:ident) =>
-    elabThetaExpr th R
-  | `(owl_theta| $th:owl_theta, $p:owl_prop) => do
-    let tail ← elabThetaExpr th R
-    let pe ← elab_prop p R []
-    return pe :: tail
-  | _ => throwUnsupportedSyntax
-
-partial def elabPhi (stx : Syntax) : TermElabM (Sigma (fun n => phi_context n)) :=
-  elabPhiExpr stx
-
-/-- Like `elabPhi` but requires the built context to have exactly `expected` label parameters. -/
-def elabPhiLen (stx : Syntax) (expected : Nat) : TermElabM (phi_context expected) := do
-  let ⟨n, phi⟩ ← elabPhiExpr stx
-  if h : n = expected then return h ▸ phi
-  else throwError s!"phi length mismatch: got {n}, expected {expected}"
-
-partial def elabDelta (stx : Syntax) (P R : TCtx := []) :
-    TermElabM (Sigma (fun n => delta_context P.length R.length n)) :=
-  elabDeltaExpr stx P R
-
-def elabDeltaLen (stx : Syntax) (P R : TCtx) (expected : Nat) :
-    TermElabM (delta_context P.length R.length expected) := do
-  let ⟨n, d⟩ ← elabDeltaExpr stx P R
-  if h : n = expected then return h ▸ d
-  else throwError s!"delta length mismatch: got {n}, expected {expected}"
-
-partial def elabGamma (stx : Syntax) (P R D : TCtx := []) :
-    TermElabM (Sigma (fun n => gamma_context P.length R.length D.length n)) :=
-  elabGammaExpr stx P R D
-
-def elabGammaLen (stx : Syntax) (P R D : TCtx) (expected : Nat) :
-    TermElabM (gamma_context P.length R.length D.length expected) := do
-  let ⟨n, g⟩ ← elabGammaExpr stx P R D
-  if h : n = expected then return h ▸ g
-  else throwError s!"gamma length mismatch: got {n}, expected {expected}"
-
-partial def elabPsi (stx : Syntax) (P : TCtx := []) : TermElabM (psi_context P.length) :=
-  elabPsiExpr stx P
-
-/-- Elaborate `owl_theta` into `List (prop R.length 0)` (alias for `elabThetaExpr`). -/
-def elabTheta (stx : Syntax) (R : TCtx := []) : TermElabM (RCtx R.length) :=
-  elabThetaExpr stx R
-
--- test parser for labels
-elab "phi_parse" "(" p:owl_phi ")" : term => do
-  let lvars ← collectPhiVarNames p
-  let phi ← elabPhiLen p lvars.length
-  mkAppM ``vec.to_fn #[toExpr (vec.from_fn phi)]
-
--/
-
-/-
 ---- Declarations
 
-syntax "type" ident "=" owl_type  : owl_decl_entry
-syntax "let" ident "=" owl_tm : owl_decl_entry
+syntax &"type" ident "<:" owl_type  : owl_decl_entry
+syntax &"def" ident ":=" owl_tm : owl_decl_entry
+syntax &"def" ident ":" owl_type ":=" owl_tm : owl_decl_entry
+syntax &"assume" ident ":" owl_type : owl_decl_entry
+syntax &"label" ident owl_cond_sym owl_label : owl_decl_entry
 syntax owl_decl_entry* : owl_decl
+
 
 structure ParserScope where
   P : TCtx
@@ -884,28 +622,39 @@ structure ParserScope where
   D : TCtx
   G : TCtx
 
-def ParserScope.toScopeEnv (se : ParserScope) : ScopeEnv :=
-  { l := se.P.length, r := se.R.length, d := se.D.length, m := se.G.length }
+def ParserScope.toScopeMap (se : ParserScope) : ScopeMap 4 :=
+  ScopeMap.ofList [se.P.length, se.R.length, se.D.length, se.G.length]
 
-partial def elabDeclEntry (stx : Syntax) (se : ParserScope) : TermElabM ((se' : ParserScope) × (Decl se.toScopeEnv se'.toScopeEnv)) :=
+def elabDeclEntry (stx : Syntax) (se : ParserScope) : TermElabM ((se' : ParserScope) × (Decl se.toScopeMap se'.toScopeMap)) :=
   match stx with
-  | `(owl_decl_entry| type $id:ident = $t:owl_type) => do
-    let t ← elabType t se.P se.R se.D se.G
-    return ⟨{se with D := id.getId.toString :: se.D}, .DeclTy id.getId.toString t⟩
-  | `(owl_decl_entry| let $id:ident = $e:owl_tm) => do
+  | `(owl_decl_entry| type $id:ident <: $t:owl_type) => do
+    let t ← elabType t se.P se.R se.D
+    return ⟨{se with D := id.getId.toString :: se.D}, .DeclTy (id.getId) t⟩
+  | `(owl_decl_entry| def $id:ident := $e:owl_tm) => do
     let e ← elabTm e se.P se.R se.D se.G
-    return ⟨{se with G := id.getId.toString :: se.G}, .DeclTm id.getId.toString e⟩
+    return ⟨{se with G := id.getId.toString :: se.G}, .DeclTm (id.getId) e none⟩
+  | `(owl_decl_entry| def $id:ident : $t:owl_type := $e:owl_tm) => do
+    let e ← elabTm e se.P se.R se.D se.G
+    let t ← elabType t se.P se.R se.D
+    return ⟨{se with G := id.getId.toString :: se.G}, .DeclTm (id.getId) e (some t)⟩
+  | `(owl_decl_entry| assume $id:ident : $t:owl_type) => do
+    let t ← elabType t se.P se.R se.D
+    return ⟨{se with G := id.getId.toString :: se.G}, .DeclTmAssume (id.getId) t⟩
+  | `(owl_decl_entry| label $id:ident $cs:owl_cond_sym $l:owl_label) => do
+    let l ← elabLabel l se.P
+    let cs ← elabCondSym cs
+    return ⟨{se with P := id.getId.toString :: se.P}, .DeclLabel (id.getId) cs l⟩
   | _ => throwUnsupportedSyntax
 
-partial def elabDecl (stx : Syntax) (se : ParserScope) : TermElabM ((se' : ParserScope) × (Decl se.toScopeEnv se'.toScopeEnv)) :=
- match stx with
- | `(owl_decl| $es:owl_decl_entry*) =>
-  let es' := es.toList
-  es'.foldlM (fun acc d => do
-    let ⟨se', d'⟩ := acc
-    let ⟨se'', d''⟩ ← elabDeclEntry d.raw se'
-    return ⟨se'', .DeclApp d' d''⟩
-  ) ⟨se, .Nil⟩
- | _ => throwUnsupportedSyntax
+def elabDeclsFrom (stx : Syntax) (se : ParserScope) : TermElabM ((se' : ParserScope) × (Decl se.toScopeMap se'.toScopeMap)) :=
+  match stx with
+  | `(owl_decl| $es:owl_decl_entry*) =>
+    let es' := es.toList
+    es'.foldlM (fun acc d => do
+      let ⟨se', d'⟩ := acc
+      let ⟨se'', d''⟩ ← elabDeclEntry d.raw se'
+      return ⟨se'', .DeclApp d' d''⟩
+    ) ⟨se, .Nil⟩
+  | _ => throwUnsupportedSyntax
 
--/
+def elabDecls stx := elabDeclsFrom stx {P := [], R := [], D := [], G := []}
