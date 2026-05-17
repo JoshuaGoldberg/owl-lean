@@ -12,6 +12,9 @@ set_option maxRecDepth 20000
 
   type aX <: Data lM
 
+  -- Here we assume we have the unpacked encryption.
+  -- We could also directly manipulate the packed one (the one coming from the cryptographic assumption)
+  -- but then we wouldn't get it at the top level
   type aKX <: Data lKL
   assume encKX : ($ ENC_inner [lKL, lM] [] [aX, aKX])
 
