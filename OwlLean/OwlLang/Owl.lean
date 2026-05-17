@@ -178,7 +178,7 @@ inductive prop : ScopeMap 2 -> Type where
 
 
 
-
+mutual
 inductive ty : ScopeMap 3 -> Type where
 | var_ty : String -> Fin (s.get #Ty) -> ty s
 | Any : ty s
@@ -201,8 +201,14 @@ inductive ty : ScopeMap 3 -> Type where
 -- TODO: p => τ
 | Public : ty s
 | admit : ty s -- Just for debugging
+| record : ty_record s -> ty s
 deriving Repr, BEq, Lean.ToExpr
 
+inductive ty_record : ScopeMap 3 -> Type where
+| nil : ty_record s
+| cons : String -> ty s -> ty_record s -> ty_record s
+deriving Repr, BEq, Lean.ToExpr
+end
 
 
 mutual
@@ -258,7 +264,14 @@ inductive tmX : ScopeMap 4 -> Type where
     label (s.restrict 1) -> tm s -> tm s -> tmX s
 | corr_case : label (s.restrict 1) -> tm s -> tmX s
 | annot : tm s -> ty (s.restrict 3) -> tmX s
+| mk_record : tm_list s -> tmX s
+| get_record : String -> tm s -> tmX s
 deriving Repr, Lean.ToExpr
+
+inductive tm_list : ScopeMap 4 -> Type where
+| nil : tm_list s
+| cons : String -> tm s -> tm_list s -> tm_list s
+deriving Repr, BEq, Lean.ToExpr
 
 end
 
@@ -431,31 +444,6 @@ def prop.rfree  (p : prop s) (i : Fin (s.get #R)) : Bool :=
   | .ptrue => true
 
 
-@[simp]
-def ty.r_free (t : ty s) (i : Fin (s.get #R)) : Bool :=
-  match t with
-| .admit => true
-| .var_ty _ _ => true
-| .Any => true
-| .refined t0 p => t0.r_free i && p.rfree (i.cast (by simp))
-| .Unit => true
-| .RData _ re => rexp.free (i.cast (by simp)) re
-| .Data _ => true
-| .Ref t => t.r_free i
-| .arr t1 t2 => t1.r_free i && t2.r_free i
-| .union t1 t2 => t1.r_free i && t2.r_free i
-| .inter t1 t2 => t1.r_free i && t2.r_free i
-| .prod t1 t2 => t1.r_free i && t2.r_free i
-| .sum t1 t2 => t1.r_free i && t2.r_free i
-| .all t1 t2 => t1.r_free i && t2.r_free (i.cast (by simp))
-| .ex t1 t2 => t1.r_free i && t2.r_free (i.cast (by simp))
-| .ex_r t0 => t0.r_free ((Fin.succ i).cast (by simp))
-| .all_r t0 => t0.r_free ((Fin.succ i).cast (by simp))
-| .all_l _ _ t => t.r_free (i.cast (by simp))
-| .t_if _ t1 t2 => t1.r_free i && t2.r_free i
-| .Public => true
-
-
 
 @[always_inline]
 abbrev tm.get (t : tm s) : tmX s :=
@@ -550,6 +538,7 @@ def prop.rename (p : prop s) (ren : s.renaming s') : prop s' :=
   | .ptrue => .ptrue
 
 
+mutual
 @[simp]
 def ty.rename (t : ty s) (ren : s.renaming s') : ty s' :=
   match t with
@@ -587,6 +576,13 @@ def ty.rename (t : ty s) (ren : s.renaming s') : ty s' :=
       .t_if (s0.rename $ ren.restrict _) (s1.rename ren)
         (s2.rename ren)
   | .Public => .Public
+  | .record s0 => .record (s0.rename ren)
+
+def ty_record.rename (r : ty_record s) (ren : s.renaming s') : ty_record s' :=
+  match r with
+  | .nil => .nil
+  | .cons s s0 s1 => .cons s (s0.rename ren) (s1.rename ren)
+end
 
 
 mutual
@@ -606,6 +602,7 @@ def tmX.rename (t : tmX s) (ren : s.renaming s') : tmX s' :=
   | .secparam => .secparam
   | .sample s0 => .sample (s0.rename ren)
   | .unit => .unit
+  | .get_record s0 s1 => .get_record s0 (s1.rename ren)
   | .bitstring s0 => .bitstring s0
   | .get_val s t0 t1 => .get_val s (t0.rename ren) (t1.rename $ ren.bump #R)
   | .loc s0 => .loc s0
@@ -683,6 +680,12 @@ def tmX.rename (t : tmX s) (ren : s.renaming s') : tmX s' :=
             (s2.rename ren)
   | .corr_case lab e => .corr_case (lab.rename $ ren.restrict) (e.rename ren)
   | .annot e t => .annot (e.rename ren) (t.rename $ ren.restrict)
+  | .mk_record l => .mk_record (l.rename ren)
+
+def tm_list.rename (l : tm_list s) (ren : s.renaming s') : tm_list s' :=
+  match l with
+  | .nil => .nil
+  | .cons s e l => .cons s (e.rename ren) (l.rename ren)
 end
 
 abbrev OwlFunctors (x : Fin 3) : ScopeFunctor 3 x :=
@@ -787,7 +790,7 @@ def prop.subst (p : prop s) (sub : RexpSubst s s') : prop s' :=
   | .pall p => .pall (p.subst $ sub.bump #R)
   | .ptrue => .ptrue
 
-
+mutual
 @[simp]
 def ty.subst (t : ty s) (sub : Subst s s') : ty s' :=
   match t with
@@ -817,6 +820,13 @@ def ty.subst (t : ty s) (sub : Subst s s') : ty s' :=
   | .t_if s0 s1 s2 =>
       .t_if (s0.subst sub.toLabelSubst) (s1.subst sub) (s2.subst sub)
   | .Public => .Public
+  | .record s0 => .record (s0.subst sub)
+
+def ty_record.subst (r : ty_record s) (sub : Subst s s') : ty_record s' :=
+  match r with
+  | .nil => .nil
+  | .cons s s0 s1 => .cons s (s0.subst sub) (s1.subst sub)
+end
 
 def _root_.Fin.down (f : Fin (n + 1)) : Option (Fin n) :=
   if h : f < n then .some ⟨f.val, by grind⟩ else none

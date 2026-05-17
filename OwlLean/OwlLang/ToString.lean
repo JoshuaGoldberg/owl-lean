@@ -52,6 +52,7 @@ def prop.pretty (p : prop s) : String :=
   | .pall p1 => "∀ ." ++ p1.pretty
   | .ptrue => "True"
 
+mutual
 def ty.pretty (t : ty s) : String :=
   match t with
   | .var_ty s i => if s = "_" then "X" ++ toString i.toNat else s
@@ -76,6 +77,16 @@ def ty.pretty (t : ty s) : String :=
       "if corr(" ++ l.pretty ++ ") then " ++ t1.pretty ++ " else " ++ t2.pretty ++ " }"
   | .Public => "Public"
   | .admit => "admit"
+  | .record s0 => "{" ++ s0.pretty ++ "}"
+
+def ty_record.pretty (r : ty_record s) : String :=
+  match r with
+  | .nil => ""
+  | .cons s t r =>
+    match r with
+    | .nil => s ++ ": " ++ t.pretty
+    | .cons _ _ _ => s ++ ": " ++ t.pretty ++ ", " ++ r.pretty
+end
 
 instance : ToString (ty s) where
   toString := ty.pretty

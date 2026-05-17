@@ -10,6 +10,8 @@ open Owl
 open Lean Meta Elab Tactic
 open Vec
 
+mutual
+
 @[simp]
 def Owl.ty.simplify (t : ty s) (corrs : corr_ctx (s.restrict _)) : ty s :=
   match t with
@@ -41,6 +43,13 @@ def Owl.ty.simplify (t : ty s) (corrs : corr_ctx (s.restrict _)) : ty s :=
   | .sum t0 t1 => .sum (t0.simplify corrs) (t1.simplify corrs)
   | .prod t0 t1 => .prod (t0.simplify corrs) (t1.simplify corrs)
   | .all_l cs l t => .all_l cs l (t.simplify (ScopeMap.bump_restrict _ _ _ _ ▸  corrs.bumpLbl))
+  | .record s0 => .record (s0.simplify corrs)
+
+def Owl.ty_record.simplify (r : ty_record s) (corrs : corr_ctx (s.restrict _)) : ty_record s :=
+  match r with
+  | .nil => .nil
+  | .cons s t r => .cons s (t.simplify corrs) (r.simplify corrs)
+end
 
 
 namespace Owl
@@ -533,6 +542,30 @@ partial def extract_refinements {s : Scope} (t : ty (s.restrict _)) : CheckT' s 
 --   h := by grind
 
 
+def List.uniq? [DecidableEq α] (l : List α) : Bool :=
+  match l with
+  | [] => true
+  | (x :: xs) => if x ∈ xs then false else uniq? xs
+
+def List.sort_assocs (ls : List (String × α)) : List (String × α) :=
+  ls.mergeSort (fun x y => x.1 < y.1)
+
+
+def tm_list.toList (t : tm_list s) : List (String × tm s) :=
+  match t with
+  | .nil => []
+  | .cons s e l => (s, e) :: l.toList
+
+def ty_record.mk (ls : List (String × ty s)) : ty_record s :=
+  match ls with
+  | [] => .nil
+  | (s, t) :: ls => .cons s t (ty_record.mk ls)
+
+def ty_record.toList (t : ty_record s) : List (String × ty s) :=
+  match t with
+  | .nil => []
+  | .cons s t l => (s, t) :: l.toList
+
 def check_corrupt {s : Scope} (lab : label (s.restrict _)) :
     CheckT' s (Option Bool) := do
   if (<- read).corrs.contains (.corr lab) then pure (.some True)
@@ -554,6 +587,18 @@ partial def check_subtype'  {s : Scope} (t1 t2 : ty (s.restrict _)) : CheckT' s 
       | .admit, _ => pure .ScTrue
       | _, .Any => pure .ScTrue
       | .Unit, .Unit => pure .ScTrue
+      | .record s0, .record s1 => do
+        let s0 := s0.toList
+        let s1 := s1.toList
+        unless s0.map (·.1) |>.uniq? do throw' s!"mk_record: fields must be unique"
+        unless s1.map (·.1) |>.uniq? do throw' s!"mk_record: fields must be unique"
+        let s0 := s0.sort_assocs
+        let s1 := s1.sort_assocs
+        unless s0.map (·.1) = s1.map (·.1) do throw' s!"mk_record: fields must be the same"
+        let s01 := s0.zip s1
+        let rs <- s01.mapM fun (s, t) => do
+           check_subtype' s.2 t.2
+        pure (rs.foldl (fun r s => r.ScAnd s) .ScTrue)
       | .t_if lab ta1 ta2, t' => do
         match <- check_corrupt lab.cast with
         | some b => check_subtype' (if b then ta1 else ta2) t'
@@ -734,7 +779,7 @@ def infer_unop {s : Scope} (op : String) (t : ty (s.restrict _)) : CheckT' s (ty
   pure (.Data l)
 
 mutual
-def infer (e : tm s) (exp : Option (ty (s.restrict _))) : CheckT' s (ty (s.restrict _)) :=
+partial def infer (e : tm s) (exp : Option (ty (s.restrict _))) : CheckT' s (ty (s.restrict _)) :=
   match e with
   | .mk stx v => do
     let t ← withSyntax' stx (inferX v exp)
@@ -743,10 +788,28 @@ def infer (e : tm s) (exp : Option (ty (s.restrict _))) : CheckT' s (ty (s.restr
     visit stx t
     return t
 
-def inferX (e : tmX s) (exp : Option (ty (s.restrict _))) : CheckT' s (ty (s.restrict _))  :=
+
+partial def inferX (e : tmX s) (exp : Option (ty (s.restrict _))) : CheckT' s (ty (s.restrict _))  :=
   match e with
   | .admit => from_synth .admit exp
   | .secparam => from_synth .Public exp
+  | .get_record s0 s1 => do
+    let t <- infer s1 .none
+    match t with
+    | .record r => do
+      match r.toList.find? (fun (s, t) => s = s0) with
+      | .some (s, t) => from_synth t exp
+      | .none => throw' s!"get_record: field {s0} not found in record"
+    | _ => throw' s!"get_record: expected record, got {t}"
+  | .mk_record l => do
+     let ls := l.toList
+     unless ls.length > 1 do throw' s!"mk_record: expected at least one field"
+     unless ls.map (·.1) |>.uniq? do throw' s!"mk_record: fields must be unique"
+     let ls := ls.sort_assocs
+     let ls <- ls.mapM fun (s, e) => do
+      let t <- infer e .none
+      pure (s, t)
+     from_synth (.record (ty_record.mk ls)) exp
   | .sample e => do
     let t ← infer e .none
     let tInf <- match t with

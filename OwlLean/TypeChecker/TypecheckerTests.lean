@@ -1,6 +1,5 @@
-import OwlLean.TypeChecker.OwlTypecheck
 import OwlLean.OwlLang.Owl
-import OwlLean.TypeChecker.OwlParser
+import OwlLean.TypeChecker.OwlFrontend
 
 /-!
 Typechecker regression tests using `#tc` (empty Φ, Ψ, Δ, Θ, Γ). Each `#tc` elaborates a
@@ -106,3 +105,9 @@ Known gaps (no active `#tc` here; the typechecker or empty sequent does not supp
 
 -- Sample: bitstrings are also `Public`.
 #tc tc_sample_public := ⊢ { sample secparam } : ?
+
+#tc tc_record_public := ⊢ {
+    let r = { x := "1", y := "2" } in
+    r ^. x
+} :
+   ?

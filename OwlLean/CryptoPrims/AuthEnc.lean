@@ -3,9 +3,10 @@ import OwlLean.TypeChecker.OwlComplete
 -- TODO: incorporate sample so that k is random
 
 #ty ENC_inner [lK, lM] [] [tau, alphaK] :=
-       (alphaK *
-        ((corr (lK) ? (Public * Public) -> Public : (alphaK * tau) -> Public) *
-        (corr (lK) ? (Public * Public) -> (Public + unit) : (alphaK * Public) -> (tau + unit))))
+   { key : alphaK,
+     enc : corr (lK) ? (Public * Public) -> Public : (alphaK * tau) -> Public,
+     dec : corr (lK) ? (Public * Public) -> (Public + unit) : (alphaK * Public) -> (tau + unit)
+     }
 
 #ty ENC [lK, lM] [] [tau] :=
     (∃ alphaK <: (Data lK) .
@@ -33,7 +34,12 @@ import OwlLean.TypeChecker.OwlComplete
                    if ⟨"isError"⟩(decResult) then ı2 () else ı1 ⟨"extractMsg"⟩(decResult)
                 else λ (x : (Data lK * Public)) : (tau + unit) => (!L) (π2 x)))
     in
-    pack (Data lK, ⟨k, ⟨(corr_case lK in enc'), dec'⟩⟩) }
+    pack (Data lK,
+      { key := k,
+        enc := (corr_case lK in enc'),
+        dec := dec'
+      })
+  }
     :
     $ ENC [lK, lM] [] [tau]
 
@@ -41,9 +47,11 @@ import OwlLean.TypeChecker.OwlComplete
 --- Alternate version with refinement variables ---
 
 #ty ENC' [lK, lM] [] [tau] :=
-    (∃ v. (RData lK [v] *
-                                 ((corr (lK) ? (Public * Public) -> Public : (RData lK [v] * tau) -> Public) *
-                                  (corr (lK) ? (Public * Public) -> (Public + unit) : (RData lK [v] * Public) -> (tau + unit)))))
+    (∃ v. {
+        key : RData lK [v],
+        enc : corr (lK) ? (Public * Public) -> Public : (RData lK [v] * tau) -> Public,
+        dec : corr (lK) ? (Public * Public) -> (Public + unit) : (RData lK [v] * Public) -> (tau + unit)
+      })
 
 
 #tc ENC_IDEAL' [lK ⊒ ⊥, lM ⊏ lK] [] [tau <: Data lM] [] :=  ⊢ {
@@ -67,7 +75,12 @@ import OwlLean.TypeChecker.OwlComplete
                    if ⟨"isError"⟩(decResult) then ı2 () else ı1 ⟨"extractMsg"⟩(decResult)
                 else λ (x : (RData lK [genKey("0")] * Public)) : (tau + unit) => (!L) (π2 x)))
     in
-    rpack (genKey("0"), ⟨k, ⟨(corr_case lK in enc'), dec'⟩⟩) }
+    rpack (genKey("0"), {
+      key := k,
+      enc := (corr_case lK in enc'),
+      dec := dec'
+    })
+    }
     :
     $ ENC' [lK, lM] [] [tau]
 
@@ -75,9 +88,11 @@ import OwlLean.TypeChecker.OwlComplete
 
 
 #ty ENC_MULTI [lK, lM] [] [tau] :=
-    (∃ alphaK <: (Data lK) . ((unit -> alphaK) *
-                                 ((corr (lK) ? (Public * Public) -> Public : (alphaK * tau) -> Public) *
-                                  (corr (lK) ? (Public * Public) -> (Public + unit) : (alphaK * Public) -> (tau + unit)))))
+    (∃ alphaK <: (Data lK) . {
+      genKey : (unit -> alphaK),
+      enc : corr (lK) ? (Public * Public) -> Public : (alphaK * tau) -> Public,
+      dec : corr (lK) ? (Public * Public) -> (Public + unit) : (alphaK * Public) -> (tau + unit)
+    })
 
 -- ENC_MULTI can be filled in similar to ENC_IDEAL by keeping track of the list of keys in scope.
 -- We then maintain a mapping from keys and ciphertexts to messages.

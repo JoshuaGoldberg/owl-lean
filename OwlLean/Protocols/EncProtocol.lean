@@ -21,10 +21,10 @@ set_option maxRecDepth 20000
   def server : ($ party_type [] [] []) :=
     λ send =>
     λ recv =>
-      let enc_psk = π1 (π2 encPSK) in
-      let psk = π1 encPSK in
-      let dec_kx = π2 (π2 encKX) in
-      let key_x = π1 encKX in
+      let enc_psk = encPSK ^. enc in
+      let psk = encPSK ^. key in
+      let dec_kx = encKX ^. dec in
+      let key_x = encKX ^. key in
       let ct1 = corr_case lKH in enc_psk ⟨psk, key_x⟩ in
       send ct1 (λ (_ : unit) : unit =>
         recv (λ (ct2 : Public) : unit =>
@@ -37,9 +37,9 @@ set_option maxRecDepth 20000
     λ x =>
       λ send =>
       λ recv =>
-        let dec_psk = π2 (π2 encPSK) in
-        let enc_kx = π1 (π2 encKX) in
-        let psk = π1 encPSK in
+        let dec_psk = encPSK ^. dec in
+        let enc_kx = encKX ^. enc in
+        let psk = encPSK ^. key in
         recv (λ (ct1 : Public) : unit =>
           corr_case lKH in
           case dec_psk ⟨psk, ct1⟩ with
@@ -137,10 +137,10 @@ set_option maxRecDepth 20000
     pack (Public,
         ⟨"0",
           (λ (args : (Public * Public)) : (Public * Public) =>
-            let enc_high = π1 (π2 encPSK) in
-            let enc_low = π1 (π2 encKX) in
-            let key_high = π1 encPSK in
-            let key_low = π1 encKX in
+            let enc_high = encPSK ^. enc in
+            let enc_low = encKX ^. enc in
+            let key_high = encPSK ^. key in
+            let key_low = encKX ^. key in
             let (state, input) = args in
             if (⟨"eq"⟩ (state, "0")) then
               let ciphertext1 = (corr_case lKH in (enc_high ⟨key_high, key_low⟩)) in
@@ -161,10 +161,10 @@ set_option maxRecDepth 20000
     pack (Public,
       ⟨"0",
         (λ (args : (Public * Public)) : (Public * Public) =>
-          let dec_high = π2 (π2 encPSK) in
-          let dec_low = π2 (π2 encKX) in
-          let key_high = π1 encPSK in
-          let key_low = π1 encKX in
+          let dec_high = encPSK ^. dec in
+          let dec_low = encKX ^. dec in
+          let key_high = encPSK ^. key in
+          let key_low = encKX ^. key in
           let (state, input) = args in
           if (⟨"eq"⟩ (state, "0")) then
             corr_case lKH in

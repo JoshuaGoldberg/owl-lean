@@ -10,8 +10,10 @@ open Owl
 
 declare_syntax_cat owl_var
 declare_syntax_cat owl_tm
+declare_syntax_cat owl_tm_field_entry
 declare_syntax_cat owl_label
 declare_syntax_cat owl_type
+declare_syntax_cat owl_type_field_entry
 declare_syntax_cat owl_constr
 declare_syntax_cat owl_cond_sym
 -- declare_syntax_cat owl_phi
@@ -264,6 +266,8 @@ syntax "corr" "(" owl_label ")" "?" owl_type ":" owl_type : owl_type
 syntax "Public" : owl_type
 syntax "$" term:max "[" owl_label,* "]" "[" owl_rexp,* "]" "[" owl_type,* "]" : owl_type
 syntax owl_type "{" owl_prop "}" : owl_type
+syntax ident ":" owl_type : owl_type_field_entry
+syntax "{" owl_type_field_entry,* "}" : owl_type
 
 partial def elabType (stx : Syntax) (P : TCtx) (Rs : TCtx) (D : TCtx) :
     TermElabM (ty (ScopeMap.ofList [P.length, Rs.length, D.length])) :=
@@ -279,6 +283,21 @@ partial def elabType (stx : Syntax) (P : TCtx) (Rs : TCtx) (D : TCtx) :
   | `(owl_type| Any) => return .Any
   | `(owl_type| unit) => return .Unit
   | `(owl_type| Public) => return .Public
+  | `(owl_type| { $es:owl_type_field_entry,* }) => do
+    let es' <- es.getElems.toList.mapM fun e =>
+      match e.raw with
+      | `(owl_type_field_entry | $n:ident : $t:owl_type) => do
+        let t ← elabType t P Rs D
+        return (n.getId.toString, t)
+      | _ => throwUnsupportedSyntax
+    unless es' |>.map (·.1) |>.uniq? do
+      logErrorAt stx s!"Record fields must be unique"
+      throwError s!"Error while checking record type"
+    unless es'.length > 1 do
+      logErrorAt stx s!"Record must have at least one field"
+      throwError s!"Error while checking record type"
+    let es' := es'.sort_assocs
+    return .record (ty_record.mk es')
   | `(owl_type| Data $l:owl_label ) => do
     let l ← elabLabel l P
     return .Data l
@@ -434,6 +453,9 @@ syntax:max "(" owl_tm:min ":" owl_type ")" : owl_tm
 syntax:lead owl_tm:lead "." num : owl_tm
 syntax:max "assert" "(" owl_prop ")" : owl_tm
 syntax:max "admit" : owl_tm
+syntax ident ":=" owl_tm : owl_tm_field_entry
+syntax:max "{" owl_tm_field_entry,* "}" : owl_tm
+syntax:max owl_tm "^." ident : owl_tm
 
 -- ALLOW : let (x , y) = e in ...
 -- expands to :
@@ -448,6 +470,11 @@ deriving instance ToExpr for Syntax
 
 def mkOpaqueSyntax (s : Lean.Syntax) : Owl.opaqueSyntax := { inner := s }
 
+def Owl.tm_list.mk (ls : List (String × tm s)) : tm_list s :=
+  match ls with
+  | [] => .nil
+  | (s, e) :: ls => .cons s e (tm_list.mk ls)
+
 mutual
   partial def elabTm (stx : Syntax) (P Rs D G : TCtx) : TermElabM (tm (ScopeMap.ofList [P.length, Rs.length, D.length, G.length])) := do
     let body ← elabTmX stx P Rs D G
@@ -457,6 +484,17 @@ mutual
   match stx with
   | `(owl_tm| ( $e:owl_tm)) => elabTmX e P Rs D G
   | `(owl_tm| admit ) => return .admit
+  | `(owl_tm| $e:owl_tm ^. $n:ident) => do
+    let e ← elabTm e P Rs D G
+    return .get_record n.getId.toString e
+  | `(owl_tm| { $es:owl_tm_field_entry,* }) => do
+       let es' <- es.getElems.toList.mapM fun e =>
+          match e.raw with
+          | `(owl_tm_field_entry | $n:ident := $e:owl_tm) => do
+            let e ← elabTm e P Rs D G
+            return (n.getId.toString, e)
+          | _ => throwUnsupportedSyntax
+       return .mk_record (Owl.tm_list.mk es')
   | `(owl_tm | $n:num ) =>
     return .bitstring (Nat.toDigits 10 n.getNat)
   | `(owl_tm| $id:ident) => do
