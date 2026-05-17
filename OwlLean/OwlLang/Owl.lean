@@ -155,15 +155,29 @@ deriving instance BEq, Lean.ToExpr for Lean.Syntax
 deriving instance BEq, Lean.ToExpr for Owl.opaqueSyntax
 
 
--- TODO: remove tmvar, get ScopeMap 2; simplifiy the implementation
+mutual
 inductive rexp : ScopeMap 2 -> Type where
   | fvar : Lean.Name -> rexp s
   | var : Fin (s.get #R) -> rexp s
-  | binop : String -> rexp s -> rexp s -> rexp s
-  | unop : String -> rexp s -> rexp s
+  | op : String -> rexp_list s -> rexp s
   | const : List Char -> rexp s
 deriving Repr, BEq, Lean.ToExpr
 
+inductive rexp_list : ScopeMap 2 -> Type where
+  | nil : rexp_list s
+  | cons : rexp s -> rexp_list s -> rexp_list s
+  deriving Repr, BEq, Lean.ToExpr
+end
+
+def rexp_list.mk (rs : List (rexp s)) : rexp_list s :=
+  match rs with
+  | .nil => .nil
+  | .cons r rs => .cons r (rexp_list.mk rs)
+
+def rexp_list.toList (rs : rexp_list s) : List (rexp s) :=
+  match rs with
+  | .nil => []
+  | .cons r rs => r :: rs.toList
 
 
 inductive prop : ScopeMap 2 -> Type where
@@ -222,8 +236,7 @@ inductive tmX : ScopeMap 4 -> Type where
 | var_tm : Fin (s.get #Tm) -> tmX s
 | secparam : tmX s
 | sample : tm s -> tmX s
-| binop : String -> tm s -> tm s -> tmX s
-| unop : String -> tm s -> tmX s
+| op : String -> tm_list s -> tmX s
 | app : tm s -> tm s -> tmX s
 | alloc : tm s -> tmX s
 | dealloc : tm s -> tmX s
@@ -275,16 +288,14 @@ deriving Repr, BEq, Lean.ToExpr
 
 end
 
+
+def tm_list.toList (t : tm_list s) : List (String × tm s) :=
+  match t with
+  | .nil => []
+  | .cons s e l => (s, e) :: l.toList
+
 def mkTm (t : tmX s) : tm s :=
   tm.mk (.mk Lean.Syntax.missing) t
-
-def rexp.free (i : Fin (s.get #R)) (re : rexp s) :=
-  match re with
-  | .fvar _ => true
-  | .var j      => i != j
-  | .binop _ r1 r2 => rexp.free i r1 && rexp.free i r2
-  | .unop _ r1 => rexp.free i r1
-  | .const _    => true
 
 
 -- class EqScopeMap (s : ScopeMap N) (t : ScopeMap N) where
@@ -432,16 +443,6 @@ def rexp.free (i : Fin (s.get #R)) (re : rexp s) :=
 --     grind
 
 
-@[simp]
-def prop.rfree  (p : prop s) (i : Fin (s.get #R)) : Bool :=
-  match p with
-  | .peq re1 re2 => rexp.free i re1 && rexp.free i re2
-  | .pand p1 p2 => prop.rfree p1 i && prop.rfree p2 i
-  | .por p1 p2 => prop.rfree p1 i && prop.rfree p2 i
-  | .pimpl p1 p2 => prop.rfree p1 i && prop.rfree p2 i
-  | .pnot p1 => prop.rfree p1 i
-  | .pall p0 => prop.rfree p0 ((Fin.succ i).cast (by simp))
-  | .ptrue => true
 
 
 
@@ -518,14 +519,21 @@ def corruption.rename
   | .not_corr l1 => .not_corr (l1.rename ren)
 
 
-def rexp.rename (r : rexp s) (ren : s.renaming s')
-  : rexp s' :=
-    match r with
-    | .fvar nm => .fvar nm
-    | .var j => .var (ren.apply #R j)
-    | .binop s r1 r2 => .binop s (r1.rename ren) (r2.rename ren)
-    | .unop s r1 => .unop s (r1.rename ren)
-    | .const b => .const b
+mutual
+
+def rexp.rename (r : rexp s) (ren : s.renaming s') : rexp s' :=
+  match r with
+  | .fvar nm => .fvar nm
+  | .var j => .var (ren.apply #R j)
+  | .op n rs => .op n (rs.rename ren)
+  | .const b => .const b
+
+  def rexp_list.rename (rs : rexp_list s) (ren : s.renaming s') : rexp_list s' :=
+    match rs with
+    | .nil => .nil
+    | .cons r rs => .cons (r.rename ren) (rs.rename ren)
+
+end
 
 def prop.rename (p : prop s) (ren : s.renaming s') : prop s' :=
   match p with
@@ -623,10 +631,8 @@ def tmX.rename (t : tmX s) (ren : s.renaming s') : tmX s' :=
   | .l_lam nm s0 =>
       .l_lam
         nm (s0.rename $ ren.bump #L)
-  | .binop s0 s1 s2 =>
-      .binop s0 (s1.rename ren) (s2.rename ren)
-  | .unop s0 s2 =>
-      .unop s0 (s2.rename ren)
+  | .op n rs =>
+      .op n (rs.rename ren)
   | .zero s0 => .zero (s0.rename ren)
   | .app s0 s1 =>
      .app (s0.rename ren)
@@ -796,19 +802,19 @@ def constr.subst (c : constr s) (sub : LabelSubst s s') : constr s' :=
       let s2' := s2.subst sub
       .condition s0 s1' s2'
 
-
+mutual
 def rexp.subst (r : rexp s) (sub : RexpSubst s s') : rexp s' :=
   match r with
   | .fvar nm => .fvar nm
   | .var j => sub.apply #R j
-  | .binop s r1 r2 =>
-      let r1' := r1.subst sub
-      let r2' := r2.subst sub
-      .binop s r1' r2'
-  | .unop s r1 =>
-      let r1' := r1.subst sub
-      .unop s r1'
+  | .op n rs => .op n (rs.subst sub)
   | .const b => .const b
+
+def rexp_list.subst (rs : rexp_list s) (sub : RexpSubst s s') : rexp_list s' :=
+  match rs with
+  | .nil => .nil
+  | .cons r rs => .cons (r.subst sub) (rs.subst sub)
+end
 
 def prop.subst (p : prop s) (sub : RexpSubst s s') : prop s' :=
   match p with
@@ -883,8 +889,7 @@ mutual
    | .tlet nm e1 e2 => .tlet nm (e1.subst sub) (e2.subst $ sub.bump #Tm)
    | .union_elim nm e1 e2 => .union_elim nm (e1.subst sub) (e2.subst $ sub.bump #Tm)
    | .l_lam nm s0 => .l_lam nm (s0.subst $ sub.bump #L)
-   | .binop s0 s1 s2 => .binop s0 (s1.subst sub) (s2.subst sub)
-   | .unop s0 s2 => .unop s0 (s2.subst sub)
+   | .op n rs => .op n (rs.subst sub)
    | .zero s0 => .zero (s0.subst sub)
    | .app s0 s1 => .app (s0.subst sub) (s1.subst sub)
    | .alloc s0 => .alloc (s0.subst sub)

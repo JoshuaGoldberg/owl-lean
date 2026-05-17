@@ -33,14 +33,19 @@ def label.pretty (l : label n) : String :=
 instance : ToString (label n) where
   toString := label.pretty
 
-
+mutual
 def rexp.pretty (re : rexp s) : String :=
   match re with
   | .fvar nm => nm.toString
   | .var i => "r" ++ toString i.toNat
-  | .binop s r1 r2 => s ++ "(" ++ r1.pretty ++ "," ++ r2.pretty ++ ")"
-  | .unop s r1 => s ++ "(" ++ r1.pretty ++ ")"
+  | .op s rs => s ++ "(" ++ rs.pretty ++ ")"
   | .const b => b.toString
+
+def rexp_list.pretty (rs : rexp_list s) : String :=
+  match rs with
+  | .nil => ""
+  | .cons r rs => r.pretty ++ "," ++ rs.pretty
+end
 
 def prop.pretty (p : prop s) : String :=
   match p with

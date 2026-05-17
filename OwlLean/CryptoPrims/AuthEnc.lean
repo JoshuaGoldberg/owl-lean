@@ -13,27 +13,28 @@ import OwlLean.CryptoPrims.Utils
 
 
 #tc ENC_IDEAL [lK ⊒ ⊥, lM ⊏ lK] [] [tau <: Data lM] [] :=  ⊢ {
-    let rnd = secparam in
-    let k : Data lK  = (⟨"genKey"⟩ (rnd)) in
-    let L = $ NewMap [] [] [tau] [] in
+    let rnd = sample secparam in
+    let k : Data lK  = ⟦genKey⟧ (rnd) in
+    let L = mk_map tau in
+    -- let L = $ NewMap [] [] [tau] [] in
     type Key = Data lK in
     let enc' = (corr_case lK in
                 (if corr ( lK )
                   then (λ (x : (Public * Public)) : Public =>
                     let (a, b) = x in
-                    ⟨"enc"⟩ (a, b))
+                    ⟦enc⟧ (a, b))
                   else
                     λ (x : (Data lK * tau )) : Public =>
-                    let c = ⟨"rand"⟩ (zero ((π2 x) : Data lM)) in
-                    ($ SetMap [] [] [tau] []) L c (π2 x);
+                    let c = ⟦rand⟧ (zero ((π2 x) : Data lM)) in
+                    set_map tau L c (π2 x);
                     c
                     ))
     in
     let dec' : corr (lK) ? (Public * Public) -> (Public + unit) : (Data lK * Public) -> (tau + unit) = (corr_case lK in
                (if corr (lK) then λ (x : (Public * Public)) : Public + unit =>
-                   let decResult = ⟨"dec"⟩(π1 x, π2 x) in
-                   if ⟨"isError"⟩(decResult) then ı2 () else ı1 ⟨"extractMsg"⟩(decResult)
-                else λ (x : (Data lK * Public)) : (tau + unit) => ($ GetMap [] [] [tau] []) L (π2 x)))
+                   let decResult = ⟦dec⟧(π1 x, π2 x) in
+                   if ⟦isError⟧(decResult) then ı2 () else ı1 ⟦extractMsg⟧(decResult)
+                else λ (x : (Data lK * Public)) : (tau + unit) => get_map tau L (π2 x)))
     in
     pack (Key,
       { key := k,
@@ -53,28 +54,42 @@ import OwlLean.CryptoPrims.Utils
         dec : corr (lK) ? (Public * Public) -> (Public + unit) : (RData lK [v] * Public) -> (tau + unit)
       })
 
+/-
+
+  {dec: if corr(lK) then ((Public * Public) -> (Public + Unit)) else ((RData lK [genKey(r0,)] * Public) -> (tau + Unit))
+  },
+   enc: if corr(lK) then ((Public * Public) -> Public) else ((RData lK [genKey(r0,)] * tau) -> Public) },
+   key: RData (⊥ ⊔ _) [genKey(_uniq.54682,)]} <:
+   {dec: if corr(_) then ((Public * Public) -> (Public + Unit)) else ((RData _ [genKey(r0,)] * Public) -> (X0 + Unit)) },
+   enc: if corr(_) then ((Public * Public) -> Public) else ((RData _ [genKey(r0,)] * X0) -> Public) },
+   key: RData _ [genKey(r0,)]}
+
+
+-/
 
 #tc ENC_IDEAL' [lK ⊒ ⊥, lM ⊏ lK] [] [tau <: Data lM] [] :=  ⊢ {
-    let k = (⟨"genKey"⟩ ("0")) in
-    let L = $ NewMap [] [] [tau] [] in
+    let rnd : ∃x. RData lK [x] = (sample secparam : Data lK) in
+    get_val rnd = rnd in
+    let k = ⟦genKey⟧(rnd) in
+    let L = mk_map tau in
     let enc' = (corr_case lK in
                 (if corr ( lK )
                   then (λ (x : (Public * Public)) : Public =>
                     let (a, b) = x in
-                    ⟨"enc"⟩ (a, b))
+                    ⟦enc⟧ (a, b))
                   else
-                    λ (x : (RData lK [genKey("0")] * tau )) : Public =>
-                    let c = ⟨"rand"⟩ (zero ((π2 x) : Data lM)) in
-                    ($ SetMap [] [] [tau] []) L c (π2 x);
+                    λ (x : (RData lK [⟦genKey⟧(rnd)] * tau )) : Public =>
+                    let c = ⟦rand⟧ (zero ((π2 x) : Data lM)) in
+                    set_map tau L c (π2 x);
                     c))
     in
-    let dec' : corr (lK) ? (Public * Public) -> (Public + unit) : (RData lK [genKey("0")] * Public) -> (tau + unit) = (corr_case lK in
+    let dec' : corr (lK) ? (Public * Public) -> (Public + unit) : (RData lK [⟦genKey⟧(rnd)] * Public) -> (tau + unit) = (corr_case lK in
                (if corr (lK) then λ (x : (Public * Public)) : Public + unit =>
-                   let decResult = ⟨"dec"⟩(π1 x, π2 x) in
-                   if ⟨"isError"⟩(decResult) then ı2 () else ı1 ⟨"extractMsg"⟩(decResult)
-                else λ (x : (RData lK [genKey("0")] * Public)) : (tau + unit) => ($ GetMap [] [] [tau] []) L (π2 x)))
+                   let decResult = ⟦dec⟧(π1 x, π2 x) in
+                   if ⟦isError⟧(decResult) then ı2 () else ı1 ⟦extractMsg⟧(decResult)
+                else λ (x : (RData lK [⟦genKey⟧(rnd)] * Public)) : (tau + unit) => get_map tau L (π2 x)))
     in
-    rpack (genKey("0"), {
+    rpack (⟦genKey⟧(rnd), {
       key := k,
       enc := (corr_case lK in enc'),
       dec := dec'
@@ -84,6 +99,7 @@ import OwlLean.CryptoPrims.Utils
     $ ENC' [lK, lM] [] [tau]
 
 -- A multi-key assumption
+
 
 
 #ty ENC_MULTI [lK, lM] [] [tau] :=

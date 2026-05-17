@@ -200,20 +200,16 @@ partial def elabConstr (stx : Syntax) (P : TCtx) : TermElabM (constr (ScopeMap.o
 
 
 syntax ident : owl_rexp
-syntax ident "(" owl_rexp "," owl_rexp ")" : owl_rexp
-syntax ident "(" owl_rexp ")" : owl_rexp
+syntax "⟦" ident "⟧" "(" owl_rexp,* ")" : owl_rexp
 syntax str : owl_rexp
 
 
 partial def elab_rexp (stx : Syntax) (P : TCtx) (Rs : TCtx) : TermElabM (rexp (ScopeMap.ofList [P.length, Rs.length])) :=
   match stx with
-  | `(owl_rexp | $op:ident ( $e1, $e2 )) => do
-    let r1 ← elab_rexp e1 P Rs
-    let r2 ← elab_rexp e2 P Rs
-    return .binop op.getId.toString r1 r2
-  | `(owl_rexp | $op:ident ( $e1 )) => do
-    let r1 ← elab_rexp e1 P Rs
-    return .unop op.getId.toString r1
+  | `(owl_rexp | ⟦ $op:ident ⟧ ( $es:owl_rexp,* )) => do
+    let esVals ← es.getElems.mapM (elab_rexp · P Rs)
+    let esList := esVals.toList
+    return .op op.getId.toString (rexp_list.mk esList)
   | `(owl_rexp | $i:ident ) => do
     let nm := i.getId.toString
     match Rs.lookup nm with
@@ -293,7 +289,8 @@ syntax ident ":" owl_type : owl_type_field_entry
 syntax "{" owl_type_field_entry,* "}" : owl_type
 
 partial def elabType (stx : Syntax) (P : TCtx) (Rs : TCtx) (D : TCtx) :
-    TermElabM (ty (ScopeMap.ofList [P.length, Rs.length, D.length])) :=
+    TermElabM (ty (ScopeMap.ofList [P.length, Rs.length, D.length])) := do
+  let stx <- liftMacroM <| expandMacros stx
   match stx with
   | `(owl_type| ( $e:owl_type)) => elabType e P Rs D
   | `(owl_type| $id:ident) => do
@@ -438,8 +435,7 @@ syntax:max "Λ" owl_var "." owl_tm:min : owl_tm
 syntax:max "Λβ" owl_var "." owl_tm:min : owl_tm
 syntax:max "Λr" ident "." owl_tm:min : owl_tm
 syntax:max "⟨" owl_tm:lead "," owl_tm:lead "⟩" : owl_tm
-syntax:max "⟨" term "⟩" "(" owl_tm:lead "," owl_tm:lead ")" : owl_tm -- Binary Op case
-syntax:max "⟨" term "⟩" "(" owl_tm:lead ")" : owl_tm -- Unary Op case
+syntax:max "⟦" ident "⟧" "(" owl_tm:lead,* ")" : owl_tm
 syntax:max "zero" owl_tm:arg : owl_tm
 syntax:lead owl_tm:lead owl_tm:arg : owl_tm
 syntax:max "alloc" owl_tm:arg : owl_tm
@@ -501,6 +497,7 @@ def Owl.tm_list.mk (ls : List (String × tm s)) : tm_list s :=
 
 mutual
   partial def elabTm (stx : Syntax) (P Rs D G : TCtx) : TermElabM (tm (ScopeMap.ofList [P.length, Rs.length, D.length, G.length])) := do
+    let stx <- liftMacroM <| expandMacros stx
     let body ← elabTmX stx P Rs D G
     return .mk (mkOpaqueSyntax stx) body
 
@@ -555,19 +552,10 @@ mutual
     let e1 ← elabTm e1 P Rs D G
     let e2 ← elabTm e2 P Rs D G
     return .tm_pair e1 e2
-  | `(owl_tm| ⟨ $t:term ⟩ ( $e1:owl_tm , $e2:owl_tm )) => do
-    let tEx ← Term.elabTerm t (mkConst ``String)
-    let tTy ← instantiateMVars (← inferType tEx)
-    let s ← unsafe Meta.evalExpr String tTy tEx
-    let e1 ← elabTm e1 P Rs D G
-    let e2 ← elabTm e2 P Rs D G
-    return .binop s e1 e2
-  | `(owl_tm| ⟨ $t:term ⟩ ( $e1:owl_tm )) => do
-    let tEx ← Term.elabTerm t (mkConst ``String)
-    let tTy ← instantiateMVars (← inferType tEx)
-    let s ← unsafe Meta.evalExpr String tTy tEx
-    let e1 ← elabTm e1 P Rs D G
-    return .unop s e1
+  | `(owl_tm| ⟦ $t:ident ⟧ ( $es:owl_tm,* )) => do
+    let esVals <- es.getElems.mapM (elabTm · P Rs D G)
+    let esList := esVals.toList.map (fun e => ("", e))
+    return .op t.getId.toString (tm_list.mk esList)
   | `(owl_tm| $ $t:term [ $ls:owl_label,* ] [ $rs:owl_rexp,* ] [ $ts:owl_type,* ] [ $es:owl_tm,* ]) => do
       let lsVals <- Array.toList <$> ls.getElems.mapM (elabLabel · P)
       let rsVals <- Array.toList <$> rs.getElems.mapM (elab_rexp · P Rs)

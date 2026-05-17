@@ -273,24 +273,34 @@ def withLabelVar [Monad m] (cs : cond_sym) (n : String) (lab : label (s.restrict
 attribute [simp] Fin.foldr_succ
 
 
+mutual
 @[simp]
 def rexp.interp {s : ScopeMap 2}
   (re : rexp s)
-  (f_interp : String -> OwlVal -> OwlVal -> OwlVal )
+  (f_interp : String -> List OwlVal -> OwlVal )
   (fv : Lean.Name -> OwlVal)
   (bv : vec OwlVal (s.get #R))
   : OwlVal :=
   match re with
   | .fvar nm => fv nm
   | .var i => bv.get (i.cast $ by simp)
-  | .binop s r1 r2 =>
-    let r1_interp := r1.interp f_interp fv bv
-    let r2_interp := r2.interp f_interp fv bv
-    f_interp s r1_interp r2_interp
-  | .unop s r1 =>
-    let r1_interp := r1.interp f_interp fv bv
-    f_interp s r1_interp []
+  | .op s rs =>
+    let rs_interp := rs.interp f_interp fv bv
+    f_interp s rs_interp
   | .const b => b
+
+@[simp]
+def rexp_list.interp {s : ScopeMap 2}
+  (rs : rexp_list s)
+  (f_interp : String -> List OwlVal -> OwlVal )
+  (fv : Lean.Name -> OwlVal)
+  (bv : vec OwlVal (s.get #R))
+  : List OwlVal :=
+  match rs with
+  | .nil => []
+  | .cons r rs => r.interp f_interp fv bv :: rs.interp f_interp fv bv
+
+end
 
 
 abbrev prop.cast {s t : ScopeMap 2} (h : s = t := by simp) (l : prop s) : prop t := h ▸ l
@@ -331,7 +341,7 @@ theorem label.cast_sizeOf {s t : ScopeMap 1} (h : s = t) (l : label s) : sizeOf 
 @[simp]
 def prop.interp {s : ScopeMap 2}
 (p : prop s)
-(f_interp : String -> OwlVal -> OwlVal -> OwlVal)
+(f_interp : String -> List OwlVal -> OwlVal)
 (fv : Lean.Name -> OwlVal)
 (bv : vec OwlVal (s.get #R))
 : Prop :=
@@ -365,7 +375,7 @@ def prop.interp {s : ScopeMap 2}
 @[simp]
 def prop_ctx.interp {s : ScopeMap 2}
   (hyps : prop_ctx s)
-  (f_interp : String -> OwlVal -> OwlVal -> OwlVal)
+  (f_interp : String -> List OwlVal -> OwlVal)
   (fv : Lean.Name -> OwlVal)
   (bv : vec OwlVal (s.get #R))
   : Prop :=
@@ -374,7 +384,7 @@ def prop_ctx.interp {s : ScopeMap 2}
 
 @[simp]
 def SideCondition.eval {s : ScopeMap 2} (p : SideCondition s)
-(f_interp : String -> OwlVal -> OwlVal -> OwlVal)
+(f_interp : String -> List OwlVal -> OwlVal)
 (fv : Lean.Name -> OwlVal)
 (bv : vec OwlVal (s.get #R))
 : Prop :=
@@ -418,16 +428,22 @@ def SideConditionWithContext.eval (sc : SideConditionWithContext) : Prop :=
   let p2 := sc.sc.eval owl_f_interp
   forall fv bv, p1 fv bv -> p2 fv bv
 
-
 def runGrind (g : Expr) : TermElabM Bool := do
+  -- let s <- Lean.PrettyPrinter.delab g
+  -- log s!"runGrind: {<- Lean.PrettyPrinter.ppTerm s}" (severity := .information)
   let g <- mkFreshExprMVar g
   let res <- Grind.main g.mvarId! (<- Grind.mkDefaultParams {})
   return res.failure?.isNone
 
+#check Simp.main
 
 def doSimp (e : Expr) : TermElabM Expr := do
-  let ctx <- Simp.Context.mkDefault
-  let res <- Lean.Meta.simp e ctx
+  let simpThms <- getSimpTheorems
+  let congrThms <- getSimpCongrTheorems
+  -- let simprocs <- Simp.getSimprocs
+  let ctx <- Simp.mkContext (simpTheorems := #[simpThms]) (congrTheorems := congrThms)
+  let methods <- Simp.mkDefaultMethods
+  let res <- Simp.main e ctx (methods := methods)
   return res.fst.expr
 
 
@@ -550,11 +566,6 @@ def List.uniq? [DecidableEq α] (l : List α) : Bool :=
 def List.sort_assocs (ls : List (String × α)) : List (String × α) :=
   ls.mergeSort (fun x y => x.1 < y.1)
 
-
-def tm_list.toList (t : tm_list s) : List (String × tm s) :=
-  match t with
-  | .nil => []
-  | .cons s e l => (s, e) :: l.toList
 
 def ty_record.mk (ls : List (String × ty s)) : ty_record s :=
   match ls with
@@ -756,28 +767,21 @@ def ty.getRexp {s : Scope} (t : ty (s.restrict 3)) :
       pure (.fvar i)
   | _ => throw' "infer_op: argument must be a bitstring"
 
-def infer_binop {s : Scope} (op : String) (t1 t2 : ty (s.restrict _)) : CheckT' s (ty (s.restrict _)) := do
-  let env ← read
-  match t1, t2 with
-  | .RData l1 r1, .RData l2 r2 => do
-    prove (.LblEntails env.lbl.cast (.condition .leq l2.cast l1.cast))
-      s!"infer_op: could not prove |= {l2} <= {l1}"
-    pure (.RData l1 (.binop op r1 r2))
-  | .Public, .Public => return .Public
-  | _, _ => do
-    let l1 ← t1.getLabel
-    let l2 ← t2.getLabel
-    pure (.Data (label.ljoin l1 l2))
+-- TODO: finish here.
+-- I have moved unop/binop to just "op" with a list.
+-- I need to finish TcSimple and then finish the elaborator.
 
--- TODO: the logic here could be simplified between infer_ops and getLabel
-def infer_unop {s : Scope} (op : String) (t : ty (s.restrict _)) : CheckT' s (ty (s.restrict _)) :=
-  match t with
-  | .RData l r =>
-    pure (.RData l (.unop op r))
-  | .Public => pure .Public
-  | _ => do
-  let l <- t.getLabel
-  pure (.Data l)
+def infer_op {s : Scope} (op : String) (ts : List (ty (s.restrict _))) : CheckT' s (ty (s.restrict _)) := do
+  let lbl_rexps <- ts.mapM fun t => do
+    let l <- t.getLabel
+    let r <- t.getRexp
+    pure (l, r)
+  let lbl := (lbl_rexps.map (·.1)).foldl label.ljoin (.latl LabelTm.bot)
+  let rexps := lbl_rexps.map (·.2)
+  pure $ .RData lbl (.op op (rexp_list.mk rexps))
+
+def rexp.mk_op (op : String) (rs : List (rexp s)) : rexp s :=
+  .op op (rexp_list.mk rs)
 
 mutual
 partial def infer (e : tm s) (exp : Option (ty (s.restrict _))) : CheckT' s (ty (s.restrict _)) :=
@@ -818,8 +822,8 @@ partial def inferX (e : tmX s) (exp : Option (ty (s.restrict _))) : CheckT' s (t
                 | .RData _ r =>
                   let r : rexp (s.restrict 2) := r.cast
                   let peq : prop ((s.restrict 2).bump #R) :=
-                    .peq (.unop "zero" $ r.rename $ ((s.lift #R).restrict _).castR (by simp [ScopeMap.restrict_bump]))
-                         (.unop "zero" $ .var ⟨0, by simp [ScopeMap.restrict_bump]⟩)
+                    .peq (rexp.mk_op "zero" [r.rename $ ((s.lift #R).restrict _).castR (by simp [ScopeMap.restrict_bump])])
+                         (rexp.mk_op "zero" [.var ⟨0, by simp [ScopeMap.restrict_bump]⟩])
                   let r' : ty ((s.restrict 3)) :=
                     ty.ex_r $ .refined
                       (.RData (.latl LabelTm.bot) (.var ⟨0, by simp [ScopeMap.restrict_bump]⟩))
@@ -842,15 +846,9 @@ partial def inferX (e : tmX s) (exp : Option (ty (s.restrict _))) : CheckT' s (t
         let res <- infer t (exp.map fun t => t.rename ((s.lift #R).restrict _))
         let res : (ty ((s.restrict 3).bump #R)) := res.cast (by simp [ScopeMap.bump_restrict])
         pure $ res.subst (ScopeMap.Subst.down r)
-  | .binop op e1 e2 => do
-    let t1 ← infer e1 .none
-    let t2 ← infer e2 .none
-    let tres ← infer_binop op t1 t2
-    from_synth tres exp
-  | .unop op e1 => do
-    let t1 ← infer e1 .none
-    let tres ← infer_unop op t1
-    from_synth tres exp
+  | .op op es => do
+    let ts <- es.toList.mapM (fun x => infer x.2 none)
+    infer_op op ts
   | .zero e => do
     let t ← infer e none
     match t with

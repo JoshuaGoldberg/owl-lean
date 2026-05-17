@@ -23,7 +23,7 @@ open Owl
 
   label L1 ⊑ ⊥
 
-  def f : Data L1 -> Data ⊥ =
+  def f : Data L1 -> Data ⊥ :=
     λ x => x
 
 
