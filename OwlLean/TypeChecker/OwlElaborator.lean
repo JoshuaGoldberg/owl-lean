@@ -456,6 +456,7 @@ syntax:max "admit" : owl_tm
 syntax ident ":=" owl_tm : owl_tm_field_entry
 syntax:max "{" owl_tm_field_entry,* "}" : owl_tm
 syntax:max owl_tm "^." ident : owl_tm
+syntax "type" ident "=" owl_type "in" owl_tm : owl_tm
 
 -- ALLOW : let (x , y) = e in ...
 -- expands to :
@@ -507,6 +508,14 @@ mutual
   | `(owl_tm| ()) => return .unit
   | `(owl_tm| $b:str  ) => do
     return .bitstring b.getString.toList
+  | `(owl_tm| type $id:ident = $t:owl_type in $e:owl_tm) => do
+    let t ← elabType t P Rs D
+    let e ← elabTm e P Rs (id.getId.toString :: D) G
+    let sub : ScopeMap.Subst 4 TmFunctors
+                          (ScopeMap.ofList [P.length, Rs.length, (id.getId.toString :: D).length, G.length])
+                          (ScopeMap.ofList [P.length, Rs.length, D.length, G.length]) :=
+        (@ScopeMap.Subst.down 4 #Ty TmFunctors (ScopeMap.ofList [P.length, Rs.length, D.length, G.length]) t)
+    return (e.subst $ sub).get
   | `(owl_tm| fix $f:owl_var ( $v:owl_var ) $e:owl_tm) => do
     let e' ← elabTm e P Rs D (elabVar f :: elabVar v :: G)
     return .fixlam (elabVar f) (elabVar v) e'

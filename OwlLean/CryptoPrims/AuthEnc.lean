@@ -16,6 +16,7 @@ import OwlLean.TypeChecker.OwlComplete
 #tc ENC_IDEAL [lK ⊒ ⊥, lM ⊏ lK] [] [tau <: Data lM] [] :=  ⊢ {
     let k = (⟨"genKey"⟩ ("0")) in
     let L = alloc (λ (null : Public) : (tau + unit) => ı2 ()) in
+    type Key = Data lK in
     let enc' = (corr_case lK in
                 (if corr ( lK )
                   then (λ (x : (Public * Public)) : Public =>
@@ -34,7 +35,7 @@ import OwlLean.TypeChecker.OwlComplete
                    if ⟨"isError"⟩(decResult) then ı2 () else ı1 ⟨"extractMsg"⟩(decResult)
                 else λ (x : (Data lK * Public)) : (tau + unit) => (!L) (π2 x)))
     in
-    pack (Data lK,
+    pack (Key,
       { key := k,
         enc := (corr_case lK in enc'),
         dec := dec'

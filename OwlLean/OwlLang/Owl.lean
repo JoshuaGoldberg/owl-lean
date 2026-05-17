@@ -733,6 +733,36 @@ def Subst.toRexpSubst (sub : Subst s s') : RexpSubst (s.restrict 2) (s'.restrict
 --    | #Tm => simp; exact(sub.apply #Tm  (by simpa using i))
     ⟩
 
+abbrev TmFunctors (x : Fin 4) : ScopeFunctor 4 x :=
+  match x with
+  | ⟨#L, _⟩ => ⟨fun m => label (m.restrict 1), fun m m' r x => x.rename (r.restrict) , fun i => .var_label "_" (by simpa using i)⟩
+  | ⟨#R, _⟩  => ⟨fun m => rexp (m.restrict _), fun m m' r x => x.rename (r.restrict) , fun i => .var (by simpa using i)⟩
+  | ⟨#Ty, _⟩ => ⟨fun m => ty (m.restrict _), fun m m' r x => x.rename r.restrict, fun i => .var_ty "_" (by simpa using i)⟩
+  | ⟨#Tm, _⟩ => ⟨fun m => tmX m, fun m m' r x => x.rename r, fun i => (.var_tm (by simpa using i))⟩
+
+abbrev TmSubst := ScopeMap.Subst 4 TmFunctors
+
+def TmSubst.toSubst (sub : TmSubst s s') : Subst (s.restrict 3) (s'.restrict 3) :=
+  ⟨fun x i => by
+    match x with
+    | #L => simp; exact (sub.apply #L  (by simpa using i))
+    | #R => simp; exact (sub.apply #R  (by simpa using i))
+    | #Ty => simp; exact (sub.apply #Ty  (by simpa using i))
+  ⟩
+
+def TmSubst.toLabelSubst (sub : TmSubst s s') : LabelSubst (s.restrict 1) (s'.restrict 1) :=
+  ⟨fun x i => by
+    match x with
+    | #L => simp; exact (sub.apply #L  (by simpa using i))
+  ⟩
+
+def TmSubst.toRexpSubst (sub : TmSubst s s') : RexpSubst (s.restrict 2) (s'.restrict 2) :=
+  ⟨fun x i => by
+    match x with
+    | #L => simp; exact (sub.apply #L  (by simpa using i))
+    | #R => simp; exact (sub.apply #R  (by simpa using i))
+  ⟩
+
 
 @[simp]
 def label.subst (l : label s) (sub : LabelSubst s s') : label s' :=
@@ -831,6 +861,60 @@ end
 def _root_.Fin.down (f : Fin (n + 1)) : Option (Fin n) :=
   if h : f < n then .some ⟨f.val, by grind⟩ else none
 
+mutual
+ def tm.subst (t : tm s) (sub : TmSubst s s') : tm s' :=
+   match t with
+   | .mk stx inner => .mk stx (inner.subst sub)
+
+ def tmX.subst (t : tmX s) (sub : TmSubst s s') : tmX s' :=
+   match t with
+   | .admit => .admit
+   | .var_tm s0 => (sub.apply #Tm s0)
+   | .secparam => .secparam
+   | .sample s0 => .sample (s0.subst sub)
+   | .unit => .unit
+   | .get_record s0 s1 => .get_record s0 (s1.subst sub)
+   | .bitstring s0 => .bitstring s0
+   | .get_val s0 s1 s2 => .get_val s0 (s1.subst sub) (s2.subst $ sub.bump #R)
+   | .loc s0 => .loc s0
+   | .fixlam nm1 nm2 s0 => .fixlam nm1 nm2 (s0.subst $ (sub.bump #Tm).bump #Tm)
+   | .tlam nm s0 => .tlam nm (s0.subst $ sub.bump #Ty)
+   | .rlam nm s0 => .rlam nm (s0.subst $ sub.bump #R)
+   | .tlet nm e1 e2 => .tlet nm (e1.subst sub) (e2.subst $ sub.bump #Tm)
+   | .union_elim nm e1 e2 => .union_elim nm (e1.subst sub) (e2.subst $ sub.bump #Tm)
+   | .l_lam nm s0 => .l_lam nm (s0.subst $ sub.bump #L)
+   | .binop s0 s1 s2 => .binop s0 (s1.subst sub) (s2.subst sub)
+   | .unop s0 s2 => .unop s0 (s2.subst sub)
+   | .zero s0 => .zero (s0.subst sub)
+   | .app s0 s1 => .app (s0.subst sub) (s1.subst sub)
+   | .alloc s0 => .alloc (s0.subst sub)
+   | .dealloc s0 => .dealloc (s0.subst sub)
+   | .assign s0 s1 => .assign (s0.subst sub) (s1.subst sub)
+   | .tm_pair s0 s1 => .tm_pair (s0.subst sub) (s1.subst sub)
+   | .left_tm s0 => .left_tm (s0.subst sub)
+
+   | .right_tm s0 => .right_tm (s0.subst sub)
+   | .inl s0 => .inl (s0.subst sub)
+   | .inr s0 => .inr (s0.subst sub)
+   | .case s0 nm1 s1 nm2 s2 => .case (s0.subst sub) nm1 (s1.subst $ sub.bump #Tm) nm2 (s2.subst $ sub.bump #Tm)
+   | .tapp s0 s1 => .tapp (s0.subst sub) (s1.subst $ sub.toSubst)
+   | .lapp s0 s1 => .lapp (s0.subst sub) (s1.subst $ sub.toLabelSubst)
+   | .rapp e0 re => .rapp (e0.subst sub) (re.subst $ sub.toRexpSubst)
+   | .pack s s0 => .pack (s.subst sub.toSubst) (s0.subst sub)
+   | .rpack re s0 => .rpack (re.subst $ sub.toRexpSubst) (s0.subst sub)
+   | .unpack s0 nm1 nm2 s1 => .unpack (s0.subst sub) nm1 nm2 (s1.subst $ (sub.bump #Ty).bump #Tm)
+   | .if_tm s0 s1 s2 => .if_tm (s0.subst sub) (s1.subst sub) (s2.subst sub)
+   | .if_c s0 s1 s2 => .if_c (s0.subst $ sub.toLabelSubst) (s1.subst sub) (s2.subst sub)
+   | .corr_case lab e => .corr_case (lab.subst $ sub.toLabelSubst) (e.subst sub)
+   | .annot e t => .annot (e.subst sub) (t.subst $ sub.toSubst)
+   | .mk_record l => .mk_record $ l.subst sub
+
+  def tm_list.subst (l : tm_list s) (sub : TmSubst s s') : tm_list s' :=
+    match l with
+    | .nil => .nil
+    | .cons s e l => .cons s (e.subst sub) (l.subst sub)
+end
+
 
 -- Down-coercions
 
@@ -838,6 +922,12 @@ def _root_.Fin.down (f : Fin (n + 1)) : Option (Fin n) :=
 
 class Down (s t : Type) where
   down : s -> t
+
+def tm_list.subst (l : tm_list s) (sub : Subst s s') : tm_list s' :=
+  match l with
+  | .nil => .nil
+  | .cons s e l => .cons s (e.subst sub) (l.subst sub)
+end
 
 def label.downTy (l : label s.bumpTy) : label s :=
   match l with
