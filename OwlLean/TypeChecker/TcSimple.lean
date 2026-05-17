@@ -580,7 +580,7 @@ def check_corrupt {s : Scope} (lab : label (s.restrict _)) :
 -- Computes the side condition necessary for t1 <: t2
 partial def check_subtype'  {s : Scope} (t1 t2 : ty (s.restrict _)) : CheckT' s (SideCondition (s.restrict _)) := do
   log s!"check_subtype': {t1.pretty} <: {t2.pretty}"
-  if t1 == t2 then pure .ScTrue else
+  if t1.erase_varname == t2.erase_varname then pure .ScTrue else
     let (pextract, t1) <- extract_refinements t1
     withHypsAppend pextract $ do
       match t1, t2 with
@@ -638,6 +638,7 @@ partial def check_subtype'  {s : Scope} (t1 t2 : ty (s.restrict _)) : CheckT' s 
         let r1 := SideCondition.LblEntails (env.lbl.cast) (.condition .leq (l1.cast) (l2.cast))
         let r2 := SideCondition.RexpEq re1 re2
         pure (r1.ScAnd (r2.cast))
+      | .Public, .Data _ => pure .ScTrue
       | .Data l1, .Public => do
         let env ← read
         pure (.PhiPsiEntailCorr s!"Data {l1}, Public" (env.lbl.cast) (env.corrs.cast) (.corr (l1.cast)))

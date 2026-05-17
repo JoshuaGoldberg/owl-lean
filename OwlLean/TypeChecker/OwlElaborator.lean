@@ -33,7 +33,7 @@ private def natLit? (e : Expr) : Option Nat :=
   | .lit (.natVal n) => some n
   | _ => none
 
-private def tyParamNats (ty : Expr) : MetaM (ScopeMap 3) := do
+private def getScopeMapFromTy (ty : Expr) : MetaM (ScopeMap 3) := do
   let ty ← whnf ty
   unless ty.getAppFn.isConstOf ``Owl.ty do
     throwError s!"expected Owl.ty …, got {ty}"
@@ -41,6 +41,15 @@ private def tyParamNats (ty : Expr) : MetaM (ScopeMap 3) := do
   unless 1 ≤ a.size do throwError s!"ty application too small: {ty} got {a.size} argu"
   let s := a[0]!
   unsafe evalExpr (ScopeMap 3) (mkApp (mkConst ``ScopeMap) (mkNatLit 3)) s
+
+private def getScopeMapFromTm (ty : Expr) : MetaM (ScopeMap 4) := do
+  let ty ← whnf ty
+  unless ty.getAppFn.isConstOf ``Owl.tm do
+    throwError s!"expected Owl.tm …, got {ty}"
+  let a := ty.getAppArgs
+  unless 1 ≤ a.size do throwError s!"tm application too small: {ty} got {a.size} argu"
+  let s := a[0]!
+  unsafe evalExpr (ScopeMap 4) (mkApp (mkConst ``ScopeMap) (mkNatLit 4)) s
 
 private def labelParamNat (ty : Expr) : MetaM Nat := do
   let ty ← whnf ty
@@ -89,7 +98,21 @@ def subst_ty (T : ty (ScopeMap.ofList [l, r, t]))
      | 2 => h i
     ⟩
 
-partial def elabLabel (stx : Syntax) (P : TCtx := []) : TermElabM (label (ScopeMap.ofList [P.length])) :=
+def subst_tm (T : tm (ScopeMap.ofList [l, r, t, e]))
+  (f : Fin l -> label (ScopeMap.ofList [l']))
+  (g : Fin r -> rexp (ScopeMap.ofList [l', r']))
+  (h : Fin t -> ty (ScopeMap.ofList [l', r', t']))
+  (k : Fin e -> tm (ScopeMap.ofList [l', r', t', e'])) :
+  tmX (ScopeMap.ofList [l', r', t', e']) :=
+  T.get.subst $ ⟨fun j i =>
+    match j with
+    | 0 => f i
+    | 1 => g i
+    | 2 => h i
+    | 3 => (k i).get
+    ⟩
+
+partial def elabLabel (stx : Syntax) (P : TCtx) : TermElabM (label (ScopeMap.ofList [P.length])) :=
   match stx with
   | `(owl_label| ( $e:owl_label)) => elabLabel e P
   | `(owl_label| ⟨ $t:term ⟩ ) => do
@@ -165,7 +188,7 @@ partial def elabCondSym : Syntax → TermElabM cond_sym
 syntax "(" owl_constr ")" : owl_constr
 syntax owl_label owl_cond_sym owl_label : owl_constr
 
-partial def elabConstr (stx : Syntax) (P : TCtx := []) : TermElabM (constr (ScopeMap.ofList [P.length])) :=
+partial def elabConstr (stx : Syntax) (P : TCtx) : TermElabM (constr (ScopeMap.ofList [P.length])) :=
   match stx with
   | `(owl_constr| ( $e:owl_constr)) => elabConstr e P
   | `(owl_constr| $l1:owl_label $c:owl_cond_sym $l2:owl_label) => do
@@ -182,7 +205,7 @@ syntax ident "(" owl_rexp ")" : owl_rexp
 syntax str : owl_rexp
 
 
-partial def elab_rexp (stx : Syntax) (P : TCtx := []) (Rs : TCtx) : TermElabM (rexp (ScopeMap.ofList [P.length, Rs.length])) :=
+partial def elab_rexp (stx : Syntax) (P : TCtx) (Rs : TCtx) : TermElabM (rexp (ScopeMap.ofList [P.length, Rs.length])) :=
   match stx with
   | `(owl_rexp | $op:ident ( $e1, $e2 )) => do
     let r1 ← elab_rexp e1 P Rs
@@ -361,9 +384,9 @@ partial def elabType (stx : Syntax) (P : TCtx) (Rs : TCtx) (D : TCtx) :
     let tsValsL := tsVals.toList
     let rsVals ← rs.getElems.mapM (elab_rexp · P Rs)
     let rsValsL := rsVals.toList
-    let tEx ← Term.elabTerm t (mkConst ``Owl.ty)
+    let tEx ← Term.elabTerm t none
     let tTy ← instantiateMVars (← inferType tEx)
-    let ty_s <- tyParamNats tTy
+    let ty_s <- getScopeMapFromTy tTy
     if ty_s = ScopeMap.ofList [lsList.length, rsValsL.length, tsValsL.length] then
       let tVal ← liftM <| unsafe Meta.evalExpr (α := ty (ScopeMap.ofList [lsList.length, rsValsL.length, tsValsL.length])) tTy tEx
        return subst_ty tVal ((lsList.get)) (rsValsL.get) (tsValsL.get)
@@ -447,7 +470,7 @@ syntax:max "let" "(" owl_var "," owl_var ")" "=" owl_tm:min "in" owl_tm:min : ow
 syntax:max "let" "(" owl_var "," owl_var "," owl_var ")" "=" owl_tm:min "in" owl_tm:min : owl_tm
 syntax:max "λ" "(" owl_var ":" owl_type ")" ":" owl_type "=>" owl_tm:min : owl_tm
 syntax:max "λ" owl_var "=>" owl_tm:min : owl_tm
-syntax "$" term:max "[" owl_label,* "]" "[" owl_type,* "]" "[" owl_tm:min,* "]" : owl_tm
+syntax "$" term:max "[" owl_label,* "]" "[" owl_rexp,* "]" "[" owl_type,* "]" "[" owl_tm:min,* "]" : owl_tm
 syntax:max "corr_case" owl_label "in" owl_tm:min : owl_tm
 syntax:max "(" owl_tm:min ":" owl_type ")" : owl_tm
 syntax:lead owl_tm:lead "." num : owl_tm
@@ -545,15 +568,18 @@ mutual
     let s ← unsafe Meta.evalExpr String tTy tEx
     let e1 ← elabTm e1 P Rs D G
     return .unop s e1
--- | `(owl_tm| $ $t:term [ $ls:owl_label,* ] [ $ts:owl_type,* ] [ $es:owl_tm,* ]) => do
-  --   let ls' <- ls.getElems.mapM elabLabel
-  --   let ts' <- ts.getElems.mapM elabType
-  --   let es' <- es.getElems.mapM elabTm
-  --   let ls_list <- mkListLit (mkConst ``SLabel) ls'.toList
-  --   let ts_list <- mkListLit (mkConst ``STy) ts'.toList
-  --   let es_list <- mkListLit (mkConst ``SExpr) es'.toList
-  --   let t' ← Term.elabTerm t (mkConst ``Owl.tm)
-  --   mkAppM ``SExprX.embedtm #[t', ls_list, ts_list, es_list]
+  | `(owl_tm| $ $t:term [ $ls:owl_label,* ] [ $rs:owl_rexp,* ] [ $ts:owl_type,* ] [ $es:owl_tm,* ]) => do
+      let lsVals <- Array.toList <$> ls.getElems.mapM (elabLabel · P)
+      let rsVals <- Array.toList <$> rs.getElems.mapM (elab_rexp · P Rs)
+      let tsVals <- Array.toList <$> ts.getElems.mapM (elabType · P Rs D)
+      let esVals <- Array.toList <$> es.getElems.mapM (elabTm · P Rs D G)
+      let tEx ← Term.elabTerm t none
+      let tTy <- instantiateMVars (← inferType tEx)
+      let tScope <- getScopeMapFromTm tTy
+      if tScope = ScopeMap.ofList [lsVals.length, rsVals.length, tsVals.length, esVals.length] then
+        let tVal ← liftM <| unsafe Meta.evalExpr (α := tm (ScopeMap.ofList [lsVals.length, rsVals.length, tsVals.length, esVals.length])) tTy tEx
+        return subst_tm tVal (lsVals.get) (rsVals.get) (tsVals.get) (esVals.get)
+      else throwError s!"embedtm"
   | `(owl_tm| zero $e:owl_tm) => do
     let e ← elabTm e P Rs D G
     return .zero e

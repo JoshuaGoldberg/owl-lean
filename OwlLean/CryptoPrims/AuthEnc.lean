@@ -1,6 +1,5 @@
 import OwlLean.TypeChecker.OwlComplete
-
--- TODO: incorporate sample so that k is random
+import OwlLean.CryptoPrims.Utils
 
 #ty ENC_inner [lK, lM] [] [tau, alphaK] :=
    { key : alphaK,
@@ -14,8 +13,9 @@ import OwlLean.TypeChecker.OwlComplete
 
 
 #tc ENC_IDEAL [lK ⊒ ⊥, lM ⊏ lK] [] [tau <: Data lM] [] :=  ⊢ {
-    let k = (⟨"genKey"⟩ ("0")) in
-    let L = alloc (λ (null : Public) : (tau + unit) => ı2 ()) in
+    let rnd = secparam in
+    let k : Data lK  = (⟨"genKey"⟩ (rnd)) in
+    let L = $ NewMap [] [] [tau] [] in
     type Key = Data lK in
     let enc' = (corr_case lK in
                 (if corr ( lK )
@@ -25,15 +25,15 @@ import OwlLean.TypeChecker.OwlComplete
                   else
                     λ (x : (Data lK * tau )) : Public =>
                     let c = ⟨"rand"⟩ (zero ((π2 x) : Data lM)) in
-                    let L_old = (! L) in
-                    let sc = (L := (λ (y : Public) : (tau + unit) => if ⟨"eq"⟩(y, c) then ı1 (π2 x) else (L_old y))) in
-                    c))
+                    ($ SetMap [] [] [tau] []) L c (π2 x);
+                    c
+                    ))
     in
     let dec' : corr (lK) ? (Public * Public) -> (Public + unit) : (Data lK * Public) -> (tau + unit) = (corr_case lK in
                (if corr (lK) then λ (x : (Public * Public)) : Public + unit =>
                    let decResult = ⟨"dec"⟩(π1 x, π2 x) in
                    if ⟨"isError"⟩(decResult) then ı2 () else ı1 ⟨"extractMsg"⟩(decResult)
-                else λ (x : (Data lK * Public)) : (tau + unit) => (!L) (π2 x)))
+                else λ (x : (Data lK * Public)) : (tau + unit) => ($ GetMap [] [] [tau] []) L (π2 x)))
     in
     pack (Key,
       { key := k,
@@ -43,7 +43,6 @@ import OwlLean.TypeChecker.OwlComplete
   }
     :
     $ ENC [lK, lM] [] [tau]
-
 
 --- Alternate version with refinement variables ---
 
@@ -57,7 +56,7 @@ import OwlLean.TypeChecker.OwlComplete
 
 #tc ENC_IDEAL' [lK ⊒ ⊥, lM ⊏ lK] [] [tau <: Data lM] [] :=  ⊢ {
     let k = (⟨"genKey"⟩ ("0")) in
-    let L = alloc (λ (null : Public) : (tau + unit) => ı2 ()) in
+    let L = $ NewMap [] [] [tau] [] in
     let enc' = (corr_case lK in
                 (if corr ( lK )
                   then (λ (x : (Public * Public)) : Public =>
@@ -66,15 +65,14 @@ import OwlLean.TypeChecker.OwlComplete
                   else
                     λ (x : (RData lK [genKey("0")] * tau )) : Public =>
                     let c = ⟨"rand"⟩ (zero ((π2 x) : Data lM)) in
-                    let L_old = (! L) in
-                    let sc = (L := (λ (y : Public) : (tau + unit) => if ⟨"eq"⟩(y, c) then ı1 (π2 x) else (L_old y))) in
+                    ($ SetMap [] [] [tau] []) L c (π2 x);
                     c))
     in
     let dec' : corr (lK) ? (Public * Public) -> (Public + unit) : (RData lK [genKey("0")] * Public) -> (tau + unit) = (corr_case lK in
                (if corr (lK) then λ (x : (Public * Public)) : Public + unit =>
                    let decResult = ⟨"dec"⟩(π1 x, π2 x) in
                    if ⟨"isError"⟩(decResult) then ı2 () else ı1 ⟨"extractMsg"⟩(decResult)
-                else λ (x : (RData lK [genKey("0")] * Public)) : (tau + unit) => (!L) (π2 x)))
+                else λ (x : (RData lK [genKey("0")] * Public)) : (tau + unit) => ($ GetMap [] [] [tau] []) L (π2 x)))
     in
     rpack (genKey("0"), {
       key := k,

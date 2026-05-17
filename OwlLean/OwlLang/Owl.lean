@@ -982,5 +982,12 @@ inductive Decl : ScopeEnv -> ScopeEnv -> Type where
   | DeclApp : Decl se se' -> Decl se' se'' -> Decl se se''
 -/
 
+def ty.erase_varname (t : ty s) : ty s :=
+  t.subst $ ⟨fun x i =>
+    match x with
+    | #Ty => .var_ty "" i
+    | #L => .var_label "" (i.cast (by simp))
+    | #R => .var (i.cast (by simp))
+  ⟩
 
 end Owl
