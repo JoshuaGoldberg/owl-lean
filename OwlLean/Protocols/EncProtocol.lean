@@ -21,15 +21,11 @@ set_option maxRecDepth 20000
   def server : ($ party_type [] [] []) :=
     λ send =>
     λ recv =>
-      let enc_psk = encPSK ^. enc in
-      let psk = encPSK ^. key in
-      let dec_kx = encKX ^. dec in
-      let key_x = encKX ^. key in
-      let ct1 = corr_case lKH in enc_psk ⟨psk, key_x⟩ in
+      let ct1 = corr_case lKH in (encPSK ^. enc) ⟨encPSK ^. key, encKX ^. key⟩ in
       send ct1 (λ (_ : unit) : unit =>
         recv (λ (ct2 : Public) : unit =>
           corr_case lKL in
-          case dec_kx ⟨key_x, ct2⟩ with
+          case (encKX ^. dec) ⟨encKX ^. key, ct2⟩ with
           | inl _ => ()
           | inr _ => ()))
 
@@ -37,14 +33,11 @@ set_option maxRecDepth 20000
     λ x =>
       λ send =>
       λ recv =>
-        let dec_psk = encPSK ^. dec in
-        let enc_kx = encKX ^. enc in
-        let psk = encPSK ^. key in
         recv (λ (ct1 : Public) : unit =>
           corr_case lKH in
-          case dec_psk ⟨psk, ct1⟩ with
+          case (encPSK ^. dec) ⟨encPSK ^. key, ct1⟩ with
           | inl key_x' =>
-            let ct2 = corr_case lKL in (enc_kx ⟨key_x', x⟩) in
+            let ct2 = corr_case lKL in (encKX ^. enc) ⟨key_x', x⟩ in
             (send ct2) (λ (_ : unit) : unit => ())
           | inr _ => ())
 
@@ -137,16 +130,12 @@ set_option maxRecDepth 20000
     pack (Public,
         ⟨"0",
           (λ (args : (Public * Public)) : (Public * Public) =>
-            let enc_high = encPSK ^. enc in
-            let enc_low = encKX ^. enc in
-            let key_high = encPSK ^. key in
-            let key_low = encKX ^. key in
             let (state, input) = args in
             if (⟨"eq"⟩ (state, "0")) then
-              let ciphertext1 = (corr_case lKH in (enc_high ⟨key_high, key_low⟩)) in
+              let ciphertext1 = (corr_case lKH in (encPSK ^. enc) ⟨encPSK ^. key, encKX ^. key⟩) in
                 ⟨"1", ciphertext1⟩
             else if (⟨"eq"⟩ (state, "1")) then
-              let ciphertext2 = (corr_case lKL in (enc_low ⟨key_low, msg⟩)) in
+              let ciphertext2 = (corr_case lKL in (encKX ^. enc) ⟨encKX ^. key, msg⟩) in
                     ⟨"10", ciphertext2⟩
             else
               ⟨"10", ""⟩)
@@ -161,14 +150,10 @@ set_option maxRecDepth 20000
     pack (Public,
       ⟨"0",
         (λ (args : (Public * Public)) : (Public * Public) =>
-          let dec_high = encPSK ^. dec in
-          let dec_low = encKX ^. dec in
-          let key_high = encPSK ^. key in
-          let key_low = encKX ^. key in
           let (state, input) = args in
           if (⟨"eq"⟩ (state, "0")) then
             corr_case lKH in
-            case (dec_high ⟨key_high, input⟩) with
+            case (encPSK ^. dec) ⟨encPSK ^. key, input⟩ with
             | inl key_low' =>
                 corr_case lKL in
                 (key_store := (ı2 key_low' : unit + (corr (lKL)? Public : aKX))) ;
@@ -181,7 +166,7 @@ set_option maxRecDepth 20000
             | inl _ => ⟨"10", "err"⟩
             | inr k =>
               corr_case lKL in
-              case (dec_low ⟨k, input⟩) with
+              case (encKX ^. dec) ⟨k, input⟩ with
               | inl _ =>
                 ⟨"10", "0"⟩
               | inr _ =>
