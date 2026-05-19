@@ -123,7 +123,7 @@ set_option maxRecDepth 20000
       let B = (run_sm b) in
       λ (val : (Public * Public)) : Public =>
         let (det, msg) = val in
-        if (⟨"eq"⟩ (det, "0")) then
+        if ⟦eq⟧(det, "0") then
           A msg
         else
           B msg
@@ -134,10 +134,10 @@ set_option maxRecDepth 20000
         ⟨"0",
           (λ (args : (Public * Public)) : (Public * Public) =>
             let (state, input) = args in
-            if (⟨"eq"⟩ (state, "0")) then
+            if ⟦eq⟧(state, "0") then
               let ciphertext1 = (corr_case lKH in (encPSK ^. enc) ⟨encPSK ^. key, encKX ^. key⟩) in
                 ⟨"1", ciphertext1⟩
-            else if (⟨"eq"⟩ (state, "1")) then
+            else if ⟦eq⟧(state, "1") then
               let ciphertext2 = (corr_case lKL in (encKX ^. enc) ⟨encKX ^. key, msg⟩) in
                     ⟨"10", ciphertext2⟩
             else
@@ -145,8 +145,8 @@ set_option maxRecDepth 20000
         ⟩)
 
   def bob_sm : $ StateMachine [] [] [] :=
-    let key_store : Ref (unit + (corr (lKL)? Public : aKX)) = alloc (
-      let v : unit + (corr (lKL)? Public : aKX) = ı1 () in
+    let key_store : Ref (unit + (if corr (lKL) then Public else aKX)) = alloc (
+      let v : unit + (if corr (lKL) then Public else aKX) = ı1 () in
       v
       )
     in
@@ -154,16 +154,16 @@ set_option maxRecDepth 20000
       ⟨"0",
         (λ (args : (Public * Public)) : (Public * Public) =>
           let (state, input) = args in
-          if (⟨"eq"⟩ (state, "0")) then
+          if ⟦eq⟧(state, "0") then
             corr_case lKH in
             case (encPSK ^. dec) ⟨encPSK ^. key, input⟩ with
             | inl key_low' =>
                 corr_case lKL in
-                (key_store := (ı2 key_low' : unit + (corr (lKL)? Public : aKX))) ;
+                (key_store := (ı2 key_low' : unit + (if corr (lKL) then Public else aKX))) ;
                 ⟨"1", "0"⟩
             | inr _fail =>
                 ⟨"10", "1"⟩
-          else if (⟨"eq"⟩ (state, "1")) then
+          else if ⟦eq⟧(state, "1") then
             let stored_key = (!key_store) in
             case stored_key with
             | inl _ => ⟨"10", "err"⟩

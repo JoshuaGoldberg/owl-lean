@@ -281,7 +281,7 @@ syntax "∃" ident "<:" owl_type "." owl_type : owl_type
 syntax "∀" ident owl_cond_sym owl_label "." owl_type : owl_type
 syntax "∃" ident "." owl_type : owl_type
 syntax "∀" ident "." owl_type : owl_type
-syntax "corr" "(" owl_label ")" "?" owl_type ":" owl_type : owl_type
+syntax "if" "corr" owl_label "then" owl_type "else" owl_type : owl_type
 syntax "Public" : owl_type
 syntax "$" term:max "[" owl_label,* "]" "[" owl_rexp,* "]" "[" owl_type,* "]" : owl_type
 syntax owl_type "{" owl_prop "}" : owl_type
@@ -369,7 +369,7 @@ partial def elabType (stx : Syntax) (P : TCtx) (Rs : TCtx) (D : TCtx) :
     let l ← elabLabel l P
     let t ← elabType t (id.getId.toString :: P) Rs D
     return .all_l c l t
-  | `(owl_type| corr ( $c:owl_label ) ? $t1:owl_type : $t2:owl_type) => do
+  | `(owl_type| if corr $c:owl_label then $t1:owl_type else $t2:owl_type) => do
     let t1 ← elabType t1 P Rs D
     let t2 ← elabType t2 P Rs D
     let c ← elabLabel c P

@@ -8,8 +8,8 @@ open Owl
 #ty SIG_inner [lK] [] [tau, sk, pk]  :=
   { pk : pk,
     sk : sk,
-    sign : corr (lK) ? (Public * Public) -> Public : (sk * tau) -> Public,
-    vfy : corr (lK) ? (Public * Public * Public) -> Public : (pk * Public * Public) -> (tau + unit)
+    sign : if corr (lK) then (Public * Public) -> Public else (sk * tau) -> Public,
+    vfy : if corr (lK) then (Public * Public * Public) -> Public else (pk * Public * Public) -> (tau + unit)
   }
 
 #ty SIG [lK] [] [tau] :=

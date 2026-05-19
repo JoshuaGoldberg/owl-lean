@@ -3,8 +3,8 @@ import OwlLean.CryptoPrims.Utils
 
 #ty ENC_inner [lK, lM] [] [tau, alphaK] :=
    { key : alphaK,
-     enc : corr (lK) ? (Public * Public) -> Public : (alphaK * tau) -> Public,
-     dec : corr (lK) ? (Public * Public) -> (Public + unit) : (alphaK * Public) -> (tau + unit)
+     enc : if corr (lK) then (Public * Public) -> Public else (alphaK * tau) -> Public,
+     dec : if corr (lK) then (Public * Public) -> (Public + unit) else (alphaK * Public) -> (tau + unit)
      }
 
 #ty ENC [lK, lM] [] [tau] :=
@@ -30,7 +30,7 @@ import OwlLean.CryptoPrims.Utils
                     c
                     ))
     in
-    let dec' : corr (lK) ? (Public * Public) -> (Public + unit) : (Data lK * Public) -> (tau + unit) = (corr_case lK in
+    let dec' : if corr (lK) then (Public * Public) -> (Public + unit) else (Data lK * Public) -> (tau + unit) = (corr_case lK in
                (if corr (lK) then λ (x : (Public * Public)) : Public + unit =>
                    let decResult = ⟦dec⟧(π1 x, π2 x) in
                    if ⟦isError⟧(decResult) then ı2 () else ı1 ⟦extractMsg⟧(decResult)
@@ -50,8 +50,8 @@ import OwlLean.CryptoPrims.Utils
 #ty ENC' [lK, lM] [] [tau] :=
     (∃ v. {
         key : RData lK [v],
-        enc : corr (lK) ? (Public * Public) -> Public : (RData lK [v] * tau) -> Public,
-        dec : corr (lK) ? (Public * Public) -> (Public + unit) : (RData lK [v] * Public) -> (tau + unit)
+        enc : if corr (lK) then (Public * Public) -> Public else (RData lK [v] * tau) -> Public,
+        dec : if corr (lK) then (Public * Public) -> (Public + unit) else (RData lK [v] * Public) -> (tau + unit)
       })
 
 /-
@@ -83,7 +83,7 @@ import OwlLean.CryptoPrims.Utils
                     set_map tau L c (π2 x);
                     c))
     in
-    let dec' : corr (lK) ? (Public * Public) -> (Public + unit) : (RData lK [⟦genKey⟧(rnd)] * Public) -> (tau + unit) = (corr_case lK in
+    let dec' : if corr (lK) then (Public * Public) -> (Public + unit) else (RData lK [⟦genKey⟧(rnd)] * Public) -> (tau + unit) = (corr_case lK in
                (if corr (lK) then λ (x : (Public * Public)) : Public + unit =>
                    let decResult = ⟦dec⟧(π1 x, π2 x) in
                    if ⟦isError⟧(decResult) then ı2 () else ı1 ⟦extractMsg⟧(decResult)
@@ -105,8 +105,8 @@ import OwlLean.CryptoPrims.Utils
 #ty ENC_MULTI [lK, lM] [] [tau] :=
     (∃ alphaK <: (Data lK) . {
       genKey : (unit -> alphaK),
-      enc : corr (lK) ? (Public * Public) -> Public : (alphaK * tau) -> Public,
-      dec : corr (lK) ? (Public * Public) -> (Public + unit) : (alphaK * Public) -> (tau + unit)
+      enc : if corr (lK) then (Public * Public) -> Public else (alphaK * tau) -> Public,
+      dec : if corr (lK) then (Public * Public) -> (Public + unit) else (alphaK * Public) -> (tau + unit)
     })
 
 -- ENC_MULTI can be filled in similar to ENC_IDEAL by keeping track of the list of keys in scope.
