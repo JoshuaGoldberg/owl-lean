@@ -749,13 +749,13 @@ def from_synth {s : Scope} (t : ty (s.restrict _)) (exp : Option (ty (s.restrict
 -- If successful, it will return the synthesized type, and a proof that the input term has that type
 
 /-- Labels inside `ty (s.restrict 3)` use `label ((s.restrict 3).restrict 1)`. -/
-private def ty.getLabel {s : Scope} (t : ty (s.restrict 3)) :
+private def ty.getLabel {s : Scope} (op : String) (t : ty (s.restrict 3)) :
     CheckT' s (label ((s.restrict 3).restrict 1)) :=
   match t with
   | .Public => pure (.latl LabelTm.bot)
   | .RData l _ => pure l
   | .Data l => pure l
-  | _ => throw' "infer_op: argument must be of type Data / RData / Public"
+  | _ => throw' s!"Error when checking builtin {op}: argument must be of type Data / RData / Public. Got {t.pretty}"
 
 -- May have to return an arbitrary rexp if the type is not an RData
 def ty.getRexp {s : Scope} (t : ty (s.restrict 3)) :
@@ -765,7 +765,7 @@ def ty.getRexp {s : Scope} (t : ty (s.restrict 3)) :
   | .Data _ | .Public => do
       let i <- freshName
       pure (.fvar i)
-  | _ => throw' "infer_op: argument must be a bitstring"
+  | _ => throw' s!"Error when obtaining rexp: argument must be of type RData / Data / Public. Got {t.pretty}"
 
 -- TODO: finish here.
 -- I have moved unop/binop to just "op" with a list.
@@ -773,7 +773,7 @@ def ty.getRexp {s : Scope} (t : ty (s.restrict 3)) :
 
 def infer_op {s : Scope} (op : String) (ts : List (ty (s.restrict _))) : CheckT' s (ty (s.restrict _)) := do
   let lbl_rexps <- ts.mapM fun t => do
-    let l <- t.getLabel
+    let l <- t.getLabel op
     let r <- t.getRexp
     pure (l, r)
   let lbl := (lbl_rexps.map (·.1)).foldl label.ljoin (.latl LabelTm.bot)

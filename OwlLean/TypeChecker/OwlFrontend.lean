@@ -86,31 +86,50 @@ instance : OfNat (Fin ([A, B, C, D].length)) 3 where
 declare_syntax_cat label_entry
 
 syntax ident owl_cond_sym owl_label : label_entry
+syntax "corr" "(" owl_label ")" : label_entry
+syntax "¬" "corr" "(" owl_label ")" : label_entry
 
 syntax ident : label_entry
 
-def elabLabelEntry (stx : TSyntax `label_entry) (L : TCtx) : TermElabM (String × cond_sym × label (ScopeMap.ofList [L.length])) :=
+inductive label_entry_result (s : ScopeMap 1) where
+  | new_label : String -> cond_sym -> label s -> label_entry_result s
+  | corruption : corruption s -> label_entry_result s
+
+def elabLabelEntry (stx : TSyntax `label_entry) (L : TCtx) : TermElabM (label_entry_result (ScopeMap.ofList [L.length])) :=
   match stx with
   | `(label_entry | $n:ident) => do
        let cs := cond_sym.geq
        let l := label.latl Owl.LabelTm.bot
-       return (n.getId.toString, cs, l)
+       return .new_label (n.getId.toString) cs l
   | `(label_entry | $n:ident $cs:owl_cond_sym $lbl:owl_label ) => do
       let cs <- elabCondSym cs
       let l <- elabLabel lbl L
-      return (n.getId.toString, cs, l)
+      return .new_label (n.getId.toString) cs l
+  | `(label_entry | corr ($lbl:owl_label)) => do
+      let l <- elabLabel lbl L
+      return .corruption (.corr l)
+  | `(label_entry | ¬ corr ($lbl:owl_label)) => do
+      let l <- elabLabel lbl L
+      return .corruption (.not_corr l)
   | _ => throwUnsupportedSyntax
 
-def elabLabelEntries (stx : List (TSyntax `label_entry)) (L : TCtx) (ctx : lbl_ctx (ScopeMap.ofList [L.length])): TermElabM ((L' : TCtx) × lbl_ctx (ScopeMap.ofList [L'.length])) :=
+
+
+def elabLabelEntries (stx : List (TSyntax `label_entry)) (L : TCtx) (ctx : lbl_ctx (ScopeMap.ofList [L.length])) (corrs : corr_ctx (ScopeMap.ofList [L.length])): TermElabM ((L' : TCtx) × lbl_ctx (ScopeMap.ofList [L'.length]) × corr_ctx (ScopeMap.ofList [L'.length])) :=
   match stx with
-  | [] => return ⟨L, ctx⟩
+  | [] => return ⟨L, ctx, corrs⟩
   | e :: es => do
-    let (n, cs, l) <- elabLabelEntry e L
-    let l' : label ((ScopeMap.ofList [L.length + 1])) := l.rename (((ScopeMap.ofList [L.length]).lift #L))
-    let L' := n :: L
-    let ctx' : lbl_ctx (ScopeMap.ofList [L'.length]) :=
-       Vec.vec.cons (n, (cs, l')) (ctx.map fun _ (n, (c, l)) => (n, (c, l.rename (((ScopeMap.ofList [L.length]).lift #L)))))
-    elabLabelEntries es L' ctx'
+    match ← elabLabelEntry e L with
+    | .new_label n cs l => do
+      let l' : label ((ScopeMap.ofList [L.length + 1])) := l.rename (((ScopeMap.ofList [L.length]).lift #L))
+      let L' := n :: L
+      let ctx' : lbl_ctx (ScopeMap.ofList [L'.length]) :=
+        Vec.vec.cons (n, (cs, l')) (ctx.map fun _ (n, (c, l)) => (n, (c, l.rename (((ScopeMap.ofList [L.length]).lift #L)))))
+      let corrs' : corr_ctx (ScopeMap.ofList [L'.length]) :=
+        corrs.map fun c => c.rename (((ScopeMap.ofList [L.length]).lift #L))
+      elabLabelEntries es L' ctx' corrs'
+    | .corruption c => do
+      elabLabelEntries es L ctx (c :: corrs)
 
 
 def elabRvarEntries (stx : List (TSyntax `ident)) (L : TCtx) (R : TCtx) : TermElabM (TCtx) :=
@@ -178,7 +197,7 @@ def elabTcAnn (stx : TSyntax `owl_tc_ann) (L R D : TCtx) : TermElabM (Option (ty
 elab "#tc" n:ident "[" lvars:(label_entry),* "]" "[" rvars:ident,* "]" "[" tvars:ty_var_entry,* "]" "[" tms:tm_entry,* "]" ":=" "⊢" "{" e:owl_tm "}" ":" t:owl_tc_ann : command => do
   Command.liftTermElabM $ withEnableInfoTree false do
     let lvars := lvars.getElems.toList
-    let ⟨L, Lctx⟩ <- elabLabelEntries lvars [] .nil
+    let ⟨L, Lctx, corrs⟩ <- elabLabelEntries lvars [] .nil []
     let rvars := rvars.getElems.toList
     let R <- elabRvarEntries rvars L []
     let tvars := tvars.getElems.toList
@@ -192,7 +211,7 @@ elab "#tc" n:ident "[" lvars:(label_entry),* "]" "[" rvars:ident,* "]" "[" tvars
       d := D.length
       m := M.length
       Phi := Lctx
-      Psi := .nil
+      Psi := corrs
       ref_vars := Vec.vec.ofList R
       Delta := Dctx
       Theta := .nil

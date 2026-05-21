@@ -3,6 +3,64 @@ import OwlLean.OwlLang.Owl
 import OwlLean.CryptoPrims.Utils
 
 
+/-
+equiv(ind_cca2(enc))
+  k <-R keyseed; (
+    Opk() := return(pkgen(k)) |
+    foreach i2 <= N2 do Odec(c:ciphertext) :=
+      return(dec(c, skgen(k))) |
+    foreach i <= N do r <-R enc_seed;
+      Oenc(m:cleartext) := return(enc(m, pkgen(k),r)))
+<=(N * Penc(time + (N-1) * time(enc, maxlength(m)), N2))=>
+  k <-R keyseed; (
+   Opk() := return(pkgen(k)) |
+   foreach i2 <= N2 do Odec(c:ciphertext) :=
+     get cipher(m1, =c) in return(injbot(m1))
+     else return(dec(c, skgen(k))) |
+   foreach i <= N do r <-R enc_seed;
+     Oenc(m:cleartext) :=
+       c1 <- enc(Z(m), pkgen(k), r);
+       insert cipher(m, c1); return(c1)).
+
+
+--------
+
+tau <: Data lM |- 
+
+let sk = gen(sample) in
+let pk = pk(sk) in
+
+let enc = fun (m : tau) => let r = sample ... in ⟦pkenc⟧(pk, m, r)
+let dec = fun (c : Data ⊥) => ⟦dec⟧(sk, c)
+
+(pk, enc, dec)
+
+~=
+
+let sk = gen(sample) in 
+let pk = pk(sk) in
+let T := fresh_map tau in 
+
+let enc = fun (m : tau) => 
+  let rnd = .. in 
+  let c = enc(pk, zero m, rnd) in 
+  T[c] := m;
+  c
+
+let dec = fun (m : tau) => 
+  match T[c] with 
+  | some v => some v
+  | none => 
+    let decResult = ⟦dec⟧(sk, c) in 
+    if decResult then 
+      some (⟦getDec⟧(decResult))
+    else none
+
+(sk, pk, enc, dec)
+
+-/
+
+
 #ty PKE_inner [lK, lM] [] [tau, sk, pk] := {
   sk : sk,
   pk : pk,
