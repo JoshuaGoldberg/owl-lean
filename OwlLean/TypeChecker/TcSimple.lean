@@ -1039,8 +1039,8 @@ partial def inferX (e : tmX s) (exp : Option (ty (s.restrict _))) : CheckT' s (t
     from_synth r exp
   | .if_c lab e1 e2 => do
     let env ← read
-    let t1 ← withCorruption (.corr lab) (infer e1 none)
-    let t2 ← withCorruption (.not_corr lab) (infer e2 none)
+    let t1 ← withCorruption (.corr lab) (infer e1 exp)
+    let t2 ← withCorruption (.not_corr lab) (infer e2 exp)
     from_synth (.t_if lab.cast t1 t2) exp
   | .corr_case lab e => do
     match ← check_corrupt lab with

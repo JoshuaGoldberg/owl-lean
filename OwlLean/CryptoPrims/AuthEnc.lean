@@ -30,45 +30,37 @@ import OwlLean.CryptoPrims.Utils
                 let (a, b) = x in
                 let enc_rnd = sample (⟦enc_rand_bits⟧(secparam)) in
                 ⟦enc⟧ (a, (b : Data lM), enc_rnd),
-        dec := λ (x : (Data lK * Public)) : (tau + unit) =>
+        dec := λ (x : (Data lK * Public)) : (Public + unit) =>
                 let decResult = ⟦dec⟧(π1 x, π2 x) in
                 if ⟦isError⟧(decResult) then ı2 () else ı1 ⟦extractMsg⟧(decResult)
       })
 } : $ ENC [lK, lM] [] [tau]
 
 #tc ENC_IDEAL [lK ⊒ ⊥, lM ⊏ lK] [] [tau <: Data lM] [] :=  ⊢ {
-    let rnd = sample secparam in
-    let k : Data lK  = ⟦genKey⟧ (rnd) in
-    let L = mk_map tau in
-    -- let L = $ NewMap [] [] [tau] [] in
-    type Key = Data lK in
-    let enc' = (corr_case lK in
-                (if corr ( lK )
-                  then (λ (x : (Public * Public)) : Public =>
-                    let (a, b) = x in
-                    let enc_rnd = sample (⟦enc_rand_bits⟧(secparam)) in
-                    ⟦enc⟧ (a, b, enc_rnd))
-                  else
-                    λ (x : (Data lK * tau )) : Public =>
-                    let c = sample (zero ((π2 x) : Data lM)) in
-                    set_map tau L c (π2 x);
-                    c
-                    ))
-    in
-    let dec' : if corr (lK) then (Public * Public) -> (Public + unit) else (Data lK * Public) -> (tau + unit) = (corr_case lK in
-               (if corr (lK) then λ (x : (Public * Public)) : Public + unit =>
-                   let decResult = ⟦dec⟧(π1 x, π2 x) in
-                   if ⟦isError⟧(decResult) then ı2 () else ı1 ⟦extractMsg⟧(decResult)
-                else λ (x : (Data lK * Public)) : (tau + unit) => get_map tau L (π2 x)))
-    in
-    pack (Key,
-      { key := k,
-        enc := enc',
-        dec := dec'
-      })
-  }
-    :
-    $ ENC [lK, lM] [] [tau]
+    if corr (lK) then
+      $ ENC_REAL [lK, lM] [] [tau] []
+    else
+      let rnd = sample secparam in
+      let k : Data lK  = ⟦genKey⟧ (rnd) in
+      let L = mk_map tau in
+      type Key = Data lK in
+      let enc' =
+                      λ (x : (Data lK * tau )) : Public =>
+                      let c = sample (zero ((π2 x) : Data lM)) in
+                      set_map tau L c (π2 x);
+                      c
+
+      in
+      let dec' =  λ (x : (Data lK * Public)) : (tau + unit) => get_map tau L (π2 x)
+      in
+      pack (Key,
+        { key := k,
+          enc := enc',
+          dec := dec'
+        })
+    }
+      :
+      $ ENC [lK, lM] [] [tau]
 
 --- Alternate version with refinement variables ---
 
