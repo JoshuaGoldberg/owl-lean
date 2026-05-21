@@ -25,7 +25,7 @@ equiv(ind_cca2(enc))
 
 --------
 
-tau <: Data lM |- 
+tau <: Data lM |-
 
 let sk = gen(sample) in
 let pk = pk(sk) in
@@ -37,22 +37,22 @@ let dec = fun (c : Data ⊥) => ⟦dec⟧(sk, c)
 
 ~=
 
-let sk = gen(sample) in 
+let sk = gen(sample) in
 let pk = pk(sk) in
-let T := fresh_map tau in 
+let T := fresh_map tau in
 
-let enc = fun (m : tau) => 
-  let rnd = .. in 
-  let c = enc(pk, zero m, rnd) in 
+let enc = fun (m : tau) =>
+  let rnd = .. in
+  let c = enc(pk, zero m, rnd) in
   T[c] := m;
   c
 
-let dec = fun (m : tau) => 
-  match T[c] with 
+let dec = fun (m : tau) =>
+  match T[c] with
   | some v => some v
-  | none => 
-    let decResult = ⟦dec⟧(sk, c) in 
-    if decResult then 
+  | none =>
+    let decResult = ⟦dec⟧(sk, c) in
+    if decResult then
       some (⟦getDec⟧(decResult))
     else none
 
@@ -75,11 +75,12 @@ let dec = fun (m : tau) =>
     ∃ pk <: Public.
       ($ PKE_inner [lK, lM] [] [tau, sk, pk])
 
+
 #tc PKE_IDEAL [lK ⊒ ⊥, lM ⊏ lK] [] [tau <: Data lM] [] := ⊢ {
-  let sk = (⟦genSK⟧((secparam : Data lK))) in
+  let sk = (⟦genSK⟧((secparam : Data ⊥))) in
   get_val sk = sk in
-  type SK = RData lK [sk] in
-  let pk = (⟦genPK⟧((secparam : Data ⊥))) in
+  type SK = RData ⊥ [sk] in
+  let pk = (⟦pk⟧(sk)) in
   get_val pk = pk in
   type PK = RData ⊥ [pk] in
 
@@ -102,13 +103,17 @@ let dec = fun (m : tau) =>
     if corr (lK) then
       λ (x : (Public * Public)) : (Public + unit) =>
         let (a, b) = x in
-        ⟦dec⟧(a, b)
+        let decResult = ⟦dec⟧(a, b) in
+        if ⟦isError⟧(decResult) then ı2 () else ı1 ⟦extractMsg⟧(decResult)
     else
       λ (x : (SK * Public)) : ((tau ∪ Public) + unit) =>
         let o = get_map tau L (π2 x) in
         case o with
-        | inl v => admit
-        | inr _ => admit
+        | inl v => ı1 v
+        | inr _ =>
+          let (a, b) = x in
+          let decResult = ⟦dec⟧(a, b) in
+          if ⟦isError⟧(decResult) then ı2 () else ı1 ⟦extractMsg⟧(decResult)
   in
 
   pack (SK,

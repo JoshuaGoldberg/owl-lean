@@ -848,7 +848,8 @@ partial def inferX (e : tmX s) (exp : Option (ty (s.restrict _))) : CheckT' s (t
         pure $ res.subst (ScopeMap.Subst.down r)
   | .op op es => do
     let ts <- es.toList.mapM (fun x => infer x.2 none)
-    infer_op op ts
+    let res <- infer_op op ts
+    from_synth res exp
   | .zero e => do
     let t ← infer e none
     match t with
@@ -864,14 +865,14 @@ partial def inferX (e : tmX s) (exp : Option (ty (s.restrict _))) : CheckT' s (t
     let t1 ← infer e1 .none
     let (theta', t1') ← extract_refinements t1
     let res <- withTmVar x t1' $ withHypsAppend (theta'.cast (by simp [ScopeMap.bump_restrict]; grind)) (infer e2 (exp.map fun t => t.cast (by simp [ScopeMap.bump_restrict]; grind)))
-    pure $ res.cast (by simp [ScopeMap.bump_restrict]; grind)
+    from_synth (res.cast (by simp [ScopeMap.bump_restrict]; grind)) exp
   | .union_elim x e1 e2 => do
     let t1 ← infer e1 .none
     match t1 with
     | .union t11 t12 => do
       let res1 ← withTmVar x t11 (infer e2 (exp.map fun t => t.cast (by simp [ScopeMap.bump_restrict]; grind)))
       let res2 ← withTmVar x t12 (infer e2 (exp.map fun t => t.cast (by simp [ScopeMap.bump_restrict]; grind)))
-      if res1 == res2 then pure (res1.cast (by simp [ScopeMap.bump_restrict]; grind))
+      if res1 == res2 then from_synth (res1.cast (by simp [ScopeMap.bump_restrict]; grind)) exp
       else throw' "union_elim: must get same type on both sides"
     | _ => do
         let res <- withTmVar x t1 (infer e2 (exp.map fun t => t.cast (by simp [ScopeMap.bump_restrict]; grind)))
