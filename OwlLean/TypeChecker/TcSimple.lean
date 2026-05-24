@@ -249,12 +249,12 @@ def Env.addRef {s : ScopeMap 4} (nm : String) (env : Env s) : Env (s.bump #R) :=
     }
 
 
-def withLabelVar [Monad m] (cs : cond_sym) (n : String) (lab : label (s.restrict _)) (body : ReaderT (Env (s.bump #L)) m α) : ReaderT (Env s) m α :=
+def withLabelVar [Monad m] (cs : cond_sym) (n : String) (lab : label (s.restrict _)) (ty : lbl_type) (body : ReaderT (Env (s.bump #L)) m α) : ReaderT (Env s) m α :=
   fun env =>
     body {
    env with
-      lbl := (vec.castCons (n, (cs, lab.rename ((s.lift #L).restrict _)))
-                           (env.lbl.map fun _ (n, (c, l)) => (n, (c, l.rename ((s.lift #L).restrict (by simp)))))
+      lbl := (vec.castCons (n, (cs, lab.rename ((s.lift #L).restrict _), ty))
+                           (env.lbl.map fun _ (n, (c, l, ty)) => (n, (c, l.rename ((s.lift #L).restrict (by simp)), ty)))
                            (by simp))
       corrs := env.corrs.map fun c => c.rename ((s.lift #L).restrict (by simp))
       ty_vars := (env.ty_vars.map fun _ (n, t) => (n, t.rename ((s.lift #L).restrict _))).castLength (by simp),
@@ -712,9 +712,9 @@ partial def check_subtype'  {s : Scope} (t1 t2 : ty (s.restrict _)) : CheckT' s 
         unless cs = _cs' do throw' s!"check_subtype': cs and cs' are not equal"
         let env ← read
         let extPhi : lbl_ctx ((s.bump #L).restrict 1) :=
-            (vec.cons ("_", cs, lab.rename (((s.lift #L).restrict _).restrict _))
-                      (env.lbl.map fun _ (n, (sc, l)) =>
-                             (n, (sc, l.rename (by rw [ScopeMap.restrict_restrict]; exact ((s.lift #L).restrict _)))))).cast
+            (vec.cons ("_", cs, lab.rename (((s.lift #L).restrict _).restrict _), .QuantLbl)
+                      (env.lbl.map fun _ (n, (sc, l, ty )) =>
+                             (n, (sc, l.rename (by rw [ScopeMap.restrict_restrict]; exact ((s.lift #L).restrict _)), ty)))).cast
                (by simp)
                (by simp)
         let constraint : constr ((s.bump #L).restrict 1) := (.condition cs (.var_label "_" (by simp [ScopeMap.get]; exact 0))
@@ -722,7 +722,7 @@ partial def check_subtype'  {s : Scope} (t1 t2 : ty (s.restrict _)) : CheckT' s 
         let r1 : SideCondition ((s.bump #L).restrict 2) :=
           SideCondition.LblEntails (extPhi.cast)
                                  (constraint.cast (by simp [ScopeMap.bump_restrict]))
-        let r2 ← withLabelVar cs "_" (lab.cast) (check_subtype' (t.cast (by simp [ScopeMap.bump_restrict])) (t'.cast (by simp [ScopeMap.bump_restrict])))
+        let r2 ← withLabelVar cs "_" (lab.cast) .QuantLbl (check_subtype' (t.cast (by simp [ScopeMap.bump_restrict])) (t'.cast (by simp [ScopeMap.bump_restrict])))
         pure (.WithLabel cs (lab.cast) ((r1.ScAnd r2).cast (by simp [ScopeMap.bump_restrict])))
       | _, _ => do
         let env ← read
@@ -750,6 +750,26 @@ def from_synth {s : Scope} (t : ty (s.restrict _)) (exp : Option (ty (s.restrict
 
 -/
 
+def lbl_type.join (t1 t2 : lbl_type) : lbl_type :=
+  match t1, t2 with
+  | .MetaLbl, _ => t2
+  | _, .MetaLbl => t1
+  | .QuantLbl, .QuantLbl => .QuantLbl
+
+def label.inferTy {s : Scope} (l : label (s.restrict _)) : CheckT' s lbl_type := do
+  match l with
+  | .latl _ => pure .MetaLbl
+  | .var_label _ x => do
+    let (_, _, _, ty) := (<- read).lbl.get x
+    pure ty
+  | .ljoin l1 l2 => do
+    let r1 ← label.inferTy l1
+    let r2 ← label.inferTy l2
+    pure (r1.join r2)
+  | .lmeet l1 l2 => do
+    let r1 ← label.inferTy l1
+    let r2 ← label.inferTy l2
+    pure (r1.join r2)
 
 -- Infer performs the dual roles of synthesis and checking
 -- This is controlled via the the "exp" argument
@@ -1020,10 +1040,12 @@ partial def inferX (e : tmX s) (exp : Option (ty (s.restrict _))) : CheckT' s (t
     | .some exp_ty =>
       match exp_ty with
       | .all_l cs lab t_body => do
-        let _ ← withLabelVar cs nm lab.cast (infer e (.some $ t_body.cast (by simp [ScopeMap.bump_restrict])))
+        let _ ← withLabelVar cs nm lab.cast .QuantLbl (infer e (.some $ t_body.cast (by simp [ScopeMap.bump_restrict])))
         pure exp_ty
       | _ => throw' "l_lam"
-  | .lapp e lab' =>
+  | .lapp e lab' => do
+    let t ← label.inferTy lab'
+    unless t = .MetaLbl do throw' s!"lapp: label {lab'} cannot arise from a quantifier"
     match exp with
     | .none => do
       let env ← read
@@ -1074,7 +1096,7 @@ def checkDecl (decl : Decl s1 s2) (k : CheckT' s2 α) : CheckT' s1 α := do
      let t <- ReaderT.adapt (fun e => {e with defName := name}) $ infer tm ot
      withTmVar name.toString t k
   | .DeclTmAssume name t => withTmVar name.toString t k
-  | .DeclLabel name cs lab => withLabelVar cs name.toString lab k
+  | .DeclLabel name cs lab => withLabelVar cs name.toString lab .MetaLbl k
   | .DeclApp d1 d2 => do
     checkDecl d1 (checkDecl d2 k)
 

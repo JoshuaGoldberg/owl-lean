@@ -124,7 +124,7 @@ def elabLabelEntries (stx : List (TSyntax `label_entry)) (L : TCtx) (ctx : lbl_c
       let l' : label ((ScopeMap.ofList [L.length + 1])) := l.rename (((ScopeMap.ofList [L.length]).lift #L))
       let L' := n :: L
       let ctx' : lbl_ctx (ScopeMap.ofList [L'.length]) :=
-        Vec.vec.cons (n, (cs, l')) (ctx.map fun _ (n, (c, l)) => (n, (c, l.rename (((ScopeMap.ofList [L.length]).lift #L)))))
+        Vec.vec.cons (n, (cs, l', .MetaLbl)) (ctx.map fun _ (n, (c, l, ty)) => (n, (c, l.rename (((ScopeMap.ofList [L.length]).lift #L)), ty)))
       let corrs' : corr_ctx (ScopeMap.ofList [L'.length]) :=
         corrs.map fun c => c.rename (((ScopeMap.ofList [L.length]).lift #L))
       elabLabelEntries es L' ctx' corrs'
