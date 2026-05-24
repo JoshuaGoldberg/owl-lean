@@ -74,6 +74,7 @@ syntax owl_label "⊓" owl_label : owl_label
 syntax "$" term:max "[" owl_label,* "]" : owl_label
 syntax "$" term:max : owl_label
 syntax "(" owl_label ")" : owl_label
+syntax "⌈" term:max "⌉" : owl_label
 
 partial def elabVar : Syntax → String
   | `(owl_var| $id:ident) => id.getId.toString
@@ -116,8 +117,10 @@ partial def elabLabel (stx : Syntax) (P : TCtx) : TermElabM (label (ScopeMap.ofL
   match stx with
   | `(owl_label| ( $e:owl_label)) => elabLabel e P
   | `(owl_label| ⟨ $t:term ⟩ ) => do
+      println! "Got here"
       let tEx ← Term.elabTerm t (mkConst ``Owl.LabelTm)
       let tTy ← instantiateMVars (← inferType tEx)
+      println! "Got here 2"
       let tVal ← unsafe Meta.evalExpr (α := Owl.LabelTm) tTy tEx
       return .latl tVal
   | `(owl_label| $e1:owl_label ⊔ $e2:owl_label) => do
@@ -161,6 +164,11 @@ partial def elabLabel (stx : Syntax) (P : TCtx) : TermElabM (label (ScopeMap.ofL
         logErrorAt l s!"embedlabel: empty arg list but embedded label is not arity 0"
         throwError s!"Error while checking label"
   | `(owl_label| ⊥) => return .latl Owl.LabelTm.bot
+  | `(owl_label| ⌈ $t:term ⌉) => do
+      let tEx ← Term.elabTerm t (mkConst ``Owl.LabelTm)
+      let tTy ← instantiateMVars (← inferType tEx)
+      let tVal ← unsafe Meta.evalExpr (α := Owl.LabelTm) tTy tEx
+      return .latl tVal
   | _ => throwUnsupportedSyntax
 
 -- syntax for cond symbols

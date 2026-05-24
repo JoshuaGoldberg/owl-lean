@@ -681,10 +681,10 @@ def tmX.rename (t : tmX s) (ren : s.renaming s') : tmX s' :=
       .if_tm (s0.rename ren)
              (s1.rename ren) (s2.rename ren)
   | .if_c s0 s1 s2 =>
-      .if_c (s0.rename $ ren.restrict)
+      .if_c (s0.rename $ ren.restrict _)
             (s1.rename ren)
             (s2.rename ren)
-  | .corr_case lab e => .corr_case (lab.rename $ ren.restrict) (e.rename ren)
+  | .corr_case lab e => .corr_case (lab.rename $ ren.restrict _) (e.rename ren)
   | .annot e t => .annot (e.rename ren) (t.rename $ ren.restrict)
   | .mk_record l => .mk_record (l.rename ren)
 
@@ -909,8 +909,8 @@ mutual
    | .rpack re s0 => .rpack (re.subst $ sub.toRexpSubst) (s0.subst sub)
    | .unpack s0 nm1 nm2 s1 => .unpack (s0.subst sub) nm1 nm2 (s1.subst $ (sub.bump #Ty).bump #Tm)
    | .if_tm s0 s1 s2 => .if_tm (s0.subst sub) (s1.subst sub) (s2.subst sub)
-   | .if_c s0 s1 s2 => .if_c (s0.subst $ sub.toLabelSubst) (s1.subst sub) (s2.subst sub)
-   | .corr_case lab e => .corr_case (lab.subst $ sub.toLabelSubst) (e.subst sub)
+   | .if_c s0 s1 s2 => .if_c (s0.subst sub.toLabelSubst) (s1.subst sub) (s2.subst sub)
+   | .corr_case lab e => .corr_case (lab.subst sub.toLabelSubst) (e.subst sub)
    | .annot e t => .annot (e.subst sub) (t.subst $ sub.toSubst)
    | .mk_record l => .mk_record $ l.subst sub
 

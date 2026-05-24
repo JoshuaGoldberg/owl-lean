@@ -195,31 +195,32 @@ def elabTcAnn (stx : TSyntax `owl_tc_ann) (L R D : TCtx) : TermElabM (Option (ty
   | _ => throwUnsupportedSyntax
 
 elab "#tc" n:ident "[" lvars:(label_entry),* "]" "[" rvars:ident,* "]" "[" tvars:ty_var_entry,* "]" "[" tms:tm_entry,* "]" ":=" "⊢" "{" e:owl_tm "}" ":" t:owl_tc_ann : command => do
-  Command.liftTermElabM $ withEnableInfoTree false do
-    let lvars := lvars.getElems.toList
-    let ⟨L, Lctx, corrs⟩ <- elabLabelEntries lvars [] .nil []
-    let rvars := rvars.getElems.toList
-    let R <- elabRvarEntries rvars L []
-    let tvars := tvars.getElems.toList
-    let ⟨D, Dctx⟩ <- elabTyVarEntries tvars L R [] .nil
-    let ⟨M, Mctx⟩ <- elabTmEntries tms.getElems.toList L R D [] .nil
-    let tmE ← elabTm e L R D M
-    let tyE ← elabTcAnn t L R D
-    let seq : Sequent := {
-      l := L.length
-      r := R.length
-      d := D.length
-      m := M.length
-      Phi := Lctx
-      Psi := corrs
-      ref_vars := Vec.vec.ofList R
-      Delta := Dctx
-      Theta := .nil
-      Gamma := Mctx
-      e := tmE
-      t := tyE
-    }
-    doTc n seq
+  Command.runTermElabM $ fun xs =>
+    withEnableInfoTree false do
+      let lvars := lvars.getElems.toList
+      let ⟨L, Lctx, corrs⟩ <- elabLabelEntries lvars [] .nil []
+      let rvars := rvars.getElems.toList
+      let R <- elabRvarEntries rvars L []
+      let tvars := tvars.getElems.toList
+      let ⟨D, Dctx⟩ <- elabTyVarEntries tvars L R [] .nil
+      let ⟨M, Mctx⟩ <- elabTmEntries tms.getElems.toList L R D [] .nil
+      let tmE ← elabTm e L R D M
+      let tyE ← elabTcAnn t L R D
+      let seq : Sequent := {
+        l := L.length
+        r := R.length
+        d := D.length
+        m := M.length
+        Phi := Lctx
+        Psi := corrs
+        ref_vars := Vec.vec.ofList R
+        Delta := Dctx
+        Theta := .nil
+        Gamma := Mctx
+        e := tmE
+        t := tyE
+      }
+      doTc n seq
 
 
 elab "#tc" n:ident ":=" "⊢" "{" e:owl_tm "}" ":" t:owl_tc_ann : command => do
@@ -243,7 +244,7 @@ elab "#ty" n:ident ":=" t:owl_type : command => do
   Command.elabCommand (← `(#ty $n [] [] [] := $t))
 
 elab "#owl" "{" decls:owl_decl "}" : command => do
-  Command.liftTermElabM $ withEnableInfoTree false do
+  Command.runTermElabM $ fun xs => withEnableInfoTree false do
     let ⟨_, decls⟩ <- elabDecls decls
     doCheckDecls decls
 

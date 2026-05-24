@@ -55,6 +55,16 @@ theorem vec.get_set (v : vec a n) (i : Fin n) (x : a) :
       apply ih
 
 @[simp]
+theorem vec.get_init (x : a) (i : Fin n) :
+  (vec.init x).get i = x := by
+    induction n with
+    | zero => nomatch i
+    | succ n ih =>
+      cases i using Fin.cases
+      simp [init, get]
+      apply ih
+
+@[simp]
 theorem vec.get_set_ne (v : vec a n) (i j : Fin n) (x : a) (h : ¬ i = j) :
   (v.set i x).get j = v.get j := by
     induction v with
@@ -144,12 +154,13 @@ end Vec
 
 abbrev ScopeMap (N : Nat) := Vec.vec Nat N
 
-@[simp]
 abbrev ScopeMap.empty (N : Nat) : ScopeMap N :=
   Vec.vec.init 0
 
 abbrev ScopeMap.get (m : ScopeMap N) (x : Fin N) : Nat :=
   Vec.vec.get m x
+
+
 
 abbrev ScopeMap.bump (m : ScopeMap N) (x : Fin N) : ScopeMap N :=
   Vec.vec.set m x (m.get x + 1)
@@ -285,6 +296,10 @@ abbrev ScopeMap.renaming.restrict {m : ScopeMap N} (r : m.renaming m') {M : Nat}
       exact r.apply (Fin.castLE h x) i
   ⟩
 
+abbrev ScopeMap.renaming.empty {m : ScopeMap N} : (ScopeMap.empty N).renaming m :=
+ ⟨ fun x i => by
+   simp at i
+   nomatch i ⟩
 
 abbrev ScopeMap.lift  {m : ScopeMap N} (n : Fin N)  : ScopeMap.renaming m (ScopeMap.bump m n) :=
   ⟨ fun x i =>

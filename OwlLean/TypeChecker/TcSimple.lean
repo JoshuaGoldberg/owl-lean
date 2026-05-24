@@ -450,8 +450,19 @@ def doSimp (e : Expr) : TermElabM Expr := do
 
 end Proof
 
+noncomputable def foo := 3
 
 def emitDefinition (name : Name) (type : Expr) (value : Expr) : TermElabM Unit := do
+  let value ← instantiateMVars value
+  let type ← instantiateMVars type
+  let fvars := (collectFVars {} value).fvarIds.map mkFVar
+  let (type, value) ←
+    if fvars.isEmpty then
+      pure (type, value)
+    else do
+      let value ← mkLambdaFVars fvars value
+      let type ← inferType value
+      pure (type, value)
   let decl := Declaration.defnDecl {
     name        := name
     levelParams := []
@@ -1039,19 +1050,19 @@ partial def inferX (e : tmX s) (exp : Option (ty (s.restrict _))) : CheckT' s (t
     from_synth r exp
   | .if_c lab e1 e2 => do
     let env ← read
-    let t1 ← withCorruption (.corr lab) (infer e1 exp)
-    let t2 ← withCorruption (.not_corr lab) (infer e2 exp)
-    from_synth (.t_if lab.cast t1 t2) exp
+    let t1 ← withCorruption (.corr $ lab.cast) (infer e1 exp)
+    let t2 ← withCorruption (.not_corr $ lab.cast) (infer e2 exp)
+    from_synth (.t_if (lab.cast) t1 t2) exp
   | .corr_case lab e => do
-    match ← check_corrupt lab with
+    match ← check_corrupt (lab.cast) with
     | .none => do
       let env ← read
-      let t1 ← withCorruption (.corr lab) (infer e exp)
-      let t2 ← withCorruption (.not_corr lab) (infer e exp)
+      let t1 ← withCorruption (.corr $ lab.cast) (infer e exp)
+      let t2 ← withCorruption (.not_corr $ lab.cast) (infer e exp)
       match exp with
-      | .none => pure (.t_if lab.cast t1 t2)
+      | .none => pure (.t_if (lab.cast) t1 t2)
       | .some exp_ty => pure exp_ty
-    | .some b => withCorruption (if b then (.corr lab) else (.not_corr lab)) (infer e exp)
+    | .some b => withCorruption (if b then (.corr $ lab.cast) else (.not_corr $ lab.cast)) (infer e exp)
   | .loc _ => throw' "infer: unhandled case"
 end
 

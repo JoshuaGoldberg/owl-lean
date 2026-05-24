@@ -133,14 +133,14 @@ def negate_cond (co : constr s) : constr s :=
 @[simp]
 def valid_constraint (co : constr (ScopeMap.empty _)) : Prop :=
   match co with
-  | (.condition .leq x y) => LabelTm.leq (x.interp) (y.interp) = true
-  | (.condition .geq x y) => LabelTm.leq (y.interp) (x.interp) = true
-  | (.condition .gt x y) => LabelTm.leq (y.interp) (x.interp) = true /\ LabelTm.leq (x.interp) (y.interp) = false
-  | (.condition .lt x y) => LabelTm.leq (x.interp) (y.interp) = true /\ LabelTm.leq (y.interp) (x.interp) = false
-  | (.condition .nleq x y) => LabelTm.leq (y.interp) (x.interp) = false
-  | (.condition .ngeq x y) => LabelTm.leq (y.interp) (x.interp) = false
-  | (.condition .ngt x y) => LabelTm.leq (y.interp) (x.interp) = false \/ LabelTm.leq (x.interp) (y.interp) = true
-  | (.condition .nlt x y) => LabelTm.leq (x.interp) (y.interp) = false \/ LabelTm.leq (y.interp) (x.interp) = false
+  | (.condition .leq x y) => LabelTm.leq (x.interp) (y.interp)
+  | (.condition .geq x y) => LabelTm.leq (y.interp) (x.interp)
+  | (.condition .gt x y) => LabelTm.leq (y.interp) (x.interp) /\ ¬ LabelTm.leq (x.interp) (y.interp)
+  | (.condition .lt x y) => LabelTm.leq (x.interp) (y.interp) /\ ¬ LabelTm.leq (y.interp) (x.interp)
+  | (.condition .nleq x y) => ¬ LabelTm.leq (y.interp) (x.interp)
+  | (.condition .ngeq x y) => ¬ LabelTm.leq (y.interp) (x.interp)
+  | (.condition .ngt x y) => ¬ LabelTm.leq (y.interp) (x.interp) \/ LabelTm.leq (x.interp) (y.interp)
+  | (.condition .nlt x y) => ¬ LabelTm.leq (x.interp) (y.interp) \/ ¬ LabelTm.leq (y.interp) (x.interp)
 
 
 @[simp]

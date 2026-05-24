@@ -1,7 +1,6 @@
 import OwlLean.TypeChecker.OwlComplete
 import OwlLean.CryptoPrims.Utils
 
-
 /-
 
   let k = gen() in
@@ -23,18 +22,19 @@ import OwlLean.CryptoPrims.Utils
 
 #tc ENC_REAL [lK ⊒ ⊥, lM ⊏ lK, corr (lK)] [] [tau <: Data lM] [] :=  ⊢ {
     let rnd = sample secparam in
-    let k : Data lK  = ⟦genKey⟧ (rnd) in
-    pack (Data lK,
+    let k : Data lK   = ⟦genKey⟧ (rnd) in
+    pack (Data lK ,
       { key := k,
         enc := λ (x : (Data lK * tau)) : Public =>
                 let (a, b) = x in
                 let enc_rnd = sample (⟦enc_rand_bits⟧(secparam)) in
                 ⟦enc⟧ (a, (b : Data lM), enc_rnd),
-        dec := λ (x : (Data lK * Public)) : (Public + unit) =>
+        dec := λ (x : (Data lK  * Public)) : (Public + unit) =>
                 let decResult = ⟦dec⟧(π1 x, π2 x) in
                 if ⟦isError⟧(decResult) then ı2 () else ı1 ⟦extractMsg⟧(decResult)
       })
 } : $ ENC [lK, lM] [] [tau]
+
 
 #tc ENC_IDEAL [lK ⊒ ⊥, lM ⊏ lK] [] [tau <: Data lM] [] :=  ⊢ {
     if corr (lK) then
