@@ -1,5 +1,6 @@
 import OwlLean.OwlLang.Owl
 import OwlLean.OwlLang.ScopeMap
+import OwlLean.OwlLang.ToString
 import Lean
 
 open Owl
@@ -16,6 +17,26 @@ inductive lbl_type where
   | QuantLbl
   deriving Lean.ToExpr, BEq, Repr, DecidableEq
 abbrev lbl_ctx (s : ScopeMap 1) := vec (String × cond_sym × label s × lbl_type) (s.get #L)
+
+def lbl_type.pretty (t : lbl_type) : String :=
+  match t with
+  | .MetaLbl => "Meta"
+  | .QuantLbl => "Quant"
+
+instance : ToString lbl_type where
+  toString := lbl_type.pretty
+
+def lbl_ctx.pretty {s : ScopeMap 1} (ctx : lbl_ctx s) : String :=
+  let entries := ctx.toList.map fun (n, cs, l, ty) =>
+    match ty with
+    | .MetaLbl => s!"{n} {cs} {l.pretty}"
+    | .QuantLbl => s!"{n} {cs} {l.pretty} [Quant]"
+  match entries with
+  | [] => "·"
+  | es => "(" ++ String.intercalate ", " es ++ ")"
+
+instance {s : ScopeMap 1} : ToString (lbl_ctx s) where
+  toString := lbl_ctx.pretty
 
 def tm_ctx.bumpTy  (ctx : tm_ctx s) : tm_ctx (s.bump #Ty) :=
   let ctx' := ctx.map fun _ (n, t) => (n, t.rename ((s.lift #Ty).restrict (by simp)))

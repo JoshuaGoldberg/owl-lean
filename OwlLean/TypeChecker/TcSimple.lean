@@ -119,6 +119,14 @@ inductive Result ε α where
 
 abbrev prop_ctx s := List (prop s)
 
+def prop_ctx.pretty {s : ScopeMap 2} (ctx : prop_ctx s) : String :=
+  match ctx with
+  | [] => "·"
+  | ps => String.intercalate "; " (ps.map prop.pretty)
+
+instance {s : ScopeMap 2} : ToString (prop_ctx s) where
+  toString := prop_ctx.pretty
+
 def prop_ctx.cast {s t : ScopeMap 2} (h : s = t) (p : prop_ctx s) : prop_ctx t :=
   h ▸ p
 
@@ -452,9 +460,9 @@ end Proof
 
 noncomputable def foo := 3
 
-def emitDefinition (name : Name) (type : Expr) (value : Expr) : TermElabM Unit := do
+def emitDefinition (name : Name) (value : Expr) : TermElabM Unit := do
   let value ← instantiateMVars value
-  let type ← instantiateMVars type
+  let type ← inferType value
   let fvars := (collectFVars {} value).fvarIds.map mkFVar
   let (type, value) ←
     if fvars.isEmpty then
@@ -490,7 +498,7 @@ def emitDefinition (name : Name) (type : Expr) (value : Expr) : TermElabM Unit :
   let e <- CheckT'.liftTermElab $ Proof.doSimp e
   let b <- CheckT'.liftTermElab $ Proof.runGrind e
   if not b then
-     CheckT'.liftTermElab $ emitDefinition scName (mkSort 0) e
+     CheckT'.liftTermElab $ emitDefinition scName e
      throw' s!"{errmsg}! Emitting side condition to {scName}"
 
 
@@ -726,6 +734,9 @@ partial def check_subtype'  {s : Scope} (t1 t2 : ty (s.restrict _)) : CheckT' s 
         pure (.WithLabel cs (lab.cast) ((r1.ScAnd r2).cast (by simp [ScopeMap.bump_restrict])))
       | _, _ => do
         let env ← read
+        let sc : SideCondition (s.restrict _) := SideCondition.LblContextInconsistent "" (env.lbl.cast) (env.corrs.cast)
+        CheckT'.liftTermElab $ emitDefinition `FOO (toExpr sc)
+        log s!"sc: logged inconsistent to FOO"
         pure (.LblContextInconsistent s!"check_subtype': {t1} and {t2} are not comparable" (env.lbl.cast) (env.corrs.cast))
 
 def check_subtype {s : Scope} (t1 t2 : ty (s.restrict _)) : CheckT' s Unit := do

@@ -57,6 +57,9 @@ def prop.pretty (p : prop s) : String :=
   | .pall p1 => "∀ ." ++ p1.pretty
   | .ptrue => "True"
 
+instance : ToString (prop s) where
+  toString := prop.pretty
+
 mutual
 def ty.pretty (t : ty s) : String :=
   match t with

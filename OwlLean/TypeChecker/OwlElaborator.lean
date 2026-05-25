@@ -472,6 +472,7 @@ syntax:max "let" owl_var ":" owl_type "=" owl_tm:min "in" owl_tm:min : owl_tm
 syntax:max "let" "admit" owl_var ":" owl_type "=" owl_tm:min "in" owl_tm:min : owl_tm
 syntax:max "let" "(" owl_var "," owl_var ")" "=" owl_tm:min "in" owl_tm:min : owl_tm
 syntax:max "let" "(" owl_var "," owl_var "," owl_var ")" "=" owl_tm:min "in" owl_tm:min : owl_tm
+syntax:max "let" "(" owl_var "," owl_var "," owl_var "," owl_var ")" "=" owl_tm:min "in" owl_tm:min : owl_tm
 syntax:max "λ" "(" owl_var ":" owl_type ")" ":" owl_type "=>" owl_tm:min : owl_tm
 syntax:max "λ" owl_var "=>" owl_tm:min : owl_tm
 syntax "$" term:max "[" owl_label,* "]" "[" owl_rexp,* "]" "[" owl_type,* "]" "[" owl_tm:min,* "]" : owl_tm
@@ -672,6 +673,10 @@ mutual
     elabTmX (← `(owl_tm| let $v1 = π1 $e in let $v2 = π2 $e in $b)) P Rs D G
   | `(owl_tm| let ($v1:owl_var, $v2:owl_var, $v3:owl_var) = $e:owl_tm  in $b:owl_tm) => do
     elabTmX (← `(owl_tm| let $v1 = π1 $e in let $v2 = π1 (π2 $e) in let $v3 = π2 (π2 $e) in $b)) P Rs D G
+  | `(owl_tm| let ($v1:owl_var, $v2:owl_var, $v3:owl_var, $v4:owl_var) = $e:owl_tm  in $b:owl_tm) => do
+      elabTmX (← `(owl_tm| let $v1 = π1 $e in
+                          let ($v2, $v3, $v4) = π2 $e in
+                          $b)) P Rs D G
   | `(owl_tm| λ ($v:owl_var : $t1:owl_type) : $t2:owl_type => $e:owl_tm) => do
     elabTmX (← `(owl_tm| ((λ $v => $e) : ($t1 -> $t2)))) P Rs D G
   | `(owl_tm| λ $v:owl_var => $e:owl_tm) => do

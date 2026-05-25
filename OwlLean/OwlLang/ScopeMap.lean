@@ -159,6 +159,9 @@ def vec.reverse (v : vec a n) : vec a n :=
   | nil => nil
   | cons x xs => xs.reverse.snoc x
 
+instance [ToString a] : ToString (vec a n) where
+  toString v := toString (v.toList)
+
 end Vec
 
 
@@ -321,6 +324,15 @@ abbrev ScopeMap.lift  {m : ScopeMap N} (n : Fin N)  : ScopeMap.renaming m (Scope
       assumption
     ⟩
 
+abbrev ScopeMap.embed {m : ScopeMap N} (n : Fin N) : ScopeMap.renaming m (m.bump n) :=
+  ⟨ fun x i =>
+    if h : n = x then
+      by subst h; simp; exact (i.castLE (by grind))
+    else by
+      rw [ScopeMap.get_bump_ne]
+      apply i
+      assumption
+  ⟩
 
 
 structure ScopeFunctor (N : Nat)  (x : Fin N)  where

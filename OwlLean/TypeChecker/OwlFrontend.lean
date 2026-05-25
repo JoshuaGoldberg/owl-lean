@@ -45,7 +45,7 @@ def doTc (n : TSyntax `ident) (s : Sequent) := do
     let eTy <- mkAppM ``tm #[
       <- mkAppM ``ScopeMap.ofList #[toExpr [s.l, s.r, s.d, s.m]]
     ]
-    emitDefinition n.getId eTy (toExpr $ s.e)
+    emitDefinition n.getId (toExpr $ s.e)
   | .err e => do
     logError s!"err: {e.2}"
     match e.1 with
@@ -121,31 +121,33 @@ def elabLabelEntries' (stx : List (TSyntax `label_entry)) (L : TCtx) (ctx : lbl_
   | e :: es => do
     match ← elabLabelEntry e L with
     | .new_label n cs l => do
-      let l' : label ((ScopeMap.ofList [L.length + 1])) := l.rename (((ScopeMap.ofList [L.length]).lift #L))
-      let L' := n :: L
+      let l' : label ((ScopeMap.ofList [L.length + 1])) := l.rename (((ScopeMap.ofList [L.length]).embed #L))
+      let L' := L ++ [n]
       let ctx' : lbl_ctx (ScopeMap.ofList [L'.length]) :=
-        Vec.vec.cons (n, (cs, l', .MetaLbl)) (ctx.map fun _ (n, (c, l, ty)) => (n, (c, l.rename (((ScopeMap.ofList [L.length]).lift #L)), ty)))
+       ((ctx.map fun _ (n, (c, l, ty)) => (n, (c, l.rename (((ScopeMap.ofList [L.length]).embed #L)), ty))).snoc (n, (cs, l', .MetaLbl))).cast (by simp [L']) (by simp [L']; rw [List.length_append]; simp)
       let corrs' : corr_ctx (ScopeMap.ofList [L'.length]) :=
-        corrs.map fun c => c.rename (((ScopeMap.ofList [L.length]).lift #L))
+        corrs.map fun c => c.rename ((((ScopeMap.ofList [L.length]).embed #L)).castR (by
+           simp [L']
+           rw [List.length_append]
+           simp
+           apply ScopeMap.ext
+           intros x
+           rw [ScopeMap.ofList_get]
+           simp; grind
+           ))
       elabLabelEntries' es L' ctx' corrs'
     | .corruption c => do
       elabLabelEntries' es L ctx (c :: corrs)
 
 def elabLabelEntries (stx : List (TSyntax `label_entry)) : TermElabM ((L' : TCtx) × lbl_ctx (ScopeMap.ofList [L'.length]) × corr_ctx (ScopeMap.ofList [L'.length])) := do
-  let ⟨L, Lctx, corrs⟩ <- elabLabelEntries' stx [] .nil []
-  let L' : TCtx := L.reverse
-  have h : ScopeMap.ofList [L'.length] = (ScopeMap.ofList [L.length]) := by
-    simp [L']; rw [List.length_reverse]
-  let Lctx' : lbl_ctx (ScopeMap.ofList [L'.length]) := (h ▸ Lctx.reverse)
-  let corrs' : corr_ctx (ScopeMap.ofList [L'.length]) := (h ▸ corrs.reverse)
-  return ⟨L', Lctx', corrs'⟩
+  elabLabelEntries' stx [] .nil []
 
 
 def elabRvarEntries (stx : List (TSyntax `ident)) (L : TCtx) (R : TCtx) : TermElabM (TCtx) :=
   match stx with
   | [] => return R
   | e :: es => do
-    let R' := e.getId.toString :: R
+    let R' := R ++ [e.getId.toString]
     elabRvarEntries es L R'
 
 declare_syntax_cat ty_var_entry
@@ -164,19 +166,25 @@ def elabTyVarEntries' (stx : List (TSyntax `ty_var_entry)) (L : TCtx) (R : TCtx)
   | [] => return ⟨D, ctx⟩
   | e :: es => do
     let (n, t) <- elabTyVarEntry e L R D
-    let t' := t.rename (((ScopeMap.ofList [L.length, R.length, D.length]).lift #Ty))
-    let D' := n :: D
+    let t' := t.rename (((ScopeMap.ofList [L.length, R.length, D.length]).embed #Ty))
+    let D' := D ++ [n]
     let ctx' : ty_var_ctx (ScopeMap.ofList [L.length, R.length, D'.length]) :=
-       Vec.vec.cons (n, t') (ctx.map fun _ (n, t) => (n, t.rename (((ScopeMap.ofList [L.length, R.length, D.length]).lift #Ty))))
+       ((ctx.map fun _ (n, t) => (n, t.rename (((ScopeMap.ofList [L.length, R.length, D.length]).embed #Ty)))).snoc (n, t')).cast (by simp [D']) (by
+         simp [D']
+         congr 2
+         apply ScopeMap.ext
+         intros x
+         subst D'
+         simp
+         by_cases heq : 2 = x
+         subst heq; simp
+         grind
+         grind
+         )
     elabTyVarEntries' es L R D' ctx'
 
 def elabTyVarEntries (stx : List (TSyntax `ty_var_entry)) (L : TCtx) (R : TCtx) : TermElabM ((D' : TCtx) × ty_var_ctx (ScopeMap.ofList [L.length, R.length, D'.length])) := do
-  let ⟨D, Dctx⟩ <- elabTyVarEntries' stx L R [] .nil
-  let D' : TCtx := D.reverse
-  have h : D'.length = D.length := by
-    simp [D']
-  let Dctx' : ty_var_ctx (ScopeMap.ofList [L.length, R.length, D'.length]) := (h ▸ Dctx.reverse)
-  return ⟨D', Dctx'⟩
+  elabTyVarEntries' stx L R [] .nil
 
 declare_syntax_cat tm_entry
 
@@ -194,18 +202,15 @@ def elabTmEntries' (stx : List (TSyntax `tm_entry)) (L : TCtx) (R : TCtx) (D : T
   | [] => return ⟨M, ctx⟩
   | e :: es => do
     let (n, t) <- elabTmEntry e L R D
-    let M' := n :: M
+    let M' := M ++ [n]
     let ctx' : tm_ctx (ScopeMap.ofList [L.length, R.length, D.length, M'.length]) :=
-       Vec.vec.cons (n, t) ctx
+      (ctx.snoc (n, t)).cast (by simp [M']; grind) (by
+       congr 1
+      )
     elabTmEntries' es L R D M' ctx'
 
 def elabTmEntries (stx : List (TSyntax `tm_entry)) (L : TCtx) (R : TCtx) (D : TCtx) : TermElabM ((M' : TCtx) × tm_ctx (ScopeMap.ofList [L.length, R.length, D.length, M'.length])) := do
-  let ⟨M, Mctx⟩ <- elabTmEntries' stx L R D [] .nil
-  let M' : TCtx := M.reverse
-  have h : M'.length = M.length := by
-    simp [M']
-  let Mctx' : tm_ctx (ScopeMap.ofList [L.length, R.length, D.length, M'.length]) := (h ▸ Mctx.reverse)
-  return ⟨M', Mctx'⟩
+   elabTmEntries' stx L R D [] .nil
 
 declare_syntax_cat owl_tc_ann
 syntax owl_type : owl_tc_ann
@@ -218,6 +223,18 @@ def elabTcAnn (stx : TSyntax `owl_tc_ann) (L R D : TCtx) : TermElabM (Option (ty
     return some t
   | `(owl_tc_ann | ?) => return none
   | _ => throwUnsupportedSyntax
+
+def printSeq (seq : Sequent) : TermElabM Unit := do
+  println! "L: {seq.l}"
+  println! "R: {seq.r}"
+  println! "D: {seq.d}"
+  println! "M: {seq.m}"
+  println! "ref_vars: {seq.ref_vars}"
+  println! "Phi: {seq.Phi}"
+  println! "Psi: {seq.Psi}"
+  println! "Delta: {seq.Delta}"
+  println! "Theta: {seq.Theta}"
+  println! "Gamma: {seq.Gamma}"
 
 elab "#tc" n:ident "[" lvars:(label_entry),* "]" "[" rvars:ident,* "]" "[" tvars:ty_var_entry,* "]" "[" tms:tm_entry,* "]" ":=" "⊢" "{" e:owl_tm "}" ":" t:owl_tc_ann : command => do
   Command.runTermElabM $ fun xs =>
@@ -245,6 +262,7 @@ elab "#tc" n:ident "[" lvars:(label_entry),* "]" "[" rvars:ident,* "]" "[" tvars
         e := tmE
         t := tyE
       }
+      printSeq seq
       doTc n seq
 
 
@@ -258,9 +276,6 @@ elab "#ty" n:ident "[" lvars:ident,* "]" "[" rvars:ident,* "]" "[" tvars:ident,*
   Command.liftTermElabM $ withEnableInfoTree false do
     let t <- elabType t lvars rvars tvars
     emitDefinition n.getId
-       (<- mkAppM ``ty #[
-          <- mkAppM ``ScopeMap.ofList #[ toExpr [lvars.length, rvars.length, tvars.length] ]
-       ])
        (toExpr t)
     reportSuccess
 
