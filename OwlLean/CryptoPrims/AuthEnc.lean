@@ -12,7 +12,7 @@ import OwlLean.CryptoPrims.Utils
 
 #ty ENC_inner [lK, lM] [] [tau, alphaK] :=
    { key : alphaK,
-     enc : (alphaK * tau) -> Public,
+     enc : if corr (lK) then (Public * Public) -> Public else (alphaK * tau) -> Public,
      dec : if corr (lK) then (Public * Public) -> (Public + unit) else (alphaK * Public) -> (tau + unit)
      }
 
@@ -25,7 +25,7 @@ import OwlLean.CryptoPrims.Utils
     let k : Data lK   = ⟦genKey⟧ (rnd) in
     pack (Data lK ,
       { key := k,
-        enc := λ (x : (Data lK * tau)) : Public =>
+        enc := λ (x : (Public * Public)) : Public =>
                 let (a, b) = x in
                 let enc_rnd = sample (⟦enc_rand_bits⟧(secparam)) in
                 ⟦enc⟧ (a, (b : Data lM), enc_rnd),

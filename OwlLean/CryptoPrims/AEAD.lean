@@ -8,7 +8,7 @@ import OwlLean.CryptoPrims.Utils
    { key : alphaK,
      get_nonce : unit -> Public,
      inc_nonce : unit -> unit,
-     enc : (alphaK * tau * AAD) -> Public,
+     enc : if corr (lK) then (Public * Public * Public) -> Public else (alphaK * tau * AAD) -> Public,
      dec : if corr (lK) then (Public * Public * Public * Public) -> ((Public * Public) + unit) else (alphaK * Public * Public * Public) -> ((tau * AAD) + unit)
      }
 
@@ -34,7 +34,7 @@ import OwlLean.CryptoPrims.Utils
       { key := k,
         get_nonce := get_nonce,
         inc_nonce := inc_nonce,
-        enc := λ (x : (Data lK * tau * AAD)) : Public =>
+        enc := λ (x : (Public * Public * Public)) : Public =>
           let (k, m, aad) = x in
           let n = get_nonce() in
           inc_nonce();
@@ -46,6 +46,7 @@ import OwlLean.CryptoPrims.Utils
       })
 } : $ AEAD [lK, lM] [] [tau, AAD]
 
+set_option maxRecDepth 100000 in
 
 #tc AEAD_IDEAL [lK, lM ⊏ lK] [] [tau <: Data lM, AAD <: Data ⊥] [] := ⊢ {
     if corr (lK) then
@@ -65,42 +66,19 @@ import OwlLean.CryptoPrims.Utils
         set_map (tau * AAD) L (⟦concat⟧(n, c)) ⟨m, aad⟩;
         c
       in
-      admit
-      /-
-      let rnd = sample secparam in
-      let k : Data lK = ⟦genKey⟧ (rnd) in
-      let L = mk_map (tau * AAD) in
-      let nonce_cell : Ref Public = alloc (sample secparam) in
-      type Key = Data lK in
-      let get_nonce' : unit -> Public = λ (_ : unit) : Public => !nonce_cell in
-      let inc_nonce' : unit -> Public = λ (_ : unit) : Public =>
-        let n = ⟦inc⟧(!nonce_cell) in
-        get_val n = n in
-        nonce_cell := n;
-        n in
-      let enc' = λ (x : (Data lK * tau * AAD)) : Public =>
-        let n = !nonce_cell in
-        let c = sample (zero ((π1 (π2 x)) : Data lM)) in
-        set_map (tau * AAD) L c ⟨π1 (π2 x), π2 (π2 x)⟩;
-        let n' = ⟦inc⟧(n) in
-        get_val n' = n' in
-        nonce_cell := n';
-        c in
-      let dec' : if corr (lK) then (Public * Public * Public) -> ((Public * Public) + unit) else (Data lK * Public * Public) -> ((tau * AAD) + unit) =
-        corr_case lK in
-          if corr (lK) then
-            λ (x : (Public * Public * Public)) : ((Public * Public) + unit) =>
-              let decResult = ⟦dec⟧(π1 x, π1 (π2 x), π2 (π2 x)) in
-              if ⟦isError⟧(decResult) then ı2 () else ı1 ⟨⟦extractMsg⟧(decResult), ⟦extractAAD⟧(decResult)⟩
-          else
-            λ (x : (Data lK * Public * Public)) : ((tau * AAD) + unit) =>
-              get_map (tau * AAD) L (π1 (π2 x)) in
-      pack (Key,
+      let dec = λ (x : (Data lK * Public * Public * Public)) : ((tau * AAD) + unit) =>
+        let (k, c, n, aad) = x in
+        case get_map (tau * AAD) L (⟦concat⟧(n, c)) with
+        | inl res =>
+           let (m, aad') = res in
+           if ⟦eq⟧(aad, (aad' : Data ⊥)) then ı1 ⟨m, aad'⟩ else ı2 ()
+        | inr _ => ı2 ()
+      in
+      pack (Data lK,
         { key := k,
-          get_nonce := get_nonce',
-          inc_nonce := inc_nonce',
-          enc := enc',
-          dec := dec'
+          get_nonce := get_nonce,
+          inc_nonce := inc_nonce,
+          enc := enc,
+          dec := dec
         })
-      -/
 } : $ AEAD [lK, lM] [] [tau, AAD]
