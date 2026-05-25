@@ -115,7 +115,7 @@ def elabLabelEntry (stx : TSyntax `label_entry) (L : TCtx) : TermElabM (label_en
 
 
 
-def elabLabelEntries (stx : List (TSyntax `label_entry)) (L : TCtx) (ctx : lbl_ctx (ScopeMap.ofList [L.length])) (corrs : corr_ctx (ScopeMap.ofList [L.length])): TermElabM ((L' : TCtx) × lbl_ctx (ScopeMap.ofList [L'.length]) × corr_ctx (ScopeMap.ofList [L'.length])) :=
+def elabLabelEntries' (stx : List (TSyntax `label_entry)) (L : TCtx) (ctx : lbl_ctx (ScopeMap.ofList [L.length])) (corrs : corr_ctx (ScopeMap.ofList [L.length])): TermElabM ((L' : TCtx) × lbl_ctx (ScopeMap.ofList [L'.length]) × corr_ctx (ScopeMap.ofList [L'.length])) :=
   match stx with
   | [] => return ⟨L, ctx, corrs⟩
   | e :: es => do
@@ -127,9 +127,18 @@ def elabLabelEntries (stx : List (TSyntax `label_entry)) (L : TCtx) (ctx : lbl_c
         Vec.vec.cons (n, (cs, l', .MetaLbl)) (ctx.map fun _ (n, (c, l, ty)) => (n, (c, l.rename (((ScopeMap.ofList [L.length]).lift #L)), ty)))
       let corrs' : corr_ctx (ScopeMap.ofList [L'.length]) :=
         corrs.map fun c => c.rename (((ScopeMap.ofList [L.length]).lift #L))
-      elabLabelEntries es L' ctx' corrs'
+      elabLabelEntries' es L' ctx' corrs'
     | .corruption c => do
-      elabLabelEntries es L ctx (c :: corrs)
+      elabLabelEntries' es L ctx (c :: corrs)
+
+def elabLabelEntries (stx : List (TSyntax `label_entry)) : TermElabM ((L' : TCtx) × lbl_ctx (ScopeMap.ofList [L'.length]) × corr_ctx (ScopeMap.ofList [L'.length])) := do
+  let ⟨L, Lctx, corrs⟩ <- elabLabelEntries' stx [] .nil []
+  let L' : TCtx := L.reverse
+  have h : ScopeMap.ofList [L'.length] = (ScopeMap.ofList [L.length]) := by
+    simp [L']; rw [List.length_reverse]
+  let Lctx' : lbl_ctx (ScopeMap.ofList [L'.length]) := (h ▸ Lctx.reverse)
+  let corrs' : corr_ctx (ScopeMap.ofList [L'.length]) := (h ▸ corrs.reverse)
+  return ⟨L', Lctx', corrs'⟩
 
 
 def elabRvarEntries (stx : List (TSyntax `ident)) (L : TCtx) (R : TCtx) : TermElabM (TCtx) :=
@@ -150,7 +159,7 @@ def elabTyVarEntry (stx : TSyntax `ty_var_entry) (L : TCtx) (R : TCtx) (D : TCtx
     return (n.getId.toString, t)
   | _ => throwUnsupportedSyntax
 
-def elabTyVarEntries (stx : List (TSyntax `ty_var_entry)) (L : TCtx) (R : TCtx) (D : TCtx) (ctx : ty_var_ctx (ScopeMap.ofList [L.length, R.length, D.length])) : TermElabM ((D' : TCtx) × ty_var_ctx (ScopeMap.ofList [L.length, R.length, D'.length])) :=
+def elabTyVarEntries' (stx : List (TSyntax `ty_var_entry)) (L : TCtx) (R : TCtx) (D : TCtx) (ctx : ty_var_ctx (ScopeMap.ofList [L.length, R.length, D.length])) : TermElabM ((D' : TCtx) × ty_var_ctx (ScopeMap.ofList [L.length, R.length, D'.length])) :=
   match stx with
   | [] => return ⟨D, ctx⟩
   | e :: es => do
@@ -159,7 +168,15 @@ def elabTyVarEntries (stx : List (TSyntax `ty_var_entry)) (L : TCtx) (R : TCtx) 
     let D' := n :: D
     let ctx' : ty_var_ctx (ScopeMap.ofList [L.length, R.length, D'.length]) :=
        Vec.vec.cons (n, t') (ctx.map fun _ (n, t) => (n, t.rename (((ScopeMap.ofList [L.length, R.length, D.length]).lift #Ty))))
-    elabTyVarEntries es L R D' ctx'
+    elabTyVarEntries' es L R D' ctx'
+
+def elabTyVarEntries (stx : List (TSyntax `ty_var_entry)) (L : TCtx) (R : TCtx) : TermElabM ((D' : TCtx) × ty_var_ctx (ScopeMap.ofList [L.length, R.length, D'.length])) := do
+  let ⟨D, Dctx⟩ <- elabTyVarEntries' stx L R [] .nil
+  let D' : TCtx := D.reverse
+  have h : D'.length = D.length := by
+    simp [D']
+  let Dctx' : ty_var_ctx (ScopeMap.ofList [L.length, R.length, D'.length]) := (h ▸ Dctx.reverse)
+  return ⟨D', Dctx'⟩
 
 declare_syntax_cat tm_entry
 
@@ -172,7 +189,7 @@ def elabTmEntry (stx : TSyntax `tm_entry) (L : TCtx) (R : TCtx) (D : TCtx)  : Te
     return (n.getId.toString, t)
   | _ => throwUnsupportedSyntax
 
-def elabTmEntries (stx : List (TSyntax `tm_entry)) (L : TCtx) (R : TCtx) (D : TCtx) (M : TCtx) (ctx : tm_ctx (ScopeMap.ofList [L.length, R.length, D.length, M.length])) : TermElabM ((G' : TCtx) × tm_ctx (ScopeMap.ofList [L.length, R.length, D.length, G'.length])) :=
+def elabTmEntries' (stx : List (TSyntax `tm_entry)) (L : TCtx) (R : TCtx) (D : TCtx) (M : TCtx) (ctx : tm_ctx (ScopeMap.ofList [L.length, R.length, D.length, M.length])) : TermElabM ((G' : TCtx) × tm_ctx (ScopeMap.ofList [L.length, R.length, D.length, G'.length])) :=
   match stx with
   | [] => return ⟨M, ctx⟩
   | e :: es => do
@@ -180,7 +197,15 @@ def elabTmEntries (stx : List (TSyntax `tm_entry)) (L : TCtx) (R : TCtx) (D : TC
     let M' := n :: M
     let ctx' : tm_ctx (ScopeMap.ofList [L.length, R.length, D.length, M'.length]) :=
        Vec.vec.cons (n, t) ctx
-    elabTmEntries es L R D M' ctx'
+    elabTmEntries' es L R D M' ctx'
+
+def elabTmEntries (stx : List (TSyntax `tm_entry)) (L : TCtx) (R : TCtx) (D : TCtx) : TermElabM ((M' : TCtx) × tm_ctx (ScopeMap.ofList [L.length, R.length, D.length, M'.length])) := do
+  let ⟨M, Mctx⟩ <- elabTmEntries' stx L R D [] .nil
+  let M' : TCtx := M.reverse
+  have h : M'.length = M.length := by
+    simp [M']
+  let Mctx' : tm_ctx (ScopeMap.ofList [L.length, R.length, D.length, M'.length]) := (h ▸ Mctx.reverse)
+  return ⟨M', Mctx'⟩
 
 declare_syntax_cat owl_tc_ann
 syntax owl_type : owl_tc_ann
@@ -198,12 +223,12 @@ elab "#tc" n:ident "[" lvars:(label_entry),* "]" "[" rvars:ident,* "]" "[" tvars
   Command.runTermElabM $ fun xs =>
     withEnableInfoTree false do
       let lvars := lvars.getElems.toList
-      let ⟨L, Lctx, corrs⟩ <- elabLabelEntries lvars [] .nil []
+      let ⟨L, Lctx, corrs⟩ <- elabLabelEntries lvars
       let rvars := rvars.getElems.toList
       let R <- elabRvarEntries rvars L []
       let tvars := tvars.getElems.toList
-      let ⟨D, Dctx⟩ <- elabTyVarEntries tvars L R [] .nil
-      let ⟨M, Mctx⟩ <- elabTmEntries tms.getElems.toList L R D [] .nil
+      let ⟨D, Dctx⟩ <- elabTyVarEntries tvars L R
+      let ⟨M, Mctx⟩ <- elabTmEntries tms.getElems.toList L R D
       let tmE ← elabTm e L R D M
       let tyE ← elabTcAnn t L R D
       let seq : Sequent := {

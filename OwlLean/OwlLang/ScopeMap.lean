@@ -149,6 +149,16 @@ theorem vec.ofList_get (xs : List a) (i : Fin xs.length) :
       simp [get]
       apply ih
 
+def vec.snoc (v : vec a n) (x : a) : vec a (n + 1) :=
+  match v with
+  | nil => cons x nil
+  | cons y ys => cons y (ys.snoc x)
+
+def vec.reverse (v : vec a n) : vec a n :=
+  match v with
+  | nil => nil
+  | cons x xs => xs.reverse.snoc x
+
 end Vec
 
 
