@@ -12,6 +12,16 @@ open Vec
 
 mutual
 
+def Owl.label.simplify (l : label s) : label s :=
+  match l with
+  | .latl _ => l
+  | .var_label _ _ => l
+  | .ljoin (.latl .bot) l2 => l2
+  | .ljoin l1 (.latl .bot) => l1
+  | .ljoin l1 l2 => .ljoin (l1.simplify) (l2.simplify)
+  | .lmeet l1 l2 => .lmeet (l1.simplify) (l2.simplify)
+
+
 @[simp]
 def Owl.ty.simplify (t : ty s) (corrs : corr_ctx (s.restrict _)) : ty s :=
   match t with
@@ -19,8 +29,8 @@ def Owl.ty.simplify (t : ty s) (corrs : corr_ctx (s.restrict _)) : ty s :=
   | .var_ty _ _ => t
   | .Any => t
   | .Unit => t
-  | .RData _ _ => t
-  | .Data _ => t
+  | .RData l r => .RData (l.simplify) r
+  | .Data l => .Data (l.simplify)
   | .Public => t
   | .refined t p => .refined (t.simplify corrs) p
   | .Ref t0 => .Ref t0
@@ -458,7 +468,6 @@ def doSimp (e : Expr) : TermElabM Expr := do
 
 end Proof
 
-noncomputable def foo := 3
 
 def emitDefinition (name : Name) (value : Expr) : TermElabM Unit := do
   let value ← instantiateMVars value
@@ -734,9 +743,6 @@ partial def check_subtype'  {s : Scope} (t1 t2 : ty (s.restrict _)) : CheckT' s 
         pure (.WithLabel cs (lab.cast) ((r1.ScAnd r2).cast (by simp [ScopeMap.bump_restrict])))
       | _, _ => do
         let env ← read
-        let sc : SideCondition (s.restrict _) := SideCondition.LblContextInconsistent "" (env.lbl.cast) (env.corrs.cast)
-        CheckT'.liftTermElab $ emitDefinition `FOO (toExpr sc)
-        log s!"sc: logged inconsistent to FOO"
         pure (.LblContextInconsistent s!"check_subtype': {t1} and {t2} are not comparable" (env.lbl.cast) (env.corrs.cast))
 
 def check_subtype {s : Scope} (t1 t2 : ty (s.restrict _)) : CheckT' s Unit := do
