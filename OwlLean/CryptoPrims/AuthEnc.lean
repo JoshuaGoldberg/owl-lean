@@ -3,12 +3,33 @@ import OwlLean.CryptoPrims.Utils
 
 /-
 
+  Base assumption:
+
+  BASE_ENC_REAL :=
+
   let k = gen() in
-  let enc = fun
+  (fun x => ⟦enc⟧(k, x), fun x => ⟦dec⟧(k, x))
 
+  ~=
 
+  BASE_ENC_IDEAL :=
+   if corr(lK) then
+    BASE_ENC_REAL
+  else
+    let L := alloc [] in
+    (fun x =>
+      let c = ⟦rand⟧(len(x)) in
+      L[c] := x; x,
+    fun x => L[x]
+    )
+
+  :
+
+  (tau -> Public) * (Public -> Option tau)
 
 -/
+
+-- Typed real functionality:
 
 #ty ENC_inner [lK, lM] [] [tau, alphaK] :=
    { key : alphaK,
@@ -35,6 +56,21 @@ import OwlLean.CryptoPrims.Utils
       })
 } : $ ENC [lK, lM] [] [tau]
 
+/-
+
+
+  Reduction R:
+
+  fun ENC_DEC =>
+    let k = gen() in
+    (k, fun k' x => if k = k' then ENC_DEC.1 x, fun k' x => if k = k' then ENC_DEC.2 x)
+
+-/
+
+-- Lemma 1: R BASE_ENC_REAL ~= ENC_REAL
+
+
+-- Typed ideal functionality:
 
 #tc ENC_IDEAL [lK ⊒ ⊥, lM ⊏ lK] [] [tau <: Data lM] [] :=  ⊢ {
     if corr (lK) then
@@ -61,6 +97,8 @@ import OwlLean.CryptoPrims.Utils
     }
       :
       $ ENC [lK, lM] [] [tau]
+
+-- Lemma 2: not corr(lK) ==> R BASE_ENC_IDEAL ~= ENC_IDEAL
 
 --- Alternate version with refinement variables ---
 
