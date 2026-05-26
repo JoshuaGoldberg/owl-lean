@@ -153,18 +153,3 @@ import OwlLean.CryptoPrims.Utils
     }
     :
     $ ENC' [lK, lM] [] [tau]
-
--- A multi-key assumption
-
-
-
-#ty ENC_MULTI [lK, lM] [] [tau] :=
-    (∃ alphaK <: (Data lK) . {
-      genKey : (unit -> alphaK),
-      enc : if corr (lK) then (Public * Public) -> Public else (alphaK * tau) -> Public,
-      dec : if corr (lK) then (Public * Public) -> (Public + unit) else (alphaK * Public) -> (tau + unit)
-    })
-
--- ENC_MULTI can be filled in similar to ENC_IDEAL by keeping track of the list of keys in scope.
--- We then maintain a mapping from keys and ciphertexts to messages.
--- When we encrypt, we look up the value in the mapping by using the key/message and zero-ed out ciphertext.
